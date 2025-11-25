@@ -324,7 +324,7 @@ def generate_pdf_run_list(excel_path, pdf_path, config, history, fragmentation_m
                 df_sheet[col_order_num] = df_sheet[col_order_num].astype(str).fillna('N/A')
                 df_sheet[col_base_job] = df_sheet[col_base_job].astype(str).fillna('N/A')
                 
-                df_sheet.sort_values(by=[col_cost_center, col_order_num, col_base_job], inplace=True)
+                df_sheet.sort_values(by=[col_base_job, col_cost_center, col_order_num], inplace=True)
                 df_sheet.reset_index(drop=True, inplace=True) # IMPORTANT
             except Exception as e:
                 print(f"⚠️ PDF Err: Could not sort sheet '{sheet_name}'. {e}"); continue
