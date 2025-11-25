@@ -1,0 +1,56 @@
+{
+  "kind" : "PDF Snake Exported Steps.json",
+  "xtools" : [
+    {
+      "kind" : "steps",
+      "name" : "25up GangRun v4",
+      "packedSteps" : [
+        {
+          "units" : "inches",
+          "paperWidth" : "13",
+          "paperHeight" : "19",
+          "leftMargin" : "0",
+          "topMargin" : "0",
+          "verticalGutterWidth" : "0.25",
+          "horizontalGutterWidth" : "0.25",
+          "center" : true,
+          "pageOrder" : "stack",
+          "doubleSided" : true,
+          "repeat" : "1",
+          "newStackOrder" : true,
+          "cropMarks" : true,
+          "marksInGutters" : false,
+          "centerMarks" : false,
+          "lineLength" : "0.1",
+          "lineThickness" : "0.01",
+          "lineDistance" : "0.125",
+          "fourColorBlack" : false,
+          "whiteBorder" : false,
+          "bleeds" : "fixed",
+          "fixedBleedLeft" : "0.125",
+          "fixedBleedTop" : "0.125",
+          "direction" : "leftToRight",
+          "columns" : "5",
+          "rows" : "5",
+          "preserveAspectRatio" : true,
+          "kind" : "Grid",
+          "scale" : false
+        },
+        {
+          "units" : "inches",
+          "kind" : "HeaderFooter",
+          "text" : "[file-name]  *  Sheet [page-number] of [page-count]",
+          "fontName" : "Helvetica-Bold",
+          "fontSizeInPoints" : "30",
+          "row" : "bottom",
+          "column" : "center",
+          "alternateSides" : false,
+          "margins" : "0.05",
+          "pageRange" : "all"
+        }
+      ],
+      "modTimestamp" : "2025-08-22T18:01:59.167Z",
+      "pushed" : false
+    }
+  ]
+}
