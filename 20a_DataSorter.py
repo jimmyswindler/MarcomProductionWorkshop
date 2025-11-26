@@ -193,17 +193,23 @@ def organize_by_product_id(input_file, config):
             if len(jobs_to_move_qty) > 0: print(f"- Moving {len(jobs_to_move_qty)} jobs (> {qty_threshold}) to '25up layout'."); df.loc[df[col_base_job].isin(jobs_to_move_qty), 'Category'] = '25up layout' # Use print
     else: print("- Skipping high quantity re-categorization.") # Use print
     
-    url_columns = [col for col in df.columns if 'url' in col.lower()]; present_url_columns = [col for col in url_columns if col in df.columns]
-    if present_url_columns:
-        has_no_url_content = df[present_url_columns].isnull().all(axis=1) | (df[present_url_columns].astype(str).apply(lambda x: x.str.strip() == '').all(axis=1))
-        # --- MODIFICATION: This rule logic was 'BounceBack'/'BusinessCard', which was too vague.
-        # It should match the actual category names from the config.
+    # --- URL Rule: Move items with blank 1-up URL to PrintOnDemand ---
+    col_url = config.get('column_names', {}).get('one_up_output_file_url')
+    
+    if col_url and col_url in df.columns:
+        # Check specifically for the 1-up URL column being blank/empty
+        has_no_url_content = df[col_url].isnull() | (df[col_url].astype(str).str.strip() == '')
+        
+        # Only apply to specific categories
         eligible_url_mask = df['Category'].isin(['12ptBounceBack', '16ptBusinessCard']) & has_no_url_content
-        # --- END MODIFICATION ---
+        
         if eligible_url_mask.sum() > 0:
             jobs_to_move_url = df.loc[eligible_url_mask, col_base_job].unique()
-            if len(jobs_to_move_url) > 0: print(f"- Moving {len(jobs_to_move_url)} jobs with empty URLs to 'PrintOnDemand'."); df.loc[df[col_base_job].isin(jobs_to_move_url), 'Category'] = 'PrintOnDemand' # Use print
-    else: print("- No URL columns found. Skipping URL rule.") # Use print
+            if len(jobs_to_move_url) > 0: 
+                print(f"- Moving {len(jobs_to_move_url)} jobs with empty '{col_url}' to 'PrintOnDemand'.")
+                df.loc[df[col_base_job].isin(jobs_to_move_url), 'Category'] = 'PrintOnDemand'
+    else: 
+        print(f"- Column '{col_url}' not found or not configured. Skipping URL rule.")
 
     # --- Handle Uncategorized Items ---
     # This block now correctly catches all items that are 'Uncategorized'
