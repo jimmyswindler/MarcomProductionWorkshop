@@ -303,21 +303,26 @@ def main_workflow():
         s2c_args = [bundled_report_path, dynamic_job_folder, json.dumps(config), json.dumps(fragmentation_map)]
         run_script(script_paths['pdfgen'], s2c_args)
 
-        # --- Stage 3a: Generate Job Collateral ---
-        utils_ui.print_section("Stage 3a: Generate Job Collateral")
+        # --- Stage 3a.1: Acquire Job Assets ---
+        utils_ui.print_section("Stage 3a.1: Acquire Job Assets")
+        s3a1_args = [bundled_report_path, oneup_files_dir]
+        run_script(script_paths['acquire_assets'], s3a1_args)
+
+        # --- Stage 3a.2: Generate Job Tickets ---
+        utils_ui.print_section("Stage 3a.2: Generate Job Tickets")
         s3a_config_subset = {
             'WATERMARK_PATH': paths.get('watermark_path'),
             'CALIBRI_LIGHT_PATH': paths.get('calibri_light_font_path'),
             'CALIBRI_BOLD_PATH': paths.get('calibri_bold_font_path')
         }
         
-        s3a_args = [
+        s3a2_args = [
             bundled_report_path, 
             oneup_files_dir,
             job_tickets_dir,
             json.dumps(s3a_config_subset) 
         ]
-        run_script(script_paths['collateral'], s3a_args)
+        run_script(script_paths['generate_tickets'], s3a2_args)
         
         # --- Stage 3b: Prepare Press Files ---
         utils_ui.print_section("Stage 3b: Prepare Press Files")

@@ -1,13 +1,14 @@
 paths:
   scripts:
     collect: './10_DataCollection.py'
-    sort: './20a_DataSorter.py'
-    bundle: './20b_DataBundler.py'
-    pdfgen: './30_PdfRunlistGenerator.py'
-    collateral: './40_GenerateJobCollateral.py'
-    pressprep: './60_PreparePressFiles.py'
-    impose: './70_GR_Imposition_5x5_BB_BC.py'
-    email: './80_email.py'
+    sort: './20_DataSorter.py'
+    bundle: './30_DataBundler.py'
+    pdfgen: './40_PdfRunlistGenerator.py'
+    acquire_assets: './50_AcquireJobAssets.py'
+    generate_tickets: './60_GenerateJobTickets.py'
+    pressprep: './70_PreparePressFiles.py'
+    impose: './80_GR_Imposition_5x5_BB_BC.py'
+    email: './90_email.py'
 
   stage1_collect:
     input_dir: './_REPORT_INPUT'

@@ -1,13 +1,9 @@
-# 40_GenerateJobCollateral.py
 import os
 import time
 import shutil
 import re
-import requests
 import pandas as pd
 import traceback
-import tempfile
-import concurrent.futures
 import math
 import sys
 import argparse
@@ -16,7 +12,7 @@ from itertools import groupby
 from datetime import datetime, timedelta
 from io import BytesIO
 
-import utils_ui # <--- New UI Utility
+import utils_ui
 
 # PDF Libraries
 try:
@@ -47,18 +43,6 @@ def clean_text(value):
     for unicode_char, ascii_char in replacements.items(): text = text.replace(unicode_char, ascii_char)
     text = re.sub(r'[\x00-\x1F\x7F-\x9F]', '', text)
     return re.sub(r'\s+', ' ', text).strip()
-
-def download_pdf(url, filepath):
-    try:
-        response = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, stream=True, timeout=30)
-        response.raise_for_status()
-        os.makedirs(os.path.dirname(filepath), exist_ok=True)
-        with open(filepath, 'wb') as f:
-            for chunk in response.iter_content(chunk_size=8192): f.write(chunk)
-        return True
-    except Exception as e:
-        # utils_ui.print_error(f"Download failed for {url}: {e}") # Suppress noisy logs inside worker
-        return False
 
 def create_proof_in_memory(input_path, filename_text, order_number, sku="", qty=""):
     doc = None
@@ -399,11 +383,6 @@ def generate_ticket_pymupdf(ticket_rows, base_job_number, gang_run_name=None, to
         y = line_y + (0.2 * 72) + 0.05 * 72
     return doc
 
-def download_worker(task):
-    idx, url, path = task
-    try: return (idx, path) if download_pdf(url, path) else (idx, None)
-    except Exception as e: return idx, None
-
 def process_dataframe(df, files_path, tickets_path, sheet_name, watermark_path=None):
     is_gang_run = GANG_RUN_TRIGGER in sheet_name.upper()
     job_type = "GANG RUN" if is_gang_run else "STANDARD"
@@ -423,49 +402,8 @@ def process_dataframe(df, files_path, tickets_path, sheet_name, watermark_path=N
     
     global_counts = df.groupby('base_job_number').size().to_dict()
     total_counts_map = {str(k): v for k, v in global_counts.items()}
-    start_time = time.time()
     
-    process_rows(df, files_path, tickets_path, sheet_start_time=start_time, total_counts_map=total_counts_map, watermark_path=watermark_path, sheet_name=sheet_name)
-    utils_ui.print_info(f"Completed sheet '{sheet_name}'.")
-
-def process_rows(rows, files_path, tickets_path, sheet_start_time=0, total_counts_map=None, watermark_path=None, sheet_name=None):
-    rows_with_index = list(rows.reset_index().to_dict('records'))
-    download_tasks = []
-    
-    for row in rows_with_index:
-        file_base = sanitize_filename(str(row.get("job_ticket_number")))
-        row['file_base'] = file_base
-        url = row.get("1-up_output_file_url", "")
-        dest_path = os.path.join(files_path, f"{row['file_base']}.pdf")
-
-        if url and isinstance(url, str):
-            if url.startswith('http'): 
-                row['download_status'] = 'pending'
-                download_tasks.append((row['index'], url, dest_path))
-            elif os.path.exists(url):
-                try: 
-                    shutil.copy2(url, dest_path); row['downloaded_production_path'] = dest_path; row['download_status'] = 'success'
-                except Exception: row['download_status'] = 'failed'
-            else: row['download_status'] = 'no_url'
-        else: row['download_status'] = 'no_url'        
-
-    if download_tasks:
-        utils_ui.print_info(f"Starting download of {len(download_tasks)} files...")
-        with utils_ui.create_progress() as progress:
-            task = progress.add_task("Downloading Artwork...", total=len(download_tasks))
-            with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
-                futures = [executor.submit(download_worker, t) for t in download_tasks]
-                results_map = {}
-                for future in concurrent.futures.as_completed(futures):
-                    idx, path = future.result()
-                    results_map[idx] = path
-                    progress.update(task, advance=1)
-        
-        for row in rows_with_index:
-            if row['download_status'] == 'pending':
-                path = results_map.get(row['index'])
-                row['downloaded_production_path'], row['download_status'] = (path, 'success') if path else (None, 'failed')
-
+    rows_with_index = list(df.reset_index().to_dict('records'))
     rows_with_index.sort(key=lambda r: str(r.get("job_ticket_number", "")))
     
     grouped_jobs = []
@@ -488,8 +426,11 @@ def process_rows(rows, files_path, tickets_path, sheet_start_time=0, total_count
                     final_doc = generate_ticket_pymupdf(ticket_rows, base_job_num, gang_run_name=None, total_counts_map=total_counts_map, sheet_name=sheet_name, watermark_path=watermark_path)
 
                     for row in ticket_rows:
-                        if row['download_status'] == 'success':
-                            production_artwork_path = row['downloaded_production_path']
+                        # Logic to find the downloaded file
+                        file_base = sanitize_filename(str(row.get("job_ticket_number")))
+                        production_artwork_path = os.path.join(files_path, f"{file_base}.pdf")
+                        
+                        if os.path.exists(production_artwork_path):
                             proof_source_path = production_artwork_path
                             sku_val, qty_val = clean_text(row.get('sku')), clean_text(row.get('quantity_ordered'))
                             proof_doc = create_proof_in_memory(proof_source_path, production_artwork_path, str(row.get("order_number")), sku=sku_val, qty=qty_val)
@@ -506,9 +447,9 @@ def process_rows(rows, files_path, tickets_path, sheet_start_time=0, total_count
                 
                 progress.update(ticket_task, advance=1)
 
-def main(input_excel_path, files_base_path, tickets_base_path, central_config_json):
+def main(input_excel_path, files_base_folder, tickets_base_folder, central_config_json):
     utils_ui.setup_logging(None)
-    utils_ui.print_banner("40 - Job Collateral Generation")
+    utils_ui.print_banner("40b - Generate Job Tickets")
     start_time = time.time()
 
     try: central_config = json.loads(central_config_json)
@@ -518,8 +459,7 @@ def main(input_excel_path, files_base_path, tickets_base_path, central_config_js
     if watermark_path: utils_ui.print_info(f"Watermark: {os.path.basename(watermark_path)}")
 
     try:
-        os.makedirs(files_base_path, exist_ok=True)
-        os.makedirs(tickets_base_path, exist_ok=True)
+        os.makedirs(tickets_base_folder, exist_ok=True)
 
         xls = pd.ExcelFile(input_excel_path)
         for sheet_name in xls.sheet_names:
@@ -527,12 +467,11 @@ def main(input_excel_path, files_base_path, tickets_base_path, central_config_js
             if 'order_item_id' in df.columns:
                 df['order_item_id'] = df['order_item_id'].astype(str).str.strip().apply(lambda x: x[:-2] if x.endswith('.0') else x)
             
-            if df.empty: utils_ui.print_warning(f"Sheet '{sheet_name}' is empty. Skipping."); continue
+            if df.empty: continue
 
             sanitized_sheet_name = sanitize_filename(sheet_name)
-            sheet_files_path = os.path.join(files_base_path, sanitized_sheet_name)
-            sheet_tickets_path = os.path.join(tickets_base_path, sanitized_sheet_name)
-            os.makedirs(sheet_files_path, exist_ok=True)
+            sheet_files_path = os.path.join(files_base_folder, sanitized_sheet_name)
+            sheet_tickets_path = os.path.join(tickets_base_folder, sanitized_sheet_name)
             os.makedirs(sheet_tickets_path, exist_ok=True)
 
             process_dataframe(df, sheet_files_path, sheet_tickets_path, sheet_name, watermark_path=watermark_path)
@@ -540,12 +479,12 @@ def main(input_excel_path, files_base_path, tickets_base_path, central_config_js
     except Exception as e:
         utils_ui.print_error(f"Processing Failed: {e}"); traceback.print_exc(); sys.exit(1)
     
-    utils_ui.print_success(f"Total Processing Time: {time.time() - start_time:.2f}s")
+    utils_ui.print_success(f"Ticket Generation Complete: {time.time() - start_time:.2f}s")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="40 - Generate Job Collateral")
+    parser = argparse.ArgumentParser(description="40b - Generate Job Tickets")
     parser.add_argument("input_excel_path", help="Input Excel")
-    parser.add_argument("files_base_folder", help="Files Output Base")
+    parser.add_argument("files_base_folder", help="Files source folder (Assets)")
     parser.add_argument("tickets_base_folder", help="Tickets Output Base")
     parser.add_argument("central_config_json", help="Config JSON")
     args = parser.parse_args()
