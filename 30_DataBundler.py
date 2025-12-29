@@ -92,7 +92,7 @@ def rebuild_pools(line_item_indices, df, primary_entity_col, col_qty, col_order,
                     orders[oid] = {'qty': ogroup[col_qty].sum(), 'indices': ogroup.index.tolist(), 'jobs': jobs}
 
             entity_pool[entity_id] = {
-                'Total_Qty': group[col_qty].sum(),
+                'Total_Qty': int(round(group[col_qty].sum())),
                 'Line_Indices': group.index.tolist(),
                 'Orders': orders
             }
@@ -143,35 +143,109 @@ def _create_and_finalize_bundle(line_indices, bundle_name, df, target_qty, confi
             
     final_bundles_dict[bundle_name] = bundle_df
 
+def _find_exact_match_subset(candidates, target_qty, max_items=25):
+    """
+    Finds a combination of entities that sum EXACTLY to the target_qty.
+    Optimized by grouping entities by quantity (Subset Sum Problem).
+    """
+    # 1. Filter and Group by Quantity
+    pool = [c for c in candidates if c['Total_Qty'] <= target_qty]
+    if not pool: return None
+    
+    qty_map = {}
+    for c in pool:
+        q = c['Total_Qty']
+        if q not in qty_map: qty_map[q] = []
+        qty_map[q].append(c)
+        
+    unique_qtys = sorted(qty_map.keys(), reverse=True)
+    final_solution = None
+
+    # 2. DFS on Counts
+    def solve_counts(idx, remain_target, solution_counts, item_count):
+        nonlocal final_solution
+        if final_solution: return
+        
+        if remain_target == 0:
+            final_solution = solution_counts
+            return
+        
+        if idx >= len(unique_qtys) or item_count >= max_items:
+            return
+            
+        qty = unique_qtys[idx]
+        available_count = len(qty_map[qty])
+        
+        # Max copies we can theoretically take
+        max_theoretical = remain_target // qty
+        # Actual max we can take
+        max_use = min(available_count, max_theoretical)
+        
+        # Optimization: Prune if even taking all remaining largest items can't reach target?
+        # (Simple greedy pruning is risky in subset sum, sticking to basic DFS on counts is safe for "small" N)
+
+        # Try from max_use down to 0
+        for count in range(max_use, -1, -1):
+            if item_count + count <= max_items:
+                solve_counts(idx + 1, remain_target - (count * qty), solution_counts + [(qty, count)], item_count + count)
+                if final_solution: return
+
+    solve_counts(0, target_qty, [], 0)
+    
+    # 3. Reconstruct
+    if final_solution:
+        selected_entities = []
+        for qty, count in final_solution:
+            # Take the first 'count' entities from the list for this quantity
+            selected_entities.extend(qty_map[qty][:count])
+        return selected_entities
+
+    return None
+
 def _attempt_top_up_with_real_work(current_indices, current_qty, entity_pool, preferred_qty):
     """
     Scans the remaining pool for WHOLE stores (Sand) to fill a gap 
-    before resigning to use blanks.
+    Using EXACT MATCH logic first to avoid partial fills.
     """
     gap = preferred_qty - current_qty
     if gap <= 0: return current_indices, current_qty
 
-    # Find candidates smaller than or equal to gap
-    candidates = [e for e in entity_pool.values() if e['Total_Qty'] <= gap]
-    
-    # Sort largest first to fill gap efficiently
-    candidates.sort(key=lambda x: x['Total_Qty'], reverse=True)
+    candidates = [e for e in entity_pool.values()]
+    existing_set = set(current_indices)
+    valid_candidates = [c for c in candidates if not any(idx in existing_set for idx in c['Line_Indices'])]
 
+    # Try exact match first
+    match = _find_exact_match_subset(valid_candidates, gap)
+    if match:
+        top_up_indices = []
+        fill_qty = 0
+        for m in match:
+            top_up_indices.extend(m['Line_Indices'])
+            fill_qty += m['Total_Qty']
+        return current_indices + top_up_indices, current_qty + fill_qty
+
+    # Fallback to greedy largest-fill (Best Effort) if exact not found
+    # (Though typically we prefer exact or nothing, but top-up implies "get as close as possible"?)
+    # Original logic was greedy best effort. 
+    # Let's keep greedy best effort as fallback if exact fails, 
+    # OR should we stick to "only exact" for top up? 
+    # "While a bundle is at partial capacity, smaller whole store(s) should be consumed to fill that space."
+    # Implicitly, we want to fill it completely.
+    # If we can't fill it completely, finding the largest chunk is better than nothing?
+    # Let's keep the greedy fallback for maximizing fill if exact fails.
+    
+    valid_candidates.sort(key=lambda x: x['Total_Qty'], reverse=True)
+    
     top_up_indices = []
     fill_qty = 0
-    existing_set = set(current_indices)
-
-    for cand in candidates:
-        # Check overlap to ensure we don't pick items already in the bundle
-        if any(idx in existing_set for idx in cand['Line_Indices']): continue
-        
+    
+    for cand in valid_candidates:
         if fill_qty + cand['Total_Qty'] <= gap:
             top_up_indices.extend(cand['Line_Indices'])
             fill_qty += cand['Total_Qty']
-            existing_set.update(cand['Line_Indices'])
             
         if fill_qty == gap: break
-
+            
     return current_indices + top_up_indices, current_qty + fill_qty
 
 # =========================================================
@@ -209,19 +283,27 @@ def _strategy_0_lockdown(fragment_df, entity_pool, df, col_qty, bundle_search_th
             return slice_indices, target, new_frag
 
     # B. Standard Fragment (<= 6250)
-    # We treat this fragment as the ANCHOR for a bucket sweep.
-    # We will try to fill the rest of the bucket with other stores.
+    # We treat this fragment as the ANCHOR.
+    # We try to fill the rest using Exact Match Subset Sum first.
     
-    # Start the bucket with the fragment
     current_indices = list(seed_indices)
     current_qty = seed_qty
-    
-    # Use Bucket Sweep logic to fill the rest from entity_pool
-    # Filter candidates
-    candidates = [e for e in entity_pool.values()]
-    candidates.sort(key=lambda x: x['Total_Qty'], reverse=True)
-    
     gap = preferred_bundle_qty - current_qty
+    
+    candidates = [e for e in entity_pool.values()]
+    # _find_exact_match_subset expects a list of dicts with 'Total_Qty'
+    
+    match = _find_exact_match_subset(candidates, gap)
+    
+    if match:
+         for m in match:
+             current_indices.extend(m['Line_Indices'])
+             current_qty += m['Total_Qty']
+             
+         return current_indices, current_qty, None
+
+    # Fallback to Greedy Bucket Sweep if exact match fails
+    candidates.sort(key=lambda x: x['Total_Qty'], reverse=True)
     
     for partner in candidates:
         if gap == 0: break
@@ -230,14 +312,6 @@ def _strategy_0_lockdown(fragment_df, entity_pool, df, col_qty, bundle_search_th
             current_qty += partner['Total_Qty']
             gap -= partner['Total_Qty']
             
-    # Check if valid bundle size
-    if current_qty in bundle_search_thresholds:
-        return current_indices, current_qty, None
-        
-    # If we failed to hit a perfect threshold with the fragment,
-    # we return what we have. The wrapper will trigger Top-Up to try harder,
-    # or it will eventually settle for a partial bundle + blanks.
-    # But crucially, we consumed the fragment.
     return current_indices, current_qty, None
 
 
@@ -309,43 +383,27 @@ def _strategy_giant_slayer(entity_pool, df, col_qty, bundle_search_thresholds):
         bundle_set = set(slice_indices)
         rem_indices = list(all_giant_indices - bundle_set)
         new_frag = df.loc[rem_indices].copy()
-        return slice_indices, target, new_frag
+        return slice_indices, current_qty, new_frag
 
     return None, None, None
 
 def _strategy_combiner_no_fragmentation(entity_pool, bundle_search_thresholds):
     """
     Phase 2: Handle Stores <= 6250.
-    Logic: Combine Whole Stores Only.
+    Logic: Combine Whole Stores Only using Subset Sum to find EXACT matches.
     """
     candidates = [e for e in entity_pool.values() if e['Total_Qty'] <= 6250]
-    candidates.sort(key=lambda x: x['Total_Qty'], reverse=True)
+    # No need to sort upfront for logic, but helps deterministic behavior if we iterate (not used in _find_exact_match_subset logic directly but for falling back)
     
+    # Check max threshold first (e.g. 6250), then 6000, etc.
     for target in sorted(bundle_search_thresholds, reverse=True):
         
-        for i, anchor in enumerate(candidates):
+        match = _find_exact_match_subset(candidates, target)
+        if match:
             current_indices = []
-            current_qty = 0
-            
-            if anchor['Total_Qty'] > target: continue
-            
-            current_indices.extend(anchor['Line_Indices'])
-            current_qty += anchor['Total_Qty']
-            
-            if current_qty == target:
-                return current_indices, target
-            
-            gap = target - current_qty
-            potential_partners = candidates[i+1:]
-            
-            for partner in potential_partners:
-                if partner['Total_Qty'] <= gap:
-                    current_indices.extend(partner['Line_Indices'])
-                    current_qty += partner['Total_Qty']
-                    gap -= partner['Total_Qty']
-                    
-                    if gap == 0:
-                        return current_indices, target
+            for m in match:
+                current_indices.extend(m['Line_Indices'])
+            return current_indices, target
 
     return None, None
 
