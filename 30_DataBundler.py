@@ -772,7 +772,20 @@ def run_bundling_process(categorized_data_sheets, output_file, config):
         final_cols = sorted(list(cols))
         if '__IS_DISQUALIFIED' in final_cols: final_cols.remove('__IS_DISQUALIFIED')
         
-        for n in sorted(all_bundles.keys()): all_bundles[n].reindex(columns=final_cols).to_excel(writer, sheet_name=n, index=False)
+        col_job_key = col_names.get('job_ticket_number')
+        col_store_key = col_names.get('cost_center')
+        for n in sorted(all_bundles.keys()): 
+            # Sort by Store then Job Ticket Number
+            sort_cols = []
+            if col_store_key and col_store_key in all_bundles[n].columns:
+                sort_cols.append(col_store_key)
+            if col_job_key and col_job_key in all_bundles[n].columns:
+                sort_cols.append(col_job_key)
+            
+            if sort_cols:
+                all_bundles[n] = all_bundles[n].sort_values(by=sort_cols)
+                
+            all_bundles[n].reindex(columns=final_cols).to_excel(writer, sheet_name=n, index=False)
         order = safe_get_list(config, 'sheet_output_order')
         written = set()
         for s in order:

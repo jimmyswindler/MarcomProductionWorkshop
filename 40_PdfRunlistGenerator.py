@@ -75,6 +75,7 @@ def generate_pdf_run_list(excel_path, pdf_path, config, history, fragmentation_m
     if fragmentation_map is None:
         fragmentation_map = {'store_report_map': {}, 'unclaimed_report_map': {}}
     store_report_map = fragmentation_map.get('store_report_map', {})
+    unclaimed_report_map = fragmentation_map.get('unclaimed_report_map', {})
     
     c = canvas.Canvas(pdf_path, pagesize=ELEVENSEVENTEEN); width, height = ELEVENSEVENTEEN
     margin = 0.375 * inch; frame_padding = 0.05 * inch; printable_width = width - 2 * margin
@@ -117,24 +118,57 @@ def generate_pdf_run_list(excel_path, pdf_path, config, history, fragmentation_m
     }
     if not all(v['source'] for v in PDF_COLS.values()): utils_ui.print_warning("PDF column sources missing.")
 
-    def _build_fragmentation_lines(entities_to_report, store_report_map, sheet_name):
+    def _build_fragmentation_lines(entities_to_report, store_report_map, unclaimed_report_map, sheet_name):
         messages_to_build = set()
         def get_store_num(store_id_str): return str(store_id_str).split('-', 1)[0].strip()
         def format_dests(dests_list, current_sheet): return ", ".join(sorted([str(d) for d in dests_list if d != current_sheet]))
             
         for (store_id, order_id, job_id) in entities_to_report:
+            # 1. Check Store Report
             map_store = store_report_map.get(store_id)
-            if not map_store or not map_store.get('is_fragmented'): continue
-            store_num_display = get_store_num(store_id); context_parts = []
-            map_order = map_store.get('fragmented_orders', {}).get(order_id)
-            if map_order and map_order.get('is_fragmented'):
-                context_parts.append(f"Order {order_id}")
-                map_job = map_order.get('fragmented_jobs', {}).get(job_id)
-                if map_job and map_job.get('is_fragmentED'): context_parts.append(f"JOB {job_id}")
-            dests_display = format_dests(map_store.get('destinations', []), sheet_name)
-            if not dests_display: continue
-            msg = f"Store {store_num_display} ({', '.join(context_parts)}) has content in: {dests_display}" if context_parts else f"Store {store_num_display} has content in: {dests_display}"
-            messages_to_build.add(msg)
+            if map_store and map_store.get('is_fragmented'):
+                store_num_display = get_store_num(store_id); context_parts = []
+                map_order = map_store.get('fragmented_orders', {}).get(order_id)
+                if map_order and map_order.get('is_fragmented'):
+                    context_parts.append(f"Order {order_id}")
+                    map_job = map_order.get('fragmented_jobs', {}).get(job_id)
+                    if map_job and map_job.get('is_fragmentED'): context_parts.append(f"JOB {job_id}")
+                dests_display = format_dests(map_store.get('destinations', []), sheet_name)
+                if dests_display:
+                    msg = f"Store {store_num_display} ({', '.join(context_parts)}) has content in: {dests_display}" if context_parts else f"Store {store_num_display} has content in: {dests_display}"
+                    messages_to_build.add(msg)
+            
+            # 2. Check Unclaimed Orders (Parent store not reported/fragmented)
+            unclaimed_orders = unclaimed_report_map.get('orders', {})
+            if order_id in unclaimed_orders:
+                u_order = unclaimed_orders[order_id]
+                store_num_display = get_store_num(store_id)
+                
+                # Check Order itself
+                if u_order.get('is_fragmented'):
+                    dests_display = format_dests(u_order.get('destinations', []), sheet_name)
+                    if dests_display:
+                        messages_to_build.add(f"Store {store_num_display} (Order {order_id}) has content in: {dests_display}")
+                
+                # Check Jobs within Unclaimed Order
+                u_jobs_in_order = u_order.get('fragmented_jobs', {})
+                if job_id in u_jobs_in_order:
+                     u_job = u_jobs_in_order[job_id]
+                     if u_job.get('is_fragmented'):
+                         dests_display = format_dests(u_job.get('destinations', []), sheet_name)
+                         if dests_display:
+                             messages_to_build.add(f"Store {store_num_display} (Order {order_id}, Job {job_id}) has content in: {dests_display}")
+
+            # 3. Check Unclaimed Jobs (Directly)
+            unclaimed_jobs = unclaimed_report_map.get('jobs', {})
+            if job_id in unclaimed_jobs:
+                u_job = unclaimed_jobs[job_id]
+                if u_job.get('is_fragmented'):
+                    dests_display = format_dests(u_job.get('destinations', []), sheet_name)
+                    if dests_display:
+                         store_num_display = get_store_num(store_id)
+                         messages_to_build.add(f"Store {store_num_display} (Job {job_id}) has content in: {dests_display}")
+
         return sorted(list(messages_to_build))
 
     def draw_message_block(c, lines_to_draw, current_y, font_size, line_height, start_x, drawable_width, page_bottom_y, new_page_callback):
@@ -166,7 +200,7 @@ def generate_pdf_run_list(excel_path, pdf_path, config, history, fragmentation_m
             order_date_str = earliest_order_date.strftime('%a %m/%d/%Y') if pd.notna(earliest_order_date) else "N/A"
             ship_date_str = earliest_ship_date.strftime('%a %m/%d/%Y') if pd.notna(earliest_ship_date) else "N/A"
 
-            header_height, footer_height, row_height, table_header_height = 1.25*inch, 0.5*inch, 0.22*inch, 0.5*inch
+            header_height, footer_height, row_height, table_header_height = 0.875*inch, 0.5*inch, 0.22*inch, (0.5*inch) + 7
             header_gap = 0.22 * inch; store_gap = 0.22 * inch; order_gap = 0.22 * inch; job_gap = 0.22 * inch
             order_box_line_width = 2.0; text_cell_padding = 5; page_bottom_margin_y = margin + footer_height
             frag_msg_font_size = 14; frag_msg_line_height = frag_msg_font_size * 1.3
@@ -180,7 +214,19 @@ def generate_pdf_run_list(excel_path, pdf_path, config, history, fragmentation_m
                 df_sheet[col_cost_center] = df_sheet[col_cost_center].astype(str).fillna('N/A')
                 df_sheet[col_order_num] = df_sheet[col_order_num].astype(str).fillna('N/A')
                 df_sheet[col_base_job] = df_sheet[col_base_job].astype(str).fillna('N/A')
-                df_sheet.sort_values(by=[col_base_job, col_cost_center, col_order_num], inplace=True); df_sheet.reset_index(drop=True, inplace=True)
+                # Sort by Store then Job Ticket Number
+                sort_col = col_names.get('job_ticket_number')
+                store_col = col_cost_center
+                
+                sort_keys = []
+                if store_col and store_col in df_sheet.columns: sort_keys.append(store_col)
+                if sort_col and sort_col in df_sheet.columns: sort_keys.append(sort_col)
+                
+                if sort_keys:
+                    df_sheet.sort_values(by=sort_keys, inplace=True)
+                else:
+                    df_sheet.sort_values(by=[col_base_job, col_cost_center, col_order_num], inplace=True)
+                df_sheet.reset_index(drop=True, inplace=True)
             except Exception as e: utils_ui.print_error(f"Sort failed for sheet '{sheet_name}'. {e}"); continue
                 
             current_row_index = 0; page_num = 0; is_continuing_store_box = False
@@ -189,7 +235,7 @@ def generate_pdf_run_list(excel_path, pdf_path, config, history, fragmentation_m
             def draw_new_page_headers(page_num):
                 label_font, label_size = CUSTOM_FONT_BOLD, 14
                 value_font, value_size = CUSTOM_FONT_BOLD, 22
-                y_label = height - margin - 0.5 * inch; y_value = y_label - 30
+                y_label = height - margin - 0.25 * inch; y_value = y_label - 26
                 c.setFont(value_font, value_size); max_sheet_name_width = (width / 3) - 10; sheet_name_display = sheet_name
                 if c.stringWidth(sheet_name_display, value_font, value_size) > max_sheet_name_width and len(sheet_name_display) > 5: sheet_name_display = sheet_name_display[:-4] + "..."
                 sheet_name_width = c.stringWidth(sheet_name_display, value_font, value_size); left_x_start = margin + 5; c.drawString(left_x_start, y_value, sheet_name_display)
@@ -202,21 +248,24 @@ def generate_pdf_run_list(excel_path, pdf_path, config, history, fragmentation_m
                 
                 y_pos = height - margin - header_height; x_pos = margin + frame_padding + store_padding
                 c.setFont(CUSTOM_FONT_BOLD, 11); header_line_height = 11 * 1.3; header_v_center = y_pos - (table_header_height / 2)
-                c.setLineWidth(0.5); c.rect(margin + frame_padding, y_pos - table_header_height, printable_width - (2 * frame_padding), table_header_height)
+                c.setLineWidth(order_box_line_width); c.rect(margin + frame_padding, y_pos - table_header_height, printable_width - (2 * frame_padding), table_header_height)
+                c.setLineWidth(0.5)
+                c.rect(margin + frame_padding + store_padding, y_pos - table_header_height + store_padding, printable_width - (2 * frame_padding) - (2 * store_padding), table_header_height - (2 * store_padding))
                 
                 page_qty_total_x, page_qty_total_y = None, None
                 for pdf_col_name, col_props in PDF_COLS.items():
                     col_width = col_props.get('width', 1*inch); align = col_props.get('align', 'left')
-                    if x_pos > margin + frame_padding: c.line(x_pos, y_pos, x_pos, y_pos - table_header_height)
+                    if x_pos > margin + frame_padding + store_padding: c.line(x_pos, y_pos - store_padding, x_pos, y_pos - table_header_height + store_padding)
                     header_lines = pdf_col_name.split('\n'); h_center = x_pos + (col_width / 2); h_left = x_pos + text_cell_padding
+                    text_v_offset = 11 / 2.5
                     if pdf_col_name == 'Qty':
-                        c.drawCentredString(h_center, header_v_center + (header_line_height / 2), "Qty"); page_qty_total_x = h_center; page_qty_total_y = header_v_center - (header_line_height / 2)
+                        c.drawCentredString(h_center, header_v_center + (header_line_height / 2) - text_v_offset, "Qty"); page_qty_total_x = h_center; page_qty_total_y = header_v_center - (header_line_height / 2) - text_v_offset
                     elif len(header_lines) == 2:
-                        y1 = header_v_center + (header_line_height / 2); y2 = header_v_center - (header_line_height / 2)
+                        y1 = header_v_center + (header_line_height / 2) - text_v_offset; y2 = header_v_center - (header_line_height / 2) - text_v_offset
                         if align == 'center': c.drawCentredString(h_center, y1, header_lines[0]); c.drawCentredString(h_center, y2, header_lines[1])
                         else: c.drawString(h_left, y1, header_lines[0]); c.drawString(h_left, y2, header_lines[1])
                     else:
-                        y1 = header_v_center - (11 / 2.5); c.drawCentredString(h_center, y1, header_lines[0]) if align == 'center' else c.drawString(h_left, y1, header_lines[0])
+                        y1 = header_v_center - text_v_offset; c.drawCentredString(h_center, y1, header_lines[0]) if align == 'center' else c.drawString(h_left, y1, header_lines[0])
                     x_pos += col_width
                 y_pos -= table_header_height
                 return y_pos, page_qty_total_x, page_qty_total_y
@@ -247,7 +296,7 @@ def generate_pdf_run_list(excel_path, pdf_path, config, history, fragmentation_m
                     if row_store != current_store:
                         c.setLineWidth(order_box_line_width); y_pos -= store_padding
                         c.rect(margin + frame_padding, y_pos, printable_width - (2 * frame_padding), store_start_y - y_pos, stroke=1, fill=0)
-                        lines_to_draw = _build_fragmentation_lines(entities_in_current_store_box, store_report_map, sheet_name)
+                        lines_to_draw = _build_fragmentation_lines(entities_in_current_store_box, store_report_map, unclaimed_report_map, sheet_name)
                         y_pos, _ = draw_message_block(c, lines_to_draw, y_pos, frag_msg_font_size, frag_msg_line_height, frag_msg_start_x, frag_msg_drawable_width, page_bottom_margin_y, trigger_page_break_for_messages)
                         if y_pos - store_gap < page_bottom_content_area_y: current_row_index = index; page_has_ended = True; is_continuing_store_box = False; break
                         c.setLineWidth(0.5); c.line(row_line_start_x, y_pos, row_line_end_x, y_pos); y_pos -= store_gap
@@ -294,7 +343,7 @@ def generate_pdf_run_list(excel_path, pdf_path, config, history, fragmentation_m
                 
                 if not page_has_ended:
                     current_row_index = len(df_sheet)
-                    lines_to_draw = _build_fragmentation_lines(entities_in_current_store_box, store_report_map, sheet_name)
+                    lines_to_draw = _build_fragmentation_lines(entities_in_current_store_box, store_report_map, unclaimed_report_map, sheet_name)
                     y_pos, _ = draw_message_block(c, lines_to_draw, y_pos, frag_msg_font_size, frag_msg_line_height, frag_msg_start_x, frag_msg_drawable_width, page_bottom_margin_y, trigger_page_break_for_messages)
 
                 if page_qty_total_x is not None: c.setFont(CUSTOM_FONT_BOLD, 11); c.drawCentredString(page_qty_total_x, page_qty_total_y, str(int(page_total_qty)))
