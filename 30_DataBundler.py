@@ -412,7 +412,7 @@ def _strategy_combiner_no_fragmentation(entity_pool, bundle_search_thresholds):
 # =========================================================
 def bundle_primary_entity_sequential(df, start_bundle_num, base_bundle_name, config, category_name, bundle_rules, 
                                      initial_stats, primary_entity_col, preferred_bundle_qty, bundle_search_thresholds, filler_map, master_tracking_list, disqualified_indices):
-    if df.empty: return {}, pd.DataFrame(), start_bundle_num, initial_stats.get(category_name, {}), {}
+    if df.empty: return {}, pd.DataFrame(), start_bundle_num, initial_stats.get(category_name, {})
     
     bundle_name_suffix = bundle_rules.get('bundle_name_suffix')
     leftover_destination = bundle_rules.get('leftover_sheet_name')
@@ -773,17 +773,10 @@ def run_bundling_process(categorized_data_sheets, output_file, config):
         if '__IS_DISQUALIFIED' in final_cols: final_cols.remove('__IS_DISQUALIFIED')
         
         col_job_key = col_names.get('job_ticket_number')
-        col_store_key = col_names.get('cost_center')
         for n in sorted(all_bundles.keys()): 
-            # Sort by Store then Job Ticket Number
-            sort_cols = []
-            if col_store_key and col_store_key in all_bundles[n].columns:
-                sort_cols.append(col_store_key)
+            # Sort by Job Ticket Number only
             if col_job_key and col_job_key in all_bundles[n].columns:
-                sort_cols.append(col_job_key)
-            
-            if sort_cols:
-                all_bundles[n] = all_bundles[n].sort_values(by=sort_cols)
+                all_bundles[n] = all_bundles[n].sort_values(by=[col_job_key])
                 
             all_bundles[n].reindex(columns=final_cols).to_excel(writer, sheet_name=n, index=False)
         order = safe_get_list(config, 'sheet_output_order')

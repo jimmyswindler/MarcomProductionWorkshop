@@ -214,18 +214,13 @@ def generate_pdf_run_list(excel_path, pdf_path, config, history, fragmentation_m
                 df_sheet[col_cost_center] = df_sheet[col_cost_center].astype(str).fillna('N/A')
                 df_sheet[col_order_num] = df_sheet[col_order_num].astype(str).fillna('N/A')
                 df_sheet[col_base_job] = df_sheet[col_base_job].astype(str).fillna('N/A')
-                # Sort by Store then Job Ticket Number
+                # Sort by Job Ticket Number only
                 sort_col = col_names.get('job_ticket_number')
-                store_col = col_cost_center
                 
-                sort_keys = []
-                if store_col and store_col in df_sheet.columns: sort_keys.append(store_col)
-                if sort_col and sort_col in df_sheet.columns: sort_keys.append(sort_col)
-                
-                if sort_keys:
-                    df_sheet.sort_values(by=sort_keys, inplace=True)
+                if sort_col and sort_col in df_sheet.columns:
+                    df_sheet.sort_values(by=[sort_col], inplace=True)
                 else:
-                    df_sheet.sort_values(by=[col_base_job, col_cost_center, col_order_num], inplace=True)
+                    df_sheet.sort_values(by=[col_base_job, col_order_num], inplace=True)
                 df_sheet.reset_index(drop=True, inplace=True)
             except Exception as e: utils_ui.print_error(f"Sort failed for sheet '{sheet_name}'. {e}"); continue
                 
