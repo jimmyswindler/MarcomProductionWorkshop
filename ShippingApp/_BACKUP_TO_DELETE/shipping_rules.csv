@@ -1,0 +1,10 @@
+category_name,quantity,white_box_weight,blue_box_weight,white_box_qty,blue_box_qty
+12ptBounceBack,250,,0.75,0,1
+12ptBounceBack,500,,1.3,0,1
+12ptBounceBack,1000,,1.3,0,2
+12ptBounceBack,2500,1.83,1,3,1
+16ptBusinessCard,250,1,,0,1
+16ptBusinessCard,500,2,,1,0
+16ptBusinessCard,1000,2,,2,0
+16ptBusinessCard,2500,2,,5,0
+16ptBusinessCard,4000,2,,8,0

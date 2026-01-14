@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mock Barcodes (Compact)</title>
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.0/dist/JsBarcode.all.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            padding: 20px; 
+            background-color: #fff; 
+            max-width: 1000px; 
+            margin: auto; 
+        }
+        h1 { text-align: center; font-size: 1.5em; margin-bottom: 10px; }
+        h2 { 
+            color: #333; 
+            border-bottom: 2px solid #333; 
+            padding-bottom: 5px; 
+            margin-top: 20px; 
+            margin-bottom: 10px; 
+            font-size: 1.2em;
+            break-after: avoid; /* Keep header with content */
+        }
+        
+        /* Grid Layout */
+        .barcode-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .barcode-card {
+            border: 1px solid #000;
+            padding: 5px;
+            text-align: center;
+            background: #fff;
+            border-radius: 4px;
+            /* Force card size for consistency */
+            width: 200px; 
+            flex-grow: 0;
+            break-inside: avoid; /* Don't cut a barcode in half at page bottom */
+        }
+
+        .barcode-label {
+            font-weight: bold;
+            color: #000;
+            display: block;
+            font-size: 0.9em;
+            margin-top: 2px;
+        }
+        
+        /* Barcode Image Size */
+        svg { width: 100% !important; height: 60px !important; } 
+
+        /* Print Optimizations */
+        @media print {
+            body { padding: 0; margin: 0; }
+            #instructions { display: none; }
+            .barcode-card { box-shadow: none; border: 1px dashed #666; }
+            h2 { margin-top: 10px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="instructions">
+        <h1>Printable Barcodes (Compact)</h1>
+        <p><i>Use Ctrl+P to print. Ensure "Scale" is set to "Fit to printable area" or 100%.</i></p>
+        <hr>
+    </div>
+
+    <h2>Commands</h2>
+    <div class="barcode-grid">
+        <div class="barcode-card" style="border: 2px solid black; background-color: #f0f0f0;">
+            <svg class="bc-render" data-value="CMD-PROCESS"></svg>
+            <span class="barcode-label">PROCESS SHIPMENT</span>
+        </div>
+    </div>
+
+    <h2>Orders (CL#)</h2>
+    <div class="barcode-grid" id="order-barcodes"></div>
+
+    <h2>Items (Boxes)</h2>
+    <div class="barcode-grid" id="item-barcodes"></div>
+
+    <h2>Cartons</h2>
+    <div class="barcode-grid" id="carton-barcodes"></div>
+
+    <script>
+        // --- DATA ---
+        const MOCK_ORDERS = {
+            "CL-12345": { "expected_barcodes": ["BOX-A-001", "BOX-A-002"] },
+            "CL-11111": { "expected_barcodes": ["BOX-C-001"] },
+            "CL-22222": { "expected_barcodes": ["BOX-D-001", "BOX-D-002"] }
+        };
+
+        const MOCK_CARTONS = {
+            "#105": "Box #105", "#115": "Box #115", 
+            "#116": "Box #116", "#160": "Box #160", "#145": "Box #145"
+        };
+
+        function generateBarcodes() {
+            const orderDiv = document.getElementById('order-barcodes');
+            const itemDiv = document.getElementById('item-barcodes');
+            const cartonDiv = document.getElementById('carton-barcodes');
+
+            // 1. Orders & Items
+            for (const [orderId, data] of Object.entries(MOCK_ORDERS)) {
+                // Order Barcode
+                orderDiv.innerHTML += createCard(orderId, orderId);
+                // Item Barcodes
+                data.expected_barcodes.forEach(item => {
+                    itemDiv.innerHTML += createCard(item, item);
+                });
+            }
+
+            // 2. Cartons
+            for (const [id, name] of Object.entries(MOCK_CARTONS)) {
+                cartonDiv.innerHTML += createCard(id, name);
+            }
+
+            // 3. Render
+            document.querySelectorAll('.bc-render').forEach(el => {
+                JsBarcode(el, el.dataset.value, {
+                    format: "CODE128",
+                    width: 2,
+                    height: 50,
+                    displayValue: false,
+                    margin: 5
+                });
+            });
+        }
+
+        function createCard(value, label) {
+            return `
+                <div class="barcode-card">
+                    <svg class="bc-render" data-value="${value}"></svg>
+                    <span class="barcode-label">${label}</span>
+                </div>
+            `;
+        }
+
+        document.addEventListener('DOMContentLoaded', generateBarcodes);
+    </script>
+</body>
+</html>

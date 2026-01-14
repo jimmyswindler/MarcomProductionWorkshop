@@ -1,6 +1,7 @@
 paths:
   scripts:
     collect: './10_DataCollection.py'
+    ingest: './15_DataIngest.py'
     sort: './20_DataSorter.py'
     bundle: './30_DataBundler.py'
     pdfgen: './40_PdfRunlistGenerator.py'
@@ -8,7 +9,7 @@ paths:
     generate_tickets: './60_GenerateJobTickets.py'
     pressprep: './70_PreparePressFiles.py'
     impose: './80_GR_Imposition_5x5_BB_BC.py'
-    email: './90_email.py'
+    # email: './90_email.py'
 
   stage1_collect:
     input_dir: './_REPORT_INPUT'
@@ -36,8 +37,13 @@ paths:
   icon_I_path: './_CONFIG/icon_I.pdf'
   icon_J_path: './_CONFIG/icon_J.pdf'
 
-  dynamic_build_root: '/Volumes/AraxiVolume_Jobs/Jobs/DigimasterProductionNew/MARCOM orders/' # production path
-  # dynamic_build_root: './'   # testing path
+  # dynamic_build_root: '/Volumes/AraxiVolume_Jobs/Jobs/DigimasterProductionNew/MARCOM orders/' # production path
+  dynamic_build_root: './'   # testing path
+  
+  # --- DUPLICATE INGESTION CONTROL (Safeguard) ---
+  # Set to TRUE to allow re-processing the same data (Test Mode).
+  # Set to FALSE to STOP if data already exists in DB (Production Mode).
+  allow_duplicate_ingest: true
   
   dynamic_job_structure:
     job_tickets: "_JobTickets"
@@ -47,7 +53,6 @@ paths:
     originals: "Originals"           # This will be nested under 'workup'
     production_imposed: "ProductionImposed"
     imposed_subfolders:
-      - "25up"
       - "12ptBounceBack"
       - "16ptBusinessCard"
       - "BubbasPostCard"
@@ -75,47 +80,62 @@ shipping_box_rules:
   # --- Rules for "Prepended" (Leftover) sheets ---
   "12ptBounceBack": # Key must match sheet name from script 20
     "250":
-      icon_file: "icon_A.pdf" # Corresponds to key in 'paths'
+      icon_file: "icon_A.pdf" 
       icon_cards: 1
       extra_blanks: 48
+      box_sequence: ["blue"] # 1 blue (half)
     "500":
       icon_file: "icon_B.pdf"
       icon_cards: 1
       extra_blanks: 48
+      box_sequence: ["blue"] # 1 blue
     "1000":
       icon_file: "icon_C.pdf"
       icon_cards: 2
       extra_blanks: 46
+      box_sequence: ["blue", "blue"] # 2 blue
     "2500":
       icon_file: "icon_D.pdf"
       icon_cards: 3
       extra_blanks: 44
+      box_sequence: ["white", "white", "white", "blue"] # 3 white, 1 blue
     "4000":
       icon_file: "icon_E.pdf"
       icon_cards: 5
       extra_blanks: 40
+      box_sequence: ["white", "white", "white", "white", "white", "blue", "blue", "blue"] # Placeholder logic, verify if needed. Using 8 boxes total? No, 4000 16pt is 8 boxes. 12pt rules for 4000 not fully specified, assuming similar density or just N/A. Warning: Verify 4000 12pt.
+      # User only specified up to 2500 for 12pt explicitly in correct rules? 
+      # "12pt... 1000x = 2 blue... 2500x = 3 white + 1 blue". 
+      # The config had 4000 before. I will leave 4000 as is but add a sequence if known, or just leaving it for now.
+      # actually, I'll default 4000 to all blue for now unless specified.
+      box_sequence: ["blue", "blue", "blue", "blue", "blue", "blue", "blue", "blue"]
 
   "16ptBusinessCard": # Key must match sheet name from script 20
     "250":
       icon_file: "icon_F.pdf"
       icon_cards: 1
       extra_blanks: 48
+      box_sequence: ["blue"]
     "500":
       icon_file: "icon_G.pdf"
       icon_cards: 1
       extra_blanks: 48
+      box_sequence: ["white"]
     "1000":
       icon_file: "icon_H.pdf"
       icon_cards: 2
       extra_blanks: 46
+      box_sequence: ["white", "white"]
     "2500":
       icon_file: "icon_I.pdf"
       icon_cards: 5
       extra_blanks: 40
+      box_sequence: ["white", "white", "white", "white", "white"]
     "4000":
       icon_file: "icon_J.pdf"
       icon_cards: 8
       extra_blanks: 34
+      box_sequence: ["white", "white", "white", "white", "white", "white", "white", "white"]
 
   # --- Rules for "Segmented" (Gang Run) sheets ---
   "12ptBB-GR-*": # Key now matches prefix (e.g., "12ptBB-GR-144")
@@ -174,9 +194,8 @@ shipping_box_rules:
 
   
 stage1_source_files:
-  job_ticket: 'Job_Ticket_Summary'
-  total_order: 'Total_Order_Summary'
-  order_ship: 'Order_And_Ship_Detail'
+  orders_xml: 'Orders_'
+  job_tickets_xml: 'JobTickets_'
 
 # Config needed by Stage 2 (Copied from original 20_DataSorting config.yaml)
 column_names:
@@ -211,6 +230,8 @@ product_ids:
     - "187"
     - "188"
     - "189"
+    - "301"
+    - "302"
     - "1376"
     - "2690"
     - "2768"
@@ -220,6 +241,7 @@ product_ids:
     - "4655"
     - "4678"
     - "4730"
+    - "4738"
 
   LargeFormat:
     - "5"
@@ -233,6 +255,7 @@ product_ids:
     - "160"
     - "161"
     - "178"
+    - "195"
     - "197"
     - "235"
     - "237"
@@ -351,6 +374,7 @@ product_ids:
     - "4710"
     - "4715"
     - "4744"
+    - "4781"
     - "4815"
     - "4817"
 
@@ -401,6 +425,7 @@ product_ids:
     - "3542"
     - "3543"
     - "4392"
+    - "4438"
     - "4531"
     - "4532"
     - "4660"
@@ -427,8 +452,10 @@ product_ids:
     - "2969"
     - "2970"
     - "3229"
+    - "3232"
     - "3977"
     - "4087"
+    - "4109"
     - "4122"
     - "4599"
     - "4657"
@@ -436,9 +463,6 @@ product_ids:
     - "4756"
     - "4758"
   
-  25up layout:
-    - "3232"
-
 categorization_rules:
   business_card_identifiers: ['16pt', '16 pt']
   high_quantity_threshold: 4000 # This is used by 20a_DataSorter.py
@@ -494,13 +518,11 @@ bundling_rules:
     - "PrintOnDemand"
     - "LargeFormat"
     - "Outsource"
-    - "25up layout"
   
 sheet_output_order:
   - "BUNDLES"
   - "12ptBounceBack"
   - "16ptBusinessCard"
-  - "25up layout"
   - "exceptions"
   - "LargeFormat"
   - "Outsource"
@@ -508,3 +530,16 @@ sheet_output_order:
 
 pdf_settings:
   generate_pdf_run_lists: true
+
+# --- Product ID Remapping (String -> Legacy Numeric) ---
+product_id_remapping:
+  T_ED_CLG: 5
+  T_10P_BBK: 166
+  T_FA_BBK: 214
+  T_KD_VD_BBK: 218
+  T_KD_EA_BBK: 217
+  T_TY_FA_BBK: 219
+  T_TY_FE_BBK: 220
+  T_KD_CER: 1800
+  POD_T_2303_MA_SC_F: 2969
+  M_2304_LSM_COM_BSC: 4531

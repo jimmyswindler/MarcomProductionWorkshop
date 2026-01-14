@@ -45,7 +45,7 @@ def _create_barcode_pdf_in_memory(data_string, width, height):
     c.save(); buffer.seek(0)
     return buffer
 
-def create_header_page(pdf_path, order_number=None, segment=None, total_segments=None, total_quantity=None, background_color=None, store_number=None, half_box_icon_path=None, full_box_icon_path=None, box_value=None):
+def create_header_page(pdf_path, order_number=None, segment=None, total_segments=None, total_quantity=None, background_color=None, store_number=None, icon_path=None, icon_cards=0, box_value=None):
     header_doc, src_doc = None, None
     try:
         header_doc = fitz.open(); header_page = header_doc.new_page(width=HEADER_PAGE_WIDTH, height=HEADER_PAGE_HEIGHT)
@@ -55,6 +55,7 @@ def create_header_page(pdf_path, order_number=None, segment=None, total_segments
         offset = 0.125 * 72; p1_rect, p2_rect = None, None
 
         try:
+# ... (PDF preview logic mostly same)
             src_doc = fitz.open(pdf_path)
             if src_doc.page_count > 0:
                 page1 = src_doc[0]; is_landscape = page1.rect.width > page1.rect.height
@@ -101,9 +102,17 @@ def create_header_page(pdf_path, order_number=None, segment=None, total_segments
 
         # Block C: Barcode
         will_draw_box = False
-        if total_segments and ((segment % 2 == 0) or (segment == total_segments)):
-            if (total_quantity == 250 and half_box_icon_path and os.path.exists(half_box_icon_path)) or \
-               (total_quantity in [500, 1000] and full_box_icon_path and os.path.exists(full_box_icon_path)): will_draw_box = True
+        if total_segments:
+            # Default "standard" spacing is every 2 segments (500 sheets)
+            will_draw_box = ((segment % 2 == 0) or (segment == total_segments))
+
+            # Special spacing for 12pt 2500 (10 segments)
+            if total_quantity == 2500 and total_segments == 10:
+                will_draw_box = (segment % 3 == 0) or (segment == total_segments)
+
+            # Ensure we only draw if we actually have an icon to show (avoid ghost boxes)
+            if not (icon_path and os.path.exists(icon_path)):
+                will_draw_box = False 
 
         if will_draw_box and box_value:
             bc_w = 1.75 * 72; bc_x = (HEADER_PAGE_WIDTH - bc_w) / 2
@@ -123,12 +132,13 @@ def create_header_page(pdf_path, order_number=None, segment=None, total_segments
                  tw = ICON_HEIGHT * ar; header_page.show_pdf_page(fitz.Rect(x, y, x + tw, y + ICON_HEIGHT), doc, 0); return tw
             
             try:
-                if total_quantity == 250:
-                    with fitz.open(half_box_icon_path) as d: w = place_icon(d, 0, -999); place_icon(d, (HEADER_PAGE_WIDTH - w)/2, current_y)
-                elif total_quantity == 500:
-                    with fitz.open(full_box_icon_path) as d: w = place_icon(d, 0, -999); place_icon(d, (HEADER_PAGE_WIDTH - w)/2, current_y)
-                elif total_quantity == 1000:
-                    with fitz.open(full_box_icon_path) as d: w = place_icon(d, 0, -999); start = (HEADER_PAGE_WIDTH - (w * 2 + 4)) / 2; place_icon(d, start, current_y); place_icon(d, start + w + 4, current_y)
+                # Use passed icon_path. 
+                # Note: We now ignore icon_cards qty for placement, assuming the PDF itself 
+                # represents the correct visual (e.g. 2 boxes for 1000 qty).
+                if icon_path and os.path.exists(icon_path):
+                     with fitz.open(icon_path) as d:
+                         w = place_icon(d, 0, -999) # calc width
+                         place_icon(d, (HEADER_PAGE_WIDTH - w)/2, current_y)
             except Exception: pass
         elif total_segments and total_segments > 1:
             stk_text = f"Stack {segment} of {total_segments}"
@@ -147,7 +157,8 @@ def create_header_page(pdf_path, order_number=None, segment=None, total_segments
         if header_doc: header_doc.close()
         if src_doc: src_doc.close()
 
-def add_segmented_headers_to_pdf(orientation_path, target_path, order=None, qty=None, bg=None, store=None, half_icon=None, full_icon=None, box_vals={}):
+
+def add_segmented_headers_to_pdf(orientation_path, target_path, order=None, qty=None, bg=None, store=None, icon_path=None, icon_cards=0, box_vals={}):
     try:
         reader = PdfReader(target_path); total = len(reader.pages)
         if total == 0: return False
@@ -163,16 +174,22 @@ def add_segmented_headers_to_pdf(orientation_path, target_path, order=None, qty=
         for i in range(num_segments):
             seg_num = i + 1
             will_draw = False
-            if total > 0 and ((seg_num % 2 == 0) or (seg_num == num_segments)):
-                if (qty == 250 and half_icon and os.path.exists(half_icon)) or (qty in [500, 1000] and full_icon and os.path.exists(full_icon)): will_draw = True
-            
+            if total > 0:
+                 # Logic must match create_header_page
+                 will_draw = ((seg_num % 2 == 0) or (seg_num == num_segments))
+                 if qty == 2500 and num_segments == 10:
+                     will_draw = (seg_num % 3 == 0) or (seg_num == num_segments)
+                 
+                 # New check: only draw if icon path exists
+                 if not (icon_path and os.path.exists(icon_path)): will_draw = False
+
             val = None
             if will_draw and bc_idx < len(sorted_vals):
                 raw = sorted_vals[bc_idx]
                 if raw and str(raw).lower() != 'nan': val = raw
                 bc_idx += 1
             
-            writer.add_page(create_header_page(orientation_path, order, seg_num, num_segments, qty, bg, store, half_icon, full_icon, val))
+            writer.add_page(create_header_page(orientation_path, order, seg_num, num_segments, qty, bg, store, icon_path, icon_cards, val))
             writer.add_page(blank)
             for p in reader.pages[i*500:(i+1)*500]: writer.add_page(p)
 
@@ -223,7 +240,7 @@ def standardize_pdf_for_gang_run(pdf_path):
         return True
     except Exception as e: utils_ui.print_error(f"Standardization Failed: {e}"); return False
 
-def process_dataframe(df, files_path, originals_path, sheet_name, palette_path=None, icon_paths=None):
+def process_dataframe(df, files_path, originals_path, sheet_name, palette_path=None, config_icons={}, shipping_rules={}):
     if GANG_RUN_TRIGGER not in sheet_name.upper(): utils_ui.print_info(f"Skipping Standard Sheet: {sheet_name}"); return
     
     utils_ui.print_section(f"Processing Gang Run: {sheet_name}")
@@ -237,6 +254,15 @@ def process_dataframe(df, files_path, originals_path, sheet_name, palette_path=N
                 data.sort(key=lambda x: (-x['qty'], natural_keys(x['t'])))
                 color_map = {d['idx']: pal[i] for i, d in enumerate(data) if i < len(pal)}
         except Exception as e: utils_ui.print_warning(f"Palette Error: {e}")
+
+    # Determine Product Category for rules lookup from sheet_name
+    # Sheet names match keys like "12ptBounceBack" or have prefix
+    # Logic in 20_DataSorter might produce names like '12ptBounceBack_CATEGORIZED' or '12ptBB-GR-144'
+    # The key in shipping_box_rules is either exact or has wildcards? 
+    # Current config has "12ptBounceBack" and "12ptBB-GR-*"
+    category = None
+    if "12ptBounceBack" in sheet_name or "12ptBB" in sheet_name: category = "12ptBounceBack"
+    elif "16ptBusinessCard" in sheet_name or "16ptBC" in sheet_name: category = "16ptBusinessCard"
 
     rows_data = list(df.iterrows())
     utils_ui.print_info(f"Preparing {len(rows_data)} files...")
@@ -253,9 +279,10 @@ def process_dataframe(df, files_path, originals_path, sheet_name, palette_path=N
                 arch_path = os.path.join(originals_path, f"{base}.pdf")
                 shutil.copy2(prod_path, arch_path)
                 
+                qty = int(pd.to_numeric(row.get("quantity_ordered"), errors='coerce') or 1)
+
                 reader = PdfReader(arch_path)
                 if len(reader.pages) in [1, 2]:
-                    qty = int(pd.to_numeric(row.get("quantity_ordered"), errors='coerce') or 1)
                     writer = PdfWriter()
                     pages = [reader.pages[0]] if len(reader.pages)==1 else [reader.pages[0], reader.pages[1]]
                     if len(pages)==1: pages.append(PageObject.create_blank_page(width=pages[0].mediabox.width, height=pages[0].mediabox.height))
@@ -264,8 +291,19 @@ def process_dataframe(df, files_path, originals_path, sheet_name, palette_path=N
                     with open(prod_path, "wb") as f: writer.write(f)
                 
                 standardize_pdf_for_gang_run(prod_path)
+                
+                # Resolve Icon Logic per Row
+                target_icon_path = None; icon_cards = 0
+                if category and str(qty) in shipping_rules.get(category, {}):
+                    rule = shipping_rules[category][str(qty)]
+                    icon_cards = rule.get('icon_cards', 0)
+                    icon_filename = rule.get('icon_file') # e.g. "icon_A.pdf"
+                    if icon_filename:
+                         # config_icons keys are "icon_A.pdf" -> "/path/to/icon_A.pdf"
+                         target_icon_path = config_icons.get(icon_filename)
+
                 store = str(row.get("cost_center", "")).split('-')[0].strip()
-                add_segmented_headers_to_pdf(arch_path, prod_path, str(row.get("order_number", "")), int(pd.to_numeric(row.get('quantity_ordered'), errors='coerce') or 0), color_map.get(idx), store, icon_paths.get('HALF_BOX_ICON_PATH'), icon_paths.get('FULL_BOX_ICON_PATH'), box_vals)
+                add_segmented_headers_to_pdf(arch_path, prod_path, str(row.get("order_number", "")), qty, color_map.get(idx), store, target_icon_path, icon_cards, box_vals)
             except Exception as e: utils_ui.print_error(f"Row {idx} Failed: {e}")
             progress.update(task, advance=1)
 
@@ -274,13 +312,16 @@ def main(input_excel_path, files_base_folder, originals_base_folder, central_con
     utils_ui.print_banner("60 - Prepare Press Files")
     try:
         config = json.loads(central_config_json)
-        icons = {'HALF_BOX_ICON_PATH': config.get('HALF_BOX_ICON_PATH'), 'FULL_BOX_ICON_PATH': config.get('FULL_BOX_ICON_PATH')}
+        
+        # New: Parse full icon paths and rules
+        icon_file_paths = config.get('icon_file_paths', {})
+        shipping_box_rules = config.get('shipping_box_rules', {})
         
         xls = pd.ExcelFile(input_excel_path)
         for sheet_name in xls.sheet_names:
             if GANG_RUN_TRIGGER in sheet_name.upper():
                 df = pd.read_excel(xls, sheet_name=sheet_name, dtype={f'box_{chr(65+i)}': str for i in range(8)})
-                process_dataframe(df, os.path.join(files_base_folder, sanitize_filename(sheet_name)), os.path.join(originals_base_folder, sanitize_filename(sheet_name)), sheet_name, config.get('COLOR_PALETTE_PATH'), icons)
+                process_dataframe(df, os.path.join(files_base_folder, sanitize_filename(sheet_name)), os.path.join(originals_base_folder, sanitize_filename(sheet_name)), sheet_name, config.get('COLOR_PALETTE_PATH'), icon_file_paths, shipping_box_rules)
     except Exception as e: utils_ui.print_error(f"Fatal Error: {e}"); sys.exit(1)
 
 if __name__ == "__main__":

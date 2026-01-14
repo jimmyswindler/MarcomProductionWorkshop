@@ -1,0 +1,12 @@
+{
+	"folders": [
+		{
+			"name": "MarcomProductionSuite",
+			"path": "."
+		},
+		{
+			"path": "../ShippingApp"
+		}
+	],
+	"settings": {}
+}

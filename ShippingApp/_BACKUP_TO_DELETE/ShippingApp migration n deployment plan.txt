@@ -1,0 +1,36 @@
+ShippingApp Analysis & Architecture Report
+You asked for an analysis of how the current setup works and what needs to change for the server deployment.
+
+Current Architecture (Local Desktop)
+Currently, the app relies on everything running on the same machine (localhost).
+
+Backend (app.py):
+Role: It is an HTTP Server (API) built with Flask.
+Database: Connects to localhost on port 5432.
+Network: Runs on 127.0.0.1 (localhost) on port 5000. This means it only accepts connections from the same computer.
+Frontend (shipping_station.html):
+Role: A User Interface running in your browser.
+Communication: It sends requests (fetches) to http://127.0.0.1:5000/....
+Hardcoded: The address of the backend is hardcoded in the HTML file.
+Required Changes for Server Deployment (Whole Shop Access)
+To make this accessible to other computers (e.g., the Windows shipping station), you will need to update the "wiring":
+
+1. Database Access
+Current: DB_HOST = "localhost"
+Future: If the database stays on your Mac, the Server/App will need to connect to your Mac's IP (10.0.10.51). If the database moves to the server, you update the config to localhost (relative to the server) or the DB Server's IP.
+2. Backend Visibility (app.py)
+Current: app.run(debug=True, port=5000) (Defaults to localhost only).
+Future: You must tell the app to listen on all network interfaces so other computers can reach it.
+Change: app.run(host='0.0.0.0', port=5000)
+Security Note: You'll need to ensure the firewall allows traffic on port 5000.
+3. Frontend "Wiring" (shipping_station.html)
+Current: fetch('http://127.0.0.1:5000/api/...')
+Future: The HTML file runs in the user's browser (on their separate computer). It cannot talk to 127.0.0.1 (which would be their computer).
+Change: You must replace 127.0.0.1 with the IP Address of the Server (e.g., http://10.0.10.51:5000 or a domain name).
+Summary Table
+Component	Current Setting	Server Requirement
+Database Host	localhost	Server IP (or local if app is on DB server)
+App Listener	127.0.0.1 (Default)	0.0.0.0 (All interfaces)
+Frontend API URL	http://127.0.0.1:5000	http://<SERVER_IP>:5000
+No code changes were made, as requested. This is just a roadmap for your deployment.
+

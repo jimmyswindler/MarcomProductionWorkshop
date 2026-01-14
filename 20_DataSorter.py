@@ -9,6 +9,7 @@ import traceback
 import json
 import argparse
 import time
+import datetime
 import utils_ui  # <--- New UI Utility
 
 # --- CONFIGURATION ---
@@ -80,12 +81,22 @@ def organize_by_product_id(input_file, config):
 
     # --- Data Cleaning ---
     df[col_qty] = pd.to_numeric(df[col_qty], errors='coerce').fillna(0)
-    original_row_count = len(df); df = df[df[col_qty] > 0].copy()
-    rows_dropped = original_row_count - len(df)
-    if rows_dropped > 0: utils_ui.print_info(f"Dropped {rows_dropped} rows with zero/invalid quantity.")
+    
+    # Identify and separate zero/invalid quantity rows
+    zero_qty_mask = df[col_qty] <= 0
+    dropped_zero_qty_df = df[zero_qty_mask].copy()
+    
+    # Filter main dataframe
+    df = df[~zero_qty_mask].copy()
+    
+    if not dropped_zero_qty_df.empty: 
+        utils_ui.print_info(f"Dropped {len(dropped_zero_qty_df)} rows with zero/invalid quantity.")
+        
     if df.empty:
         utils_ui.print_warning("No rows with quantity > 0 after cleaning.")
-        return {'categorized': {'_initial_stats': {}, '_original_columns': original_columns}, 'exceptions': pd.DataFrame(columns=original_columns)}
+        return {'categorized': {'_initial_stats': {}, '_original_columns': original_columns}, 
+                'exceptions': pd.DataFrame(columns=original_columns),
+                'dropped_zero_qty': dropped_zero_qty_df}
 
     df[col_pid] = df[col_pid].astype(str).str.strip().str.split('.').str[0]
     exceptions_df = pd.DataFrame(columns=df.columns)
@@ -197,7 +208,7 @@ def organize_by_product_id(input_file, config):
     categorized_dfs['_initial_stats'] = initial_stats
     categorized_dfs['_original_columns'] = original_columns
 
-    return {'categorized': categorized_dfs, 'exceptions': exceptions_df}
+    return {'categorized': categorized_dfs, 'exceptions': exceptions_df, 'dropped_zero_qty': dropped_zero_qty_df}
 
 # --- Main Function ---
 def main(input_excel_path, output_dir, config_path):
@@ -230,6 +241,17 @@ def main(input_excel_path, output_dir, config_path):
         
         categorized_dfs = organized_data.get('categorized', {})
         exceptions_df = organized_data.get('exceptions', pd.DataFrame())
+        dropped_zero_qty_df = organized_data.get('dropped_zero_qty', pd.DataFrame())
+        
+        # --- Save Dropped Zero Qty Report ---
+        if not dropped_zero_qty_df.empty:
+            dropped_report_name = f"Dropped_Zero_Qty_Rows_{datetime.datetime.now().strftime('%Y-%m-%d_%H%M%S')}.xlsx"
+            dropped_report_path = os.path.join(output_dir, dropped_report_name)
+            try:
+                dropped_zero_qty_df.to_excel(dropped_report_path, index=False)
+                utils_ui.print_success(f"Saved Zero-Qty Report: {dropped_report_name}")
+            except Exception as e:
+                utils_ui.print_error(f"Failed to save Zero-Qty Report: {e}")
         
         original_columns = categorized_dfs.pop('_original_columns', [])
         _ = categorized_dfs.pop('_initial_stats', {})

@@ -1,0 +1,2 @@
+Analyze the 'MarcomProductionSuite' and the related 'ShippingApp' and the marcom postgres database.
+We will modify the 'shipping_station.html' frontend and associated backend to begin the workflow by scanning or entering the ORDER NUMBER instead of a JOB NUMBER

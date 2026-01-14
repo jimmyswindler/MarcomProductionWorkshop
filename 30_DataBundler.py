@@ -280,7 +280,7 @@ def _strategy_0_lockdown(fragment_df, entity_pool, df, col_qty, bundle_search_th
             # The remainder becomes the 'new' fragment to push back to queue.
             rem_indices = [x for x in seed_indices if x not in slice_indices]
             new_frag = df.loc[rem_indices].copy()
-            return slice_indices, target, new_frag
+            return slice_indices, current_sum, new_frag
 
     # B. Standard Fragment (<= 6250)
     # We treat this fragment as the ANCHOR.

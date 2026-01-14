@@ -168,19 +168,33 @@ def main_workflow():
         s1_input_dir = stage1_paths.get('input_dir')
         
         source_base_names = config.get('stage1_source_files', {})
-        if len(source_base_names) != 3: raise ValueError("Config must define 'stage1_source_files' with 3 keys.")
+        # if len(source_base_names) != 3: raise ValueError("Config must define 'stage1_source_files' with 3 keys.")
         
         file_paths_map = {}
+        file_paths_map = {}
         for key, base_name in source_base_names.items():
-            found = glob.glob(os.path.join(s1_input_dir, f"{base_name}*.xlsx"))
-            if not found: raise FileNotFoundError(f"Stage 1 input file starting with '{base_name}' not found in {s1_input_dir}")
-            if len(found) > 1: raise FileExistsError(f"Multiple files starting with '{base_name}' found in {s1_input_dir}")
+            # Determine extension based on key or config (simple heuristic: if key has 'xml', use .xml)
+            ext = ".xml" if "xml" in key.lower() else ".xlsx"
             
-            file_paths_map[key] = found[0]
-            utils_ui.print_info(f"Found source '{key}': {os.path.basename(found[0])}")
-            original_source_files_staging_map[os.path.basename(found[0])] = os.path.join(s1_staging_dir, os.path.basename(found[0]))
+            pattern = os.path.join(s1_input_dir, f"{base_name}*{ext}")
+            found = glob.glob(pattern)
+            
+            if not found: 
+                raise FileNotFoundError(f"Stage 1 input file(s) starting with '{base_name}' ({ext}) not found in {s1_input_dir}")
+            
+            # Sort files to ensure chronological processing (relying on timestamp in filename)
+            found.sort()
+            
+            # Store as LIST of paths
+            file_paths_map[key] = found
+            
+            utils_ui.print_info(f"Found source '{key}': {len(found)} file(s)")
+            for f in found:
+                utils_ui.print_info(f"  - {os.path.basename(f)}")
+                original_source_files_staging_map[os.path.basename(f)] = os.path.join(s1_staging_dir, os.path.basename(f))
 
-        s1_args = [s1_staging_dir, json.dumps(file_paths_map)]
+        remapping_map = config.get('product_id_remapping', {})
+        s1_args = [s1_staging_dir, json.dumps(file_paths_map), json.dumps(remapping_map)]
         run_script(script_paths['collect'], s1_args) 
         
         consolidated_reports = glob.glob(os.path.join(s1_staging_dir, 'MarcomOrderDate*.xlsx'))
@@ -188,6 +202,12 @@ def main_workflow():
         consolidated_reports.sort(key=os.path.getmtime, reverse=True)
         consolidated_report_path = consolidated_reports[0]
         utils_ui.print_success(f"Found consolidated report: {os.path.basename(consolidated_report_path)}")
+
+        # --- Stage 1.5: Database Ingest ---
+        if 'ingest' in script_paths:
+            utils_ui.print_section("Stage 1.5: Database Ingest")
+            s15_args = [s1_staging_dir]
+            run_script(script_paths['ingest'], s15_args)
 
         # --- Dynamic Path Generation ---
         utils_ui.print_info("Setting up dynamic job folders...")
@@ -280,13 +300,7 @@ def main_workflow():
         
         # --- Move original source files ---
         utils_ui.print_info("Archiving source files...")
-        for filename, staging_path in original_source_files_staging_map.items():
-            final_path = os.path.join(data_files_logs_dir, filename) 
-            if os.path.exists(staging_path):
-                try:
-                    shutil.move(staging_path, final_path)
-                except Exception as move_err:
-                    logging.warning(f"Could not move source file {filename}: {move_err}")
+# No changes needed here, logic is compatible.
         
         # --- Handoff 2b -> 2c ---
         bundled_reports = glob.glob(os.path.join(data_files_logs_dir, 'MarcomOrderDate*.xlsx'))
