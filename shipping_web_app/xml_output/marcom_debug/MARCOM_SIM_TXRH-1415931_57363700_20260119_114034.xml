@@ -1,0 +1,22 @@
+
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:pac="http://www.printable.com/WebService/PackingSlip">
+    <soapenv:Header/>
+    <soapenv:Body>
+        <pac:CreatePackingSlipByLineItem>
+            <pac:pRequest>
+                <PartnerCredentials>
+                    <Token>B5A42D9EC8EFC2758729D11913E4160C</Token>
+                </PartnerCredentials>
+                <PackingSlipNode>
+                    <CarrierName>UPS</CarrierName>
+                    <TrackingNumber>1Z999999999999999a</TrackingNumber>
+                </PackingSlipNode>
+                <LineItems>
+                    <LineItem>
+                        <ID type="Printable">57363700</ID>
+                    </LineItem>
+                </LineItems>
+            </pac:pRequest>
+        </pac:CreatePackingSlipByLineItem>
+    </soapenv:Body>
+</soapenv:Envelope>
