@@ -1,6 +1,7 @@
 import os
 import re
 import datetime
+import math
 import psycopg2
 import psycopg2.extras
 from flask import Flask, jsonify, abort, request, send_from_directory
@@ -70,11 +71,27 @@ def generate_worldship_xml(shipment_data, packages, store_number_arg=None):
     ship_to = main_order['ship_to']
     
     # Ref 1: Store Number (4 digits)
-    store_number = "0000"
+    store_number_str = "0000"
     if store_number_arg:
-         store_number = str(store_number_arg).strip().zfill(4)
+         store_number_str = str(store_number_arg).strip().zfill(4)
     else:
-         store_number = get_store_number(ship_to.get('name', ''))
+         store_number_str = get_store_number(ship_to.get('name', ''))
+    
+    # Store Logic: 0001-1000 Override
+    try:
+        store_int = int(store_number_str)
+    except ValueError:
+        store_int = 99999 # Fallback if not numeric
+
+    if 1 <= store_int <= 1000:
+        final_company = f"Texas Roadhouse #{store_number_str.lstrip('0')}" # Remove leading zeros for display e.g. #244
+        # Wait, user said "#[Store Number]" e.g. "#244". zfill(4) gives "0244".
+        # Let's trust int conversion logic or lstrip?
+        # User example: "#244". So remove leading 0s.
+        final_attention = "Store Manager"
+    else:
+        final_company = ship_to.get('company', '')
+        final_attention = ship_to.get('name', '')
     
     # Ref 2: Order Number(s)
     ref2 = ",".join([o['order_number'] for o in shipment_data['orders']])
@@ -82,16 +99,16 @@ def generate_worldship_xml(shipment_data, packages, store_number_arg=None):
     xml_parts = []
     xml_parts.append(f"""<?xml version="1.0" encoding="WINDOWS-1252"?>
 <OpenShipments xmlns="x-schema:OpenShipments.xdr">
-    <OpenShipment ProcessStatus="" ShipmentOption="">
+    <OpenShipment ProcessStatus="Y">
         <ShipTo>
-            <CompanyOrName>{ship_to.get('company', '')}</CompanyOrName>
-            <Attention>{ship_to.get('name', '')}</Attention>
+            <CompanyOrName>{final_company}</CompanyOrName>
+            <Attention>{final_attention}</Attention>
             <Address1>{ship_to.get('address1', '')}</Address1>
             <CountryTerritory>{ship_to.get('country', 'US')}</CountryTerritory>
             <PostalCode>{ship_to.get('zip', '')}</PostalCode>
             <CityOrTown>{ship_to.get('city', '')}</CityOrTown>
             <StateProvinceCounty>{ship_to.get('state', '')}</StateProvinceCounty>
-            <ReceiverUpsAccountNumber>{ship_to.get('account_number', '')}</ReceiverUpsAccountNumber>
+            <ReceiverUpsAccountNumber>{ship_to.get('account_number', 'Y76383')}</ReceiverUpsAccountNumber>
         </ShipTo>
         <ShipFrom>
             <CompanyOrName>Clark Riggs Printing</CompanyOrName>
@@ -104,33 +121,43 @@ def generate_worldship_xml(shipment_data, packages, store_number_arg=None):
             <Telephone>502-493-9651</Telephone>
             <UpsAccountNumber>4080e5</UpsAccountNumber>
         </ShipFrom>
+        <ThirdParty>
+            <CompanyOrName>N-MOTION</CompanyOrName>
+            <Attention>Marney Bruner</Attention>
+            <Address1>6040 Dutchman's Lane</Address1>
+            <Address2>Suite 100</Address2>
+            <CityOrTown>Louisville</CityOrTown>
+            <CountryTerritory>US</CountryTerritory>
+            <PostalCode>40205</PostalCode>
+            <StateProvinceCounty>KY</StateProvinceCounty>
+            <UpsAccountNumber>Y76383</UpsAccountNumber>
+        </ThirdParty>
         <ShipmentInformation>
             <ServiceType>GND</ServiceType>
+            <NumberOfPackages>{len(packages)}</NumberOfPackages>
             <BillTransportationTo>Third Party</BillTransportationTo>
-            <BillThirdParty>
-                <ThirdPartyAccountNumber>{ship_to.get('account_number', '')}</ThirdPartyAccountNumber>
-                <ThirdPartyAddress>
-                    <CompanyOrName>N-MOTION</CompanyOrName>
-                    <Address1>6040 DUTCHMANS LANE</Address1>
-                    <Address2>SUITE 100</Address2>
-                    <CityOrTown>LOUISVILLE</CityOrTown>
-                    <StateProvinceCounty>KY</StateProvinceCounty>
-                    <PostalCode>40205</PostalCode>
-                    <CountryTerritory>US</CountryTerritory>
-                </ThirdPartyAddress>
-            </BillThirdParty>
         </ShipmentInformation>""")
 
     for pkg in packages:
+        # Weight Rounding UP to nearest integer
+        weight_raw = float(pkg.get('weight', 1.0))
+        weight_int = int(math.ceil(weight_raw))
+        
+        # Dim conversion to int
+        l_int = int(float(pkg.get('L', 0)))
+        w_int = int(float(pkg.get('W', 0)))
+        h_int = int(float(pkg.get('H', 0)))
+
         xml_parts.append(f"""
         <Package>
             <PackageType>CP</PackageType>
-            <Weight>{pkg['weight']}</Weight>
-            <Reference1>{store_number}</Reference1>
+            <Weight>{weight_int}</Weight>
+            <Reference1>{store_number_str}</Reference1>
             <Reference2>{ref2}</Reference2>
-            <Length>{pkg['L']}</Length>
-            <Width>{pkg['W']}</Width>
-            <Height>{pkg['H']}</Height>
+            <Length>{l_int}</Length>
+            <Width>{w_int}</Width>
+            <Height>{h_int}</Height>
+            <MerchandiseDescription>PRINTED MATERIAL</MerchandiseDescription>
         </Package>""")
 
     xml_parts.append("""
@@ -241,7 +268,7 @@ def get_job_details(lookup_id):
         
         # 1. Try to find as JOB Ticket first (Existing Behavior)
         cur.execute("""
-            SELECT j.id as job_id, j.job_ticket_number, o.order_number, 
+            SELECT j.id as job_id, j.order_id, j.job_ticket_number, o.order_number, 
                    o.ship_to_company, o.ship_to_name, 
                    o.address1, o.city, o.state, o.zip, o.country 
             FROM jobs j
@@ -413,6 +440,23 @@ def get_job_details(lookup_id):
         # Finalize Response
         response_data['expected_barcodes'] = all_barcodes
         response_data['line_items'] = line_items_list
+        
+        # 4. Calculate Global Order Progress
+        parent_order_id = job_data['order_id'] if job_data else order_data['id']
+        cur.execute("""
+            SELECT count(b.id) as total,
+                   count(CASE WHEN b.status = 'packed' THEN 1 END) as packed
+            FROM item_boxes b
+            JOIN items i ON b.order_item_id = i.order_item_id
+            JOIN jobs j ON i.job_id = j.id
+            WHERE j.order_id = %s
+        """, (parent_order_id,))
+        prog_row = cur.fetchone()
+        
+        response_data['order_progress'] = {
+            "total_boxes": prog_row['total'] if prog_row else 0,
+            "packed_boxes": prog_row['packed'] if prog_row else 0
+        }
         
         cur.close()
         conn.close()
@@ -689,11 +733,8 @@ def process_shipment():
              except Exception as e:
                  print(f"Error fetching fallback store number: {e}")
                  
-        conn.commit()
-        cur.close()
-        conn.close()
-
-        # 3. Pack Cartons
+                
+         # 3. Pack Cartons
         final_packages = []
         for pkg_in in package_list_in:
             carton_id = pkg_in.get('id')
@@ -718,19 +759,54 @@ def process_shipment():
                 "L": dims['L'], "W": dims['W'], "H": dims['H']
             })
 
-        # 4. Generate XML
+        # 4. Generate ShipmentID & DB Record
+        import random
+        timestamp_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        rand_suffix = str(random.randint(1000, 9999))
+        shipment_uid = f"SHIP_{timestamp_str}_{rand_suffix}"
+        
+        # Gather packed item details for summary BEFORE closing connection
+        packed_summary = []
+        if scanned_boxes:
+             cur.execute("""
+                SELECT j.job_ticket_number, i.sku, i.product_name, count(b.id) as box_count
+                FROM item_boxes b
+                JOIN items i ON b.order_item_id = i.order_item_id
+                JOIN jobs j ON i.job_id = j.id
+                WHERE b.barcode_value = ANY(%s)
+                GROUP BY j.job_ticket_number, i.sku, i.product_name
+                ORDER BY j.job_ticket_number, i.sku
+             """, (scanned_boxes,))
+             for row in cur.fetchall():
+                 packed_summary.append(f"Job {row['job_ticket_number']}: {row['sku']} ({row['box_count']} boxes)")
+
+        ref_order_number = orders[0]['order_number'] if orders else None
+        
+        cur.execute("""
+            INSERT INTO shipments (shipment_uid, job_ticket_number, marcom_sync_status, created_at)
+            VALUES (%s, %s, 'PROCESSING', NOW())
+            RETURNING id
+        """, (shipment_uid, ref_order_number))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        # 5. Generate XML
         xml_string = generate_worldship_xml({"orders": orders}, final_packages, store_number)
         
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"SHIP_{orders[0]['order_number']}_{timestamp}.xml"
+        filename = f"{shipment_uid}.xml"
         with open(os.path.join(XML_OUTPUT_FOLDER, filename), "w") as f:
             f.write(xml_string)
 
         return jsonify({
             "success": True,
             "filename": filename,
+            "shipment_uid": shipment_uid,
             "total_weight": sum(p['weight'] for p in final_packages),
-            "package_count": len(final_packages)
+            "package_count": len(final_packages),
+            "ship_to": orders[0]['ship_to'] if orders else {},
+            "packed_items": packed_summary
         })
 
     except Exception as e:

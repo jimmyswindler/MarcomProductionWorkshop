@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!-- STEP 1: START / ORDER ENTRY -->
+<div id="step1-scan-order">
+    <div id="last-shipment-display" style="display:none;"></div>
+
+    <h1>Scan or Enter Order Number</h1>
+    <div class="input-group">
+        <label for="order-id-input">Order / Job Ticket Number:</label>
+        <input type="text" id="order-id-input" autofocus placeholder="Scan barcode...">
+    </div>
+    <div id="status-message" class="status"></div>
+</div>
+
+<!-- STEP 2: SCANNING ITEMS -->
+<div id="step2-scan-boxes" style="display:none;">
+    <h1 id="scanning-header">Scanning Items</h1>
+
+    <!-- Order Progress -->
+    <div class="progress-section">
+        <div class="progress-labels">
+            <h3>Order Progress</h3>
+            <span id="scan-progress-text">0 / 0</span>
+        </div>
+        <div class="progress-container">
+            <div id="scan-progress-bar" class="progress-fill">0%</div>
+        </div>
+    </div>
+
+    <div id="shipping-address" class="info-box"></div>
+
+    <div class="input-group">
+        <label for="box-barcode-input">Scan Item Barcode:</label>
+        <input type="text" id="box-barcode-input" placeholder="Scan item...">
+    </div>
+    <div id="box-scan-status" class="status"></div>
+
+    <!-- Commands -->
+    <div class="btn-stack">
+        <button id="process-shipment-btn" class="btn-composite" disabled>
+            <span class="btn-text">Process Shipment</span>
+            <div class="btn-barcode"><svg id="bc-process"></svg></div>
+        </button>
+
+        <button id="add-order-btn" class="btn-composite" disabled>
+            <span class="btn-text">Add Another Job</span>
+            <div class="btn-barcode"><svg id="bc-add"></svg></div>
+        </button>
+
+        <button id="cancel-btn" class="btn-composite active-danger">
+            <span class="btn-text">Cancel & Reset</span>
+            <div class="btn-barcode"><svg id="bc-cancel"></svg></div>
+        </button>
+    </div>
+
+    <div id="expected-barcodes"></div>
+</div>
+
+<!-- STEP 4: PACK SHIPMENT -->
+<div id="step4-scan-carton" style="display:none;">
+    <h1>Pack Shipment</h1>
+    <p class="instruction">Scan a carton to select it. Then scan "Finish Shipment".</p>
+
+    <div class="btn-stack" id="pack-screen-buttons">
+        <!-- Standard Boxes defined in JS/Config usually, hardcoded here for parity -->
+        <button id="btn-box-105" data-box="#105" class="btn-composite box-btn">
+            <span class="btn-text">Box #105 (12x10x5)</span>
+            <div class="btn-barcode"><svg class="bc-render" data-value="#105"></svg></div>
+        </button>
+        <button id="btn-box-115" data-box="#115" class="btn-composite box-btn">
+            <span class="btn-text">Box #115 (14x12x6)</span>
+            <div class="btn-barcode"><svg class="bc-render" data-value="#115"></svg></div>
+        </button>
+        <button id="btn-box-116" data-box="#116" class="btn-composite box-btn">
+            <span class="btn-text">Box #116 (14x12x10)</span>
+            <div class="btn-barcode"><svg class="bc-render" data-value="#116"></svg></div>
+        </button>
+        <button id="btn-box-160" data-box="#160" class="btn-composite box-btn">
+            <span class="btn-text">Box #160 (12x12x40)</span>
+            <div class="btn-barcode"><svg class="bc-render" data-value="#160"></svg></div>
+        </button>
+        <button id="btn-box-145" data-box="#145" class="btn-composite box-btn">
+            <span class="btn-text">Box #145 (18x12x12)</span>
+            <div class="btn-barcode"><svg class="bc-render" data-value="#145"></svg></div>
+        </button>
+
+        <div class="input-group">
+            <label>Or Scan Carton Barcode manually:</label>
+            <input type="text" id="carton-input" placeholder="Scan carton...">
+        </div>
+
+        <button id="toggle-multi-btn" class="btn-composite active-info">
+            <span class="btn-text" id="multi-mode-text">Enable Multi-Carton Mode</span>
+            <div class="btn-barcode"><svg id="bc-multi"></svg></div>
+        </button>
+
+        <button id="toggle-custom-btn" class="btn-composite active-info">
+            <span class="btn-text" id="custom-mode-text">Use Custom Box</span>
+            <div class="btn-barcode"><svg id="bc-custom"></svg></div>
+        </button>
+
+        <div id="custom-box-section" class="custom-box-section" style="display:none;">
+            <h4>Custom Box Details</h4>
+            <div class="dim-inputs">
+                <div><label>L</label><input type="number" id="custom-L"></div>
+                <div><label>W</label><input type="number" id="custom-W"></div>
+                <div><label>H</label><input type="number" id="custom-H"></div>
+                <div><label>Weight</label><input type="number" id="custom-Weight"></div>
+            </div>
+            <button id="add-custom-btn" class="btn-success-solid">Add Custom Package</button>
+        </div>
+
+        <div id="packed-list-container" style="display:none;">
+            <h4>Packed Cartons:</h4>
+            <div id="packed-cartons-list"></div>
+            <button id="clear-cartons-btn" class="btn-warn-solid" style="margin-top:10px;">Clear List</button>
+        </div>
+
+        <div id="carton-status" class="status"></div>
+        <div id="shipment-summary-display"></div>
+
+        <button id="finish-shipment-btn" class="btn-composite" disabled>
+            <span class="btn-text">Finish Shipment</span>
+            <div class="btn-barcode"><svg id="bc-finish"></svg></div>
+        </button>
+
+        <button id="back-to-boxes-btn" style="display:none;">Back</button> <!-- Hidden helper -->
+        <input type="checkbox" id="multi-mode-checkbox" style="display:none;">
+    </div>
+</div>
+{% endblock %}

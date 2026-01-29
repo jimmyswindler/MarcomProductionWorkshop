@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<OpenShipments>
+    <OpenShipment>
+        <ProcessMessage>
+            <ShipID>SHIP_20260121_171350_9076</ShipID>
+            <TrackingNumbers>
+                <TrackingNumber>1ZSIM4299653600</TrackingNumber>
+            </TrackingNumbers>
+        </ProcessMessage>
+    </OpenShipment>
+</OpenShipments>

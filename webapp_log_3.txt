@@ -1,0 +1,13 @@
+/Users/jimmyswindler/Desktop/MarcomProductionWorkshop/shipping_web_app/venv/lib/python3.14/site-packages/fuzzywuzzy/fuzz.py:11: UserWarning: Using slow pure-python SequenceMatcher. Install python-Levenshtein to remove this warning
+  warnings.warn('Using slow pure-python SequenceMatcher. Install python-Levenshtein to remove this warning')
+ * Serving Flask app 'shipping_web_app.app'
+ * Debug mode: on
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5001
+[33mPress CTRL+C to quit[0m
+ * Restarting with stat
+/Users/jimmyswindler/Desktop/MarcomProductionWorkshop/shipping_web_app/venv/lib/python3.14/site-packages/fuzzywuzzy/fuzz.py:11: UserWarning: Using slow pure-python SequenceMatcher. Install python-Levenshtein to remove this warning
+  warnings.warn('Using slow pure-python SequenceMatcher. Install python-Levenshtein to remove this warning')
+ * Debugger is active!
+ * Debugger PIN: 863-984-082
+127.0.0.1 - - [28/Jan/2026 15:54:59] "HEAD / HTTP/1.1" 200 -

@@ -1,0 +1,6 @@
+Traceback (most recent call last):
+  File "/Users/jimmyswindler/Desktop/MarcomProductionWorkshop/shipping_web_app/run.py", line 8, in <module>
+    from shipping_web_app.app import create_app
+  File "/Users/jimmyswindler/Desktop/MarcomProductionWorkshop/shipping_web_app/app/__init__.py", line 2, in <module>
+    from flask import Flask, render_template
+ModuleNotFoundError: No module named 'flask'

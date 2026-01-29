@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shipping Station - Scanner Optimized</title>
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.0/dist/JsBarcode.all.min.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <div id="sidebar-feed" class="sidebar">
+        <div class="sidebar-header">
+            <h3>📡 Live Marcom Sync</h3>
+            <span class="status-indicator">● Connected</span>
+        </div>
+        <div id="xml-feed-content">
+            <ul id="live-feed-list"></ul>
+        </div>
+    </div>
+
+    <div id="app">
+        {% block content %}{% endblock %}
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

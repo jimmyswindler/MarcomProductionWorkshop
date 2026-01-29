@@ -12,7 +12,7 @@ paths:
     # email: './90_email.py'
 
   stage1_collect:
-    input_dir: './data/_REPORT_INPUT'
+    input_dir: './_REPORT_INPUT'
     staging_dir: './data/_STAGING'
     log_dir: './LOGS' # Central log directory
     run_history_path: './data/run_history.yaml'

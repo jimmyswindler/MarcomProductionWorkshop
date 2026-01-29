@@ -1,0 +1,1313 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shipping Station - Scanner Optimized</title>
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.0/dist/JsBarcode.all.min.js"></script>
+
+    <style>
+        /* --- LAYOUT --- */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+        }
+
+        #app {
+            flex: 1;
+            height: 100%;
+            overflow-y: auto;
+            background: #fff;
+            padding: 20px 40px;
+            box-sizing: border-box;
+        }
+
+        /* --- COMPONENTS --- */
+        .input-group {
+            margin-bottom: 15px;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 10px;
+            font-size: 1.2em;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            box-sizing: border-box;
+        }
+
+        .status {
+            padding: 12px 15px;
+            border-radius: 5px;
+            margin-top: 15px;
+            font-size: 0.9em;
+            display: none;
+        }
+
+        .status-error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .status-success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status-warn {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
+
+        /* Progress Bar (Now Global) */
+        .progress-section {
+            margin-bottom: 20px;
+        }
+
+        .progress-container {
+            width: 100%;
+            background-color: #e9ecef;
+            border-radius: 8px;
+            height: 30px;
+            overflow: hidden;
+            box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .progress-fill {
+            height: 100%;
+            background-color: #007bff;
+            width: 0%;
+            transition: width 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            color: white;
+            font-size: 0.9em;
+            font-weight: bold;
+            padding-right: 10px;
+        }
+
+        /* Item Cards */
+        .barcode-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .barcode-card {
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            text-align: center;
+            padding: 10px;
+            background: #fff;
+            width: 150px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* No hover transform requested */
+        .barcode-label {
+            font-weight: 700;
+            color: #333;
+            font-size: 1.1em;
+            display: block;
+        }
+
+        /* Buttons: SCAN-TO-ACTION VERTICAL STACK */
+        .btn-stack {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .btn-composite {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background-color: #6c757d;
+            /* Default Dim Gray */
+            opacity: 0.6;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 5px 15px;
+            cursor: pointer;
+            width: 100%;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: all 0.2s;
+            text-align: left;
+            height: 70px;
+        }
+
+        /* Box Selection Styling */
+        .box-btn {
+            border: 2px solid transparent;
+        }
+
+        .box-btn.selected {
+            opacity: 1.0;
+            background-color: #007bff;
+            /* Active Blue */
+            border: 3px solid #ffc107;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+            transform: scale(1.02);
+        }
+
+        /* Active/Enabled Variants */
+        .btn-composite.active-blue {
+            background-color: #007bff;
+            opacity: 1.0;
+        }
+
+        .btn-composite.active-danger {
+            background-color: #dc3545;
+            opacity: 1.0;
+        }
+
+        .btn-composite.active-success {
+            background-color: #28a745;
+            opacity: 1.0;
+        }
+
+        .btn-composite.active-info {
+            background-color: #17a2b8;
+            opacity: 1.0;
+        }
+
+        .btn-composite:disabled {
+            background-color: #6c757d;
+            /* Ensure Gray */
+            opacity: 0.4;
+            /* Dimmer */
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        .btn-text {
+            font-size: 1.8em;
+            font-weight: 800;
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .btn-barcode {
+            background: white;
+            padding: 2px 5px;
+            border-radius: 4px;
+            margin-left: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Hover effects only for enabled/active-ish buttons */
+        .btn-composite:hover:not(:disabled) {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+
+        /* Last Shipment Success Box */
+        .last-shipment-box {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 25px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+            animation: fadeIn 0.5s;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Custom Box Section */
+        .custom-box-section {
+            border: 2px dashed #ccc;
+            padding: 15px;
+            border-radius: 5px;
+            background: #fafafa;
+            margin-bottom: 15px;
+        }
+
+        .dim-inputs {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+        }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: #fff;
+            padding: 30px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 700px;
+            text-align: center;
+        }
+
+        .address-comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            text-align: left;
+            margin-bottom: 30px;
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+        }
+
+        /* Sidebar */
+        #xml-feed-content::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        #xml-feed-content::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        #xml-feed-content::-webkit-scrollbar-thumb {
+            background: #ccc;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="sidebar-feed"
+        style="width: 350px; background: #f8f9fa; display: flex; flex-direction: column; border-right: 1px solid #dee2e6; color: #333;">
+        <div style="padding: 15px; background: #e9ecef; color: #333; border-bottom: 1px solid #dee2e6;">
+            <h3 style="margin:0; font-size: 1.1em;">📡 Live Marcom Sync</h3>
+            <span style="font-size: 0.8em; color: #28a745;">● Connected</span>
+        </div>
+        <div id="xml-feed-content" style="flex: 1; overflow-y: auto; padding: 10px;">
+            <ul id="live-feed-list" style="list-style: none; padding: 0; margin: 0;"></ul>
+        </div>
+    </div>
+
+    <div id="app">
+        <!-- STEP 1: START / ORDER ENTRY -->
+        <div id="step1-scan-order">
+            <!-- Persistent Last Shipment Success Display -->
+            <div id="last-shipment-display" style="display:none;"></div>
+
+            <h1>Scan or Enter Order Number</h1>
+            <div class="input-group">
+                <label for="order-id-input">Order / Job Ticket Number:</label>
+                <input type="text" id="order-id-input" autofocus placeholder="Scan barcode...">
+            </div>
+            <div id="status-message" class="status"></div>
+
+            <!-- Sync Section integrated into Step 1 for "Last Shipment" closing -->
+            <div id="sync-section-container"
+                style="display:none; margin-top:20px; padding:15px; background:#e2e6ea; border-radius:5px;">
+                <h3>Step 2: Close & Sync Last Order</h3>
+                <input type="text" id="tracking-input" placeholder="Scan UPS Tracking (1Z...)">
+                <div id="sync-status" class="status"></div>
+            </div>
+        </div>
+
+        <!-- STEP 2: SCANNING ITEMS -->
+        <div id="step2-scan-boxes" style="display:none;">
+            <!-- 1. Headline -->
+            <h1 id="scanning-header">Scanning Items</h1>
+
+            <!-- 2. Order Progress -->
+            <div class="progress-section">
+                <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                    <h3 style="margin:0;">Order Progress</h3>
+                    <span id="scan-progress-text" style="font-weight:bold;">0 / 0</span>
+                </div>
+                <div class="progress-container">
+                    <div id="scan-progress-bar" class="progress-fill">0%</div>
+                </div>
+            </div>
+
+            <div id="shipping-address"
+                style="margin-bottom: 20px; padding: 10px; background: #eee; border-radius: 5px;"></div>
+
+            <!-- 3. Input -->
+            <div class="input-group">
+                <label for="box-barcode-input" id="box-barcode-input-label">Scan Item Barcode:</label>
+                <input type="text" id="box-barcode-input" placeholder="Scan item...">
+            </div>
+            <div id="box-scan-status" class="status"></div>
+
+            <!-- 4. Vertical Command Stack (Moved Here) -->
+            <div class="btn-stack" style="margin-bottom: 30px;">
+                <!-- Process: Starts Disabled -->
+                <button id="process-shipment-btn" class="btn-composite" disabled>
+                    <span class="btn-text">Process Shipment</span>
+                    <div class="btn-barcode"><svg id="bc-process"></svg></div>
+                </button>
+
+                <!-- Add Order: Starts Disabled -->
+                <button id="add-order-btn" class="btn-composite" disabled>
+                    <span class="btn-text">Add Another Job (Split Support)</span>
+                    <div class="btn-barcode"><svg id="bc-add"></svg></div>
+                </button>
+
+                <!-- Cancel: Always Enabled -> Active Danger -->
+                <button id="cancel-btn" class="btn-composite active-danger">
+                    <span class="btn-text">Cancel & Reset</span>
+                    <div class="btn-barcode"><svg id="bc-cancel"></svg></div>
+                </button>
+            </div>
+
+            <!-- 5. Expected Item List -->
+            <div id="expected-barcodes"></div>
+        </div>
+
+        <!-- STEP 4: PACK SHIPMENT -->
+        <div id="step4-scan-carton" style="display:none;">
+            <h1>Pack Shipment</h1>
+            <p id="mode-instructions" style="margin-bottom:20px;">Scan a carton to select it. Then scan "Finish
+                Shipment".</p>
+
+            <!-- Vertical Command Stack (Buttons at TOP) -->
+            <div class="btn-stack" id="pack-screen-buttons">
+                <!-- Standard Boxes -->
+                <button id="btn-box-105" data-box="#105" class="btn-composite box-btn">
+                    <span class="btn-text">Box #105 (12x10x5)</span>
+                    <div class="btn-barcode"><svg class="bc-render" data-value="#105"></svg></div>
+                </button>
+                <button id="btn-box-115" data-box="#115" class="btn-composite box-btn">
+                    <span class="btn-text">Box #115 (14x12x6)</span>
+                    <div class="btn-barcode"><svg class="bc-render" data-value="#115"></svg></div>
+                </button>
+                <button id="btn-box-116" data-box="#116" class="btn-composite box-btn">
+                    <span class="btn-text">Box #116 (14x12x10)</span>
+                    <div class="btn-barcode"><svg class="bc-render" data-value="#116"></svg></div>
+                </button>
+                <button id="btn-box-160" data-box="#160" class="btn-composite box-btn">
+                    <span class="btn-text">Box #160 (12x12x40)</span>
+                    <div class="btn-barcode"><svg class="bc-render" data-value="#160"></svg></div>
+                </button>
+                <button id="btn-box-145" data-box="#145" class="btn-composite box-btn">
+                    <span class="btn-text">Box #145 (18x12x12)</span>
+                    <div class="btn-barcode"><svg class="bc-render" data-value="#145"></svg></div>
+                </button>
+
+                <!-- Input Field -->
+                <div class="input-group" style="margin:20px 0;">
+                    <label>Or Scan Carton Barcode manually:</label>
+                    <input type="text" id="carton-input" placeholder="Scan carton...">
+                </div>
+
+                <!-- Toggles & Commands -->
+                <button id="toggle-multi-btn" class="btn-composite active-info">
+                    <span class="btn-text" id="multi-mode-text">Enable Multi-Carton Mode</span>
+                    <div class="btn-barcode"><svg id="bc-multi"></svg></div>
+                </button>
+
+                <button id="toggle-custom-btn" class="btn-composite active-info">
+                    <span class="btn-text" id="custom-mode-text">Use Custom Box</span>
+                    <div class="btn-barcode"><svg id="bc-custom"></svg></div>
+                </button>
+
+                <!-- Custom Box Entry (Moved Here) -->
+                <div id="custom-box-section" class="custom-box-section"
+                    style="display:none; background:#f8f9fa; padding:15px; border:1px solid #ddd; margin-bottom:15px; margin-top: 10px;">
+                    <h4 style="margin-top:0;">Custom Box Details</h4>
+                    <div class="dim-inputs">
+                        <div><label>L</label><input type="number" id="custom-L"></div>
+                        <div><label>W</label><input type="number" id="custom-W"></div>
+                        <div><label>H</label><input type="number" id="custom-H"></div>
+                        <div><label>Weight</label><input type="number" id="custom-Weight"></div>
+                    </div>
+                    <button onclick="addCustomCarton()"
+                        style="margin-top:15px; background:#28a745; color:white; padding:10px; width:100%; font-size:1.1em;">Add
+                        Custom Package</button>
+                </div>
+
+                <!-- Packed List for Multi-Mode -->
+                <div id="packed-list-container" style="display:none; margin: 15px 0;">
+                    <h4>Packed Cartons:</h4>
+                    <div id="packed-cartons-list" style="background:#fff; border:1px solid #ddd; padding:10px;"></div>
+                </div>
+
+                <div id="carton-status" class="status"></div>
+
+                <!-- Packed Content Summary -->
+                <div id="shipment-summary-display"></div>
+
+                <button id="finish-shipment-btn" class="btn-composite" disabled>
+                    <span class="btn-text">Finish Shipment</span>
+                    <div class="btn-barcode"><svg id="bc-finish"></svg></div>
+                </button>
+
+                <input type="checkbox" id="multi-mode-checkbox" style="display:none;">
+            </div>
+
+            <!-- STEP 5 REMOVED - LOGIC REDIRECTS TO STEP 1 -->
+        </div>
+
+        <div id="address-verification-modal" class="modal-overlay" style="display:none;">
+            <div class="modal-content">
+                <h2>Address Mismatch!</h2>
+                <div class="address-comparison">
+                    <div class="address-box">
+                        <h4>Current</h4>
+                        <pre id="current-address-display"></pre>
+                    </div>
+                    <div class="address-box">
+                        <h4>New Order (<span id="new-order-id-modal"></span>)</h4>
+                        <pre id="new-address-display"></pre>
+                    </div>
+                </div>
+                <button id="modal-confirm-btn" style="background:#28a745; color:white; padding:10px 20px;">Yes,
+                    Combine</button>
+                <button id="modal-cancel-btn" style="background:#6c757d; color:white; padding:10px 20px;">No</button>
+            </div>
+        </div>
+
+        <script>
+
+
+
+            // --- State ---
+            let currentShipment = { ship_to: {}, orders: [], all_expected_barcodes: [], scanned_barcodes: new Set() };
+            let packageList = [];
+            let appMode = 'SCANNING_BOXES';
+
+            // --- Elements ---
+            const el = (id) => document.getElementById(id);
+            const step1 = el('step1-scan-order'), step2 = el('step2-scan-boxes'), step4 = el('step4-scan-carton'); // Step 5 Removed
+            const orderInput = el('order-id-input'), boxInput = el('box-barcode-input'), cartonInput = el('carton-input');
+            const multiModeCheckbox = el('multi-mode-checkbox');
+
+            // --- Helpers ---
+            function showStatus(element, message, type = 'info', autoHide = true) {
+                if (!element) return;
+                element.textContent = message;
+                element.style.display = 'block';
+                element.className = `status status-${type}`;
+                if (autoHide) {
+                    setTimeout(() => { element.style.display = 'none'; }, 5000);
+                }
+            }
+
+            function dismissStatus() {
+                document.querySelectorAll('.status').forEach(el => el.style.display = 'none');
+            }
+
+            function resetAll() {
+                window.location.reload();
+            }
+
+            // --- Draft / Storage ---
+            function saveDraft() {
+                if (!currentShipment) return;
+                const data = {
+                    orderId: currentShipment.orders[0].order_number,
+                    scanned: Array.from(currentShipment.scanned_barcodes)
+                };
+                localStorage.setItem('shipping_draft', JSON.stringify(data));
+            }
+
+            function checkDraft(orderId) {
+                try {
+                    const raw = localStorage.getItem('shipping_draft');
+                    if (!raw) return;
+                    const data = JSON.parse(raw);
+                    if (data.orderId == orderId) {
+                        data.scanned.forEach(bc => currentShipment.scanned_barcodes.add(bc));
+                        updateBarcodeList();
+                        checkProcessShipmentEligibility(); // Re-validate on load
+                    } else {
+                        // Clear old draft if for a different order
+                        localStorage.removeItem('shipping_draft');
+                    }
+                } catch (e) { console.error("Draft Error", e); }
+            }
+
+            // --- Initialize ---
+            window.onload = function () {
+                // Render Command Barcodes
+                // Render Command Barcodes
+                const cmds = [
+                    { id: "#bc-process", val: "CMD-PROCESS" },
+                    { id: "#bc-add", val: "CMD-ADD-CL" },
+                    { id: "#bc-cancel", val: "CMD-CANCEL-ORDER" },
+                    { id: "#bc-finish", val: "CMD-FINISH-SHIP" },
+                    { id: "#bc-multi", val: "CMD-TOGGLE-MULTI" },
+                    { id: "#bc-custom", val: "CMD-TOGGLE-CUSTOM" },
+                    { id: "#bc-clear", val: "CMD-CLEAR-PACKED" },
+                    { id: "#bc-back", val: "CMD-BACK-STEP2" }
+                ];
+
+                cmds.forEach(c => {
+                    try { JsBarcode(c.id, c.val, { format: "CODE128", width: 2, height: 40, displayValue: false, margin: 0 }); }
+                    catch (e) { }
+                });
+
+                document.querySelectorAll('.bc-render').forEach(el => {
+                    JsBarcode(el, el.dataset.value, { format: "CODE128", width: 2, height: 40, displayValue: false });
+                });
+
+                el('order-id-input').focus();
+
+                // --- Initialize Listeners for Pack Screen ---
+                // 1. Standard Box Buttons
+                document.querySelectorAll('.box-btn').forEach(btn => {
+                    const boxId = btn.dataset.box;
+
+                    // Inject Weight Display Span (Idempotent check)
+                    let wSpan = document.getElementById(`w-display-${boxId.replace('#', '')}`);
+                    if (!wSpan) {
+                        wSpan = document.createElement('span');
+                        wSpan.id = `w-display-${boxId.replace('#', '')}`;
+                        wSpan.style.fontWeight = 'bold';
+                        wSpan.style.marginLeft = '10px';
+                        wSpan.style.fontSize = '1.2em';
+                        btn.appendChild(wSpan);
+                    } else {
+                        // Reset if exists
+                        wSpan.textContent = '';
+                    }
+
+                    // Remove old listeners to be safe? JS functionality doesn't easy allow removing anon funcs.
+                    // Assuming page reload prevents dup listeners on DOM elements.
+
+                    btn.addEventListener('click', () => {
+                        handleCartonInput(boxId);
+                    });
+                });
+
+                // 2. Toggles & Commands
+                el('toggle-multi-btn').addEventListener('click', () => {
+                    handleGlobalScan('CMD-TOGGLE-MULTI');
+                });
+
+                el('toggle-custom-btn').addEventListener('click', () => {
+                    handleGlobalScan('CMD-TOGGLE-CUSTOM');
+                });
+
+                // Moved: Ensure this is attached!
+                const finishBtn = el('finish-shipment-btn');
+                if (finishBtn) finishBtn.addEventListener('click', finalizeShipment);
+
+                el('clear-cartons-btn').addEventListener('click', () => {
+                    packageList = [];
+                    renderPackedList();
+                    // Deselect all
+                    document.querySelectorAll('.box-btn').forEach(b => b.classList.remove('selected'));
+                });
+
+                el('finish-shipment-btn').addEventListener('click', finalizeShipment);
+
+                el('back-to-boxes-btn').addEventListener('click', () => {
+                    step4.style.display = 'none';
+                    step2.style.display = 'block';
+                    checkProcessShipmentEligibility();
+                });
+            }
+
+            // --- Global Scan Listener ---
+            let scanBuffer = "";
+            let scanTimeout;
+            const SCAN_TIMEOUT_MS = 100;
+
+            window.addEventListener('keydown', (e) => {
+                if (e.ctrlKey || e.altKey || e.metaKey) return;
+
+                if (e.key === 'Enter') {
+                    if (scanBuffer.length > 2) handleGlobalScan(scanBuffer);
+                    scanBuffer = "";
+                    return;
+                }
+
+                if (e.key.length === 1) {
+                    scanBuffer += e.key;
+                    clearTimeout(scanTimeout);
+                    scanTimeout = setTimeout(() => { scanBuffer = ""; }, SCAN_TIMEOUT_MS);
+                }
+            });
+
+            function handleGlobalScan(code) {
+                code = code.trim();
+                console.log("Global Scan:", code);
+
+                if (code === 'CMD-CANCEL-ORDER') return resetAll();
+
+                // Step 2 Commands
+                if (step2.style.display !== 'none') {
+                    if (code === 'CMD-PROCESS') {
+                        if (!el('process-shipment-btn').disabled) goToPackStep();
+                        return;
+                    }
+                    if (code === 'CMD-ADD-CL') {
+                        if (!el('add-order-btn').disabled) el('add-order-btn').click();
+                        return;
+                    }
+                }
+
+                // Step 4 Commands
+                if (step4.style.display !== 'none') {
+                    if (code === 'CMD-FINISH-SHIP') {
+                        if (!el('finish-shipment-btn').disabled) finalizeShipment();
+                        return;
+                    }
+                    if (code === 'CMD-TOGGLE-MULTI') {
+                        // Logic fix: toggle checkbox
+                        multiModeCheckbox.click();
+                        // Update Text
+                        el('multi-mode-text').textContent = multiModeCheckbox.checked ? "Disable Multi-Carton Mode" : "Enable Multi-Carton Mode";
+                        // Toggle button "active" state visuals
+                        el('toggle-multi-btn').classList.toggle('active-info', multiModeCheckbox.checked);
+                        el('toggle-multi-btn').style.border = multiModeCheckbox.checked ? "2px solid blue" : "none";
+
+                        // NEW: Clear Selection on Toggle
+                        // Clear display weights
+                        document.querySelectorAll('[id^="w-display-"]').forEach(s => s.textContent = '');
+                        packageList = [];
+                        document.querySelectorAll('.box-btn').forEach(b => b.classList.remove('selected'));
+                        renderPackedList();
+                        showStatus(el('carton-status'), "Selection cleared due to mode switch.", 'info');
+
+                        return;
+                    }
+                    if (code === 'CMD-TOGGLE-CUSTOM') {
+                        // Logic fix: toggle div visibility
+                        const customSec = el('custom-box-section');
+                        const isVisible = customSec.style.display !== 'none';
+                        customSec.style.display = isVisible ? 'none' : 'block';
+                        // Update Text: "Use Custom Box" <-> "Use Standard Box"
+                        el('custom-mode-text').textContent = !isVisible ? "Use Standard Box" : "Use Custom Box";
+                        return;
+                    }
+                    if (code === 'CMD-CLEAR-PACKED') {
+                        el('clear-cartons-btn').click(); return;
+                    }
+                    if (code === 'CMD-BACK-STEP2') {
+                        el('back-to-boxes-btn').click(); return;
+                    }
+                }
+            }
+
+            // --- Step 1: Order Entry ---
+            orderInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    console.log("Order Keydown:", e.key, orderInput.value);
+                    if (orderInput.value.trim()) {
+                        e.stopPropagation(); // Prevent global listener interference
+                        fetchFirstOrderData(orderInput.value.trim());
+                    }
+                }
+            });
+
+            async function fetchFirstOrderData(id) {
+                showStatus(el('status-message'), 'Loading...', 'warn', false);
+                try {
+                    const res = await fetch(`http://127.0.0.1:5001/api/order/${id}`);
+                    if (!res.ok) throw await res.json();
+                    const data = await res.json();
+
+                    // Store Data
+                    currentShipment = {
+                        ship_to: data.ship_to,
+                        orders: [data],
+                        all_expected_barcodes: [...data.expected_barcodes],
+                        scanned_barcodes: new Set(),
+                        boxWeights: {}, // Would be populated from rules
+                        orderProgress: data.order_progress
+                    };
+
+                    // Populate weights map
+                    if (data.line_items) {
+                        data.line_items.forEach(li => {
+                            li.barcodes.forEach(bc => currentShipment.boxWeights[bc.value] = bc.estimated_weight || 1.0);
+                        });
+                    } else {
+                        data.expected_barcodes.forEach(bc => currentShipment.boxWeights[bc] = 1.0);
+                    }
+
+                    setupStep2();
+                    checkDraft(data.order_number);
+                } catch (e) {
+                    const msg = e.error || e.message || 'Error';
+                    showStatus(el('status-message'), msg, 'error');
+                    el('order-id-input').value = '';
+                }
+            }
+
+            function setupStep2() {
+                step1.style.display = 'none'; step2.style.display = 'block';
+                el('last-shipment-display').style.display = 'none'; // Hide success msg from prev order
+
+                // Restore Dynamic Headline
+                const orderNum = currentShipment.orders[0].related_order_number || currentShipment.orders[0].order_number;
+                el('scanning-header').textContent = `Scanning Items for ${orderNum}`;
+
+                const a = currentShipment.ship_to;
+                el('shipping-address').innerHTML = `<strong>Ship To:</strong> ${a.name} (Store #: ${a.store_number || 'N/A'})<br>${a.address1}<br>${a.city}, ${a.state} ${a.zip}`;
+
+                updateBarcodeList();
+                boxInput.value = ''; boxInput.disabled = false; boxInput.focus();
+
+                // Disable buttons initially
+                el('process-shipment-btn').disabled = true;
+                el('add-order-btn').disabled = true;
+
+                const total = parseInt(currentShipment.orderProgress.total_boxes || 0);
+                const packed = parseInt(currentShipment.orderProgress.packed_boxes || 0);
+
+                if (packed >= total && total > 0) {
+                    // FULLY SHIPPED
+                    el('scanning-header').innerHTML += " <span style='color:green; font-weight:bold;'>[COMPLETED]</span>";
+                    showStatus(el('box-scan-status'), "This order is COMPLETELY SHIPPED.", 'warn', false);
+                    // Allow reviewing scanning but BLOCK processing
+                    appMode = 'VIEW_ONLY';
+                } else if (packed > 0) {
+                    // PARTIAL
+                    el('scanning-header').innerHTML += " <span style='color:orange; font-weight:bold;'>[PARTIAL SHIPMENT IN PROGRESS]</span>";
+                    showStatus(el('box-scan-status'), "This order is PARTIALLY SHIPPED. Scan remaining items.", 'info', false);
+                    appMode = 'SCANNING_BOXES';
+                } else {
+                    appMode = 'SCANNING_BOXES';
+                }
+
+                updateBarcodeList();
+                boxInput.value = ''; boxInput.disabled = (appMode === 'VIEW_ONLY');
+                if (appMode !== 'VIEW_ONLY') boxInput.focus();
+
+                // Disable buttons initially
+                updateButtonState(el('process-shipment-btn'), false); // Start disabled
+                updateButtonState(el('add-order-btn'), false);
+
+                // If view only, ensure we can't do anything
+                if (appMode === 'VIEW_ONLY') {
+                    boxInput.placeholder = "Order Complete.";
+                }
+            }
+
+            function updateButtonState(btn, enabled, activeClass = 'active-blue') {
+                if (!btn) return;
+                btn.disabled = !enabled;
+                if (enabled) {
+                    btn.classList.add(activeClass);
+                } else {
+                    btn.classList.remove(activeClass);
+                    // Also remove other potential active classes to be safe
+                    btn.classList.remove('active-success', 'active-info', 'active-danger');
+                }
+            }
+
+            // --- Step 2: Scanning ---
+            boxInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && boxInput.value.trim()) {
+                    e.stopPropagation();
+                    const val = boxInput.value.trim();
+                    // Check if it matches a Command or Tracking #
+                    if (val.startsWith('1Z')) {
+                        showStatus(el('box-scan-status'), 'Tracking number ignored.', 'warn');
+                        boxInput.value = ''; return;
+                    }
+                    if (val === 'CMD-PROCESS') return; // Handled by global
+
+                    if (appMode === 'SCANNING_BOXES') processBoxScan(val);
+                    else fetchAndCompareOrder(val);
+                }
+            });
+
+            // Add Click Listeners for Step 2 Buttons
+            el('process-shipment-btn').addEventListener('click', () => {
+                if (!el('process-shipment-btn').disabled) goToPackStep();
+            });
+            el('cancel-btn').addEventListener('click', resetAll);
+            el('add-order-btn').addEventListener('click', () => {
+                // Logic for Add Order (Split Support) - functionality dependent on backend support
+                alert("Add Order feature coming soon");
+            });
+
+            function processBoxScan(code) {
+                if (!currentShipment.all_expected_barcodes.includes(code)) {
+                    return showStatus(el('box-scan-status'), `Invalid: ${code}`, 'error'), boxInput.value = '';
+                }
+                if (currentShipment.scanned_barcodes.has(code)) {
+                    return showStatus(el('box-scan-status'), `Dup: ${code}`, 'warn'), boxInput.value = '';
+                }
+
+                // Check if already packed
+                let isPacked = false;
+                currentShipment.orders.forEach(o => o.line_items.forEach(li => li.barcodes.forEach(b => {
+                    if (b.value === code && b.status === 'packed') isPacked = true;
+                })));
+
+                if (isPacked) {
+                    return showStatus(el('box-scan-status'), `ALREADY PACKED`, 'error'), boxInput.value = '';
+                }
+
+                currentShipment.scanned_barcodes.add(code);
+                updateBarcodeList();
+                showStatus(el('box-scan-status'), `OK: ${code}`, 'success');
+                saveDraft();
+
+                checkProcessShipmentEligibility();
+
+                if (currentShipment.scanned_barcodes.size === currentShipment.all_expected_barcodes.length) {
+                    // If EVERYTHING is scanned
+                    boxInput.disabled = true;
+                    updateButtonState(el('add-order-btn'), true, 'active-info');
+                    el('process-shipment-btn').focus();
+                }
+                boxInput.value = '';
+            }
+
+            function checkProcessShipmentEligibility() {
+                try {
+                    let anyLineComplete = false;
+                    let anyLinePartial = false;
+                    // Use alert for immediate feedback
+                    let logMsg = "Validation Check:\n";
+
+                    if (!currentShipment || !currentShipment.orders) {
+                        console.error("Missing Data");
+                        return;
+                    }
+
+                    currentShipment.orders.forEach(o => o.line_items.forEach(li => {
+                        const totalBoxes = li.barcodes.length;
+                        let scannedCount = 0;
+                        li.barcodes.forEach(b => {
+                            if (b.status === 'packed' || currentShipment.scanned_barcodes.has(b.value)) {
+                                scannedCount++;
+                            }
+                        });
+
+                        if (totalBoxes > 0) {
+                            if (scannedCount === totalBoxes) {
+                                anyLineComplete = true;
+                                logMsg += `\nItem ${li.sku}: COMPLETE (${scannedCount}/${totalBoxes})`
+                            } else if (scannedCount > 0) {
+                                anyLinePartial = true;
+                                logMsg += `\nItem ${li.sku}: PARTIAL (${scannedCount}/${totalBoxes})`
+                            } else {
+                                logMsg += `\nItem ${li.sku}: Empty (0/${totalBoxes})`
+                            }
+                        }
+                    }));
+
+                    const canProcess = anyLineComplete && !anyLinePartial;
+                    logMsg += `\n\nResult: Complete=${anyLineComplete}, Partial=${anyLinePartial} => ENABLED=${canProcess}`;
+
+                    // console.log(logMsg);
+                    // alert(logMsg); // Force User Visibility
+
+                    // Also Update Debug Box
+                    const validDebug = el('validation-debug');
+                    if (validDebug) validDebug.innerText = logMsg;
+
+                    if (validDebug) validDebug.innerText = logMsg;
+
+                    const btn = el('process-shipment-btn');
+                    if (btn) {
+                        // CRITICAL: Block if "Fully Shipped"
+                        const total = parseInt(currentShipment.orderProgress.total_boxes || 0);
+                        const packed = parseInt(currentShipment.orderProgress.packed_boxes || 0);
+                        const isFullyShipped = (packed >= total && total > 0);
+
+                        const enable = canProcess && !isFullyShipped;
+                        updateButtonState(btn, enable, 'active-blue');
+
+                        if (isFullyShipped) {
+                            // Extra safety
+                            btn.querySelector('.btn-text').textContent = "Order Fully Shipped";
+                        } else {
+                            btn.querySelector('.btn-text').textContent = "Process Shipment";
+                        }
+                    }
+                } catch (e) {
+                    console.error(e);
+                }
+            }
+
+            function updateBarcodeList() {
+                // 1. Order Progress Bar
+                const prog = currentShipment.orderProgress || { total_boxes: 0, packed_boxes: 0 };
+                // Add current session scans to 'packed' count for display
+                // Note: 'packed_boxes' from server is what was ALREADY packed. 
+                // We need to add 'scanned_barcodes' size, but safeguard against double counting if we reloaded.
+                // Simplified: Total = total_boxes. Current = (server_packed) + (this_session_scanned - intersection)
+                // For now, let's just show Scan Progress for THIS Shipment in the top bar as requested by user?
+                // "read ORDER progress from database... returning to a previously partially shipped order will reflect in the ORDER's progress meter."
+
+                // So we use server data.
+                const serverPacked = parseInt(prog.packed_boxes);
+                const totalOrder = parseInt(prog.total_boxes);
+
+                // We need to count how many *new* boxes we scanned this session that weren't packed on server yet.
+                let newScans = 0;
+                currentShipment.scanned_barcodes.forEach(bc => {
+                    // Check if this bc was already 'packed' in the source data
+                    // If not, it's a new scan
+                    let wasPacked = false;
+                    currentShipment.orders.forEach(o => o.line_items.forEach(li => li.barcodes.forEach(b => {
+                        if (b.value === bc && b.status === 'packed') wasPacked = true;
+                    })));
+                    if (!wasPacked) newScans++;
+                });
+
+                const effectivePacked = serverPacked + newScans;
+
+                // Render Top Bar
+                const pct = totalOrder > 0 ? Math.round((effectivePacked / totalOrder) * 100) : 0;
+                el('scan-progress-bar').style.width = `${pct}%`;
+                el('scan-progress-bar').textContent = `${pct}%`;
+                el('scan-progress-text').textContent = `${effectivePacked} / ${totalOrder}`;
+
+
+                el('expected-barcodes').innerHTML = ''; // Clear List
+
+                // 2. Render Job Groups
+                const allItems = currentShipment.orders.flatMap(o => o.line_items);
+                const grouped = {};
+                allItems.forEach(i => {
+                    const k = i.job_ticket;
+                    if (!grouped[k]) grouped[k] = [];
+                    grouped[k].push(i);
+                });
+
+                Object.keys(grouped).sort().forEach(jt => {
+                    const items = grouped[jt];
+
+                    // Calculate Job Progress
+                    let jobTotal = 0;
+                    let jobPacked = 0;
+                    items.forEach(i => i.barcodes.forEach(b => {
+                        jobTotal++;
+                        if (b.status === 'packed' || currentShipment.scanned_barcodes.has(b.value)) jobPacked++;
+                    }));
+
+                    // Job Container
+                    const jDiv = document.createElement('div');
+                    jDiv.style.border = "1px solid #ddd";
+                    jDiv.style.marginBottom = "20px";
+                    jDiv.style.borderRadius = "5px";
+
+                    // Job Header with Progress
+                    const jHead = document.createElement('div');
+                    jHead.style.padding = "10px";
+                    jHead.style.background = "#f8f9fa";
+                    jHead.style.display = "flex";
+                    jHead.style.justifyContent = "space-between";
+                    jHead.innerHTML = `<strong>${jt}</strong> <span>${jobPacked}/${jobTotal}</span>`;
+
+                    // Mini Job Progress Bar
+                    const jpBg = document.createElement('div');
+                    jpBg.style.height = "5px"; jpBg.style.background = "#eee";
+                    const jpFill = document.createElement('div');
+                    jpFill.style.height = "100%"; jpFill.style.background = "#28a745";
+                    jpFill.style.width = `${(jobPacked / jobTotal) * 100}%`;
+                    jpBg.appendChild(jpFill);
+
+                    jDiv.appendChild(jHead);
+                    jDiv.appendChild(jpBg);
+
+                    // Items
+                    const iList = document.createElement('div');
+                    iList.style.padding = "10px";
+                    items.forEach(item => {
+                        const iRow = document.createElement('div');
+                        iRow.style.marginBottom = "10px";
+                        iRow.innerHTML = `<div>${item.sku} <small>${item.sku_description}</small></div>`;
+
+                        const bcRow = document.createElement('div');
+                        bcRow.className = 'barcode-grid';
+                        item.barcodes.forEach(bc => {
+                            const isScanned = currentShipment.scanned_barcodes.has(bc.value);
+                            const isPacked = bc.status === 'packed';
+                            let style = "border-color:#ccc;";
+                            if (isPacked) style = "background:#e2e6ea; border-color:#ccc; color:#777;";
+                            if (isScanned) style = "background:#d4edda; border-color:#28a745;";
+
+                            bcRow.innerHTML += `<div class="barcode-card" style="width:120px; padding:5px; ${style}">
+                               <span>${bc.value}</span>
+                               <small>${isPacked ? 'PACKED' : ''}</small>
+                           </div>`;
+                        });
+                        iRow.appendChild(bcRow);
+                        iList.appendChild(iRow);
+                    });
+
+                    jDiv.appendChild(iList);
+                    el('expected-barcodes').appendChild(jDiv);
+                });
+            }
+
+            // --- Step 4: Packing ---
+            el('process-shipment-btn').addEventListener('click', goToPackStep);
+            function goToPackStep() {
+                step2.style.display = 'none'; step4.style.display = 'block';
+                cartonInput.focus(); packageList = [];
+
+                // Build Summary
+                let html = `<ul style="list-style:none; padding:0;">`;
+                currentShipment.orders.forEach(o => o.line_items.forEach(li => {
+                    let count = 0;
+                    li.barcodes.forEach(b => { if (currentShipment.scanned_barcodes.has(b.value)) count++; });
+                    if (count > 0) {
+                        // Format: Order [Ref] : Job [Ref] : [Item Name] (Qty: [N])
+                        html += `<li style="padding:5px; border-bottom:1px solid #eee;">
+                         <strong>Order ${o.order_number}</strong> : Job ${li.job_ticket} : ${li.sku} (Qty: ${count})
+                     </li>`;
+                    }
+                }));
+                html += `</ul>`;
+                el('shipment-summary-display').innerHTML = html;
+
+                // CALCULATE TOTAL WEIGHT
+                let totalW = 0.0;
+                currentShipment.scanned_barcodes.forEach(bc => {
+                    const w = currentShipment.boxWeights[bc] || 1.0;
+                    totalW += w;
+                });
+
+                // Display Header
+                const oldHead = el('total-weight-header');
+                if (oldHead) oldHead.remove();
+
+                const head = document.createElement('h3');
+                head.id = 'total-weight-header';
+                head.style.color = "#007bff";
+                head.innerText = `Total Shipment Weight: ${totalW.toFixed(1)} lbs`;
+                el('step4-scan-carton').insertBefore(head, el('pack-screen-buttons'));
+
+                // Store for auto-fill
+                currentShipment.calculatedTotalWeight = totalW;
+            }
+
+            // Packing Logic
+            window.addCustomCarton = function () {
+                const L = parseFloat(el('custom-L').value);
+                const W = parseFloat(el('custom-W').value);
+                const H = parseFloat(el('custom-H').value);
+                const Weight = parseFloat(el('custom-Weight').value);
+
+                if (L > 0 && W > 0 && H > 0 && Weight > 0) {
+
+                    // NEW: Single Mode Reset Logic
+                    if (!multiModeCheckbox.checked) {
+                        // Clear packageList and visual styles
+                        packageList = [];
+                        document.querySelectorAll('.box-btn').forEach(b => b.classList.remove('selected'));
+                    }
+
+                    packageList.push({ id: 'CUSTOM', L, W, H, weight: Weight });
+                    showStatus(el('carton-status'), `Added Custom Box (${L}x${W}x${H} - ${Weight}lbs)`, 'success');
+
+                    // Clear inputs
+                    el('custom-L').value = '';
+                    el('custom-W').value = '';
+                    el('custom-H').value = '';
+                    el('custom-Weight').value = '';
+
+                    // If NOT in multi-mode, this essentially IS the shipment.
+                    if (!multiModeCheckbox.checked) {
+                        // We don't auto-finish, but we make sure the list is strictly this one item.
+                        // Although packageList.push added it.
+                        // Single mode implies "Replace List"
+                        packageList = [{ id: 'CUSTOM', L, W, H, weight: Weight }];
+                    }
+
+                    renderPackedList();
+                } else {
+                    alert("Please enter valid dimensions and weight.");
+                }
+            }
+
+            window.handleCartonInput = function (id) {
+                // ... (Validation skipped for brevity, assumed safe internal call) ...
+                const validBoxes = ['#105', '#115', '#116', '#160', '#145'];
+                let cleanId = id.toUpperCase().trim();
+                if (!cleanId.startsWith('#') && cleanId !== 'CUSTOM') {
+                    if (validBoxes.includes('#' + cleanId)) cleanId = '#' + cleanId;
+                }
+
+                // Validations...
+                if (!validBoxes.includes(cleanId) && cleanId !== 'CUSTOM') {
+                    showStatus(el('carton-status'), `INVALID BOX CODE: ${id}`, 'error');
+                    return;
+                }
+
+                // Update UI Selection Visuals
+                document.querySelectorAll('.box-btn').forEach(btn => {
+                    // Clear Weight displays if not multi?
+                    if (!multiModeCheckbox.checked) {
+                        const s = btn.querySelector('span[id^="w-display"]');
+                        if (s) s.textContent = '';
+                    }
+
+                    if (btn.dataset.box === cleanId) {
+                        btn.classList.add('selected');
+                    } else {
+                        if (!multiModeCheckbox.checked) {
+                            btn.classList.remove('selected');
+                        }
+                    }
+                });
+
+                if (multiModeCheckbox.checked) {
+                    const w = prompt(`Weight for ${cleanId}?`);
+                    if (w) {
+                        const fW = parseFloat(w);
+                        packageList.push({ id: cleanId, weight: fW });
+                        showStatus(el('carton-status'), `Added ${cleanId}`, 'success');
+
+                        // Update Display
+                        const btn = document.querySelector(`.box-btn[data-box="${cleanId}"]`);
+                        if (btn) {
+                            const s = btn.querySelector('span[id^="w-display"]');
+                            if (s) s.textContent = ` (${fW} lbs)`;
+                        }
+                    }
+                } else {
+                    // Single Mode: Just select and replace
+                    // Auto-Calculate Weight: Steps: 
+                    // 1. Get Carton Tare (Approx) - Hardcoded for now or fetch?
+                    // Let's assume passed in total includes tare or just use total product weight.
+                    // User Request: "all of this weight goes in that one box"
+
+                    const finalW = currentShipment.calculatedTotalWeight || 0;
+
+                    packageList = [{ id: cleanId, weight: finalW }];
+                    showStatus(el('carton-status'), `Selected ${cleanId} (${finalW.toFixed(1)} lbs). Scan FINISH.`, 'success');
+
+                    // Update Display
+                    const btn = document.querySelector(`.box-btn[data-box="${cleanId}"]`);
+                    if (btn) {
+                        const s = btn.querySelector('span[id^="w-display"]');
+                        if (s) s.textContent = ` (${finalW.toFixed(1)} lbs)`;
+                    }
+                }
+                renderPackedList();
+            }
+
+            function renderPackedList() {
+                const div = el('packed-cartons-list');
+                div.innerHTML = packageList.map(p => `<span>${p.id} ${p.weight ? '(' + p.weight + 'lbs)' : ''}</span>`).join(', ');
+
+                // Safety Latch: Enable Finish if we have at least one package selected
+                if (packageList.length > 0) {
+                    updateButtonState(el('finish-shipment-btn'), true, 'active-success');
+                } else {
+                    updateButtonState(el('finish-shipment-btn'), false);
+                }
+            }
+
+            cartonInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && cartonInput.value.trim()) {
+                    e.stopPropagation();
+                    handleCartonInput(cartonInput.value.trim());
+                    cartonInput.value = '';
+                }
+            });
+
+
+
+            async function finalizeShipment() {
+                showStatus(el('carton-status'), 'Processing...', 'warn', false);
+                try {
+                    const res = await fetch('http://127.0.0.1:5001/api/shipment/process', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            orders: currentShipment.orders,
+                            scanned_barcodes: Array.from(currentShipment.scanned_barcodes),
+                            package_list: packageList
+                        })
+                    });
+                    const data = await res.json();
+
+                    // Success! Redirect to Start
+                    step4.style.display = 'none'; step1.style.display = 'block';
+
+                    // Populate Last Shipment Display
+                    const ls = el('last-shipment-display');
+                    ls.style.display = 'block';
+                    ls.className = 'last-shipment-box';
+                    ls.innerHTML = `
+                     <h3 style="margin-top:0;">Last Shipment: ${data.shipment_uid}</h3>
+                     <div><strong>To:</strong> ${data.ship_to.name}, ${data.ship_to.city}</div>
+                     <div><strong>Pkgs:</strong> ${data.package_count} | <strong>Wt:</strong> ${data.total_weight} lbs</div>
+                     <div style="margin-top:10px;">
+                         <strong>Contents:</strong>
+                         <ul style="margin:5px 0 0 20px; font-size:0.9em;">
+                             ${(data.packed_items || []).map(i => `<li>${i}</li>`).join('')}
+                         </ul>
+                     </div>
+                 `;
+
+                    // Reset
+                    currentShipment = null;
+                    orderInput.value = ''; orderInput.focus();
+                    showStatus(el('status-message'), 'Shipment Processed Successfully', 'success');
+
+                } catch (e) {
+                    showStatus(el('carton-status'), e.message || 'Error', 'error');
+                }
+            }
+
+            // Feed
+            setInterval(async () => {
+                try {
+                    const res = await fetch('http://127.0.0.1:5001/api/activity_feed');
+                    const data = await res.json();
+                    el('live-feed-list').innerHTML = data.map(i => `
+                     <li style="border-left:4px solid ${i.marcom_sync_status == 'SUCCESS' ? '#28a745' : '#dc3545'}; padding:5px; margin-bottom:5px; background:white;">
+                         <div><strong>${i.job_ticket_number}</strong></div>
+                         <small>${i.marcom_sync_status}</small>
+                     </li>
+                 `).join('');
+                } catch (e) { }
+            }, 5000);
+
+
+        </script>
+</body>
+
+</html>
