@@ -6,9 +6,10 @@
     <div id="last-shipment-display" style="display:none;"></div>
 
     <h1>Scan or Enter Order Number</h1>
-    <div class="input-group">
+    <div class="input-group" style="position: relative;">
         <label for="order-id-input">Order / Job Ticket Number:</label>
-        <input type="text" id="order-id-input" autofocus placeholder="Scan barcode...">
+        <input type="text" id="order-id-input" autofocus placeholder="Scan barcode..." autocomplete="off">
+        <ul id="autocomplete-list" class="autocomplete-items"></ul>
     </div>
     <div id="status-message" class="status"></div>
 </div>
@@ -16,6 +17,9 @@
 <!-- STEP 2: SCANNING ITEMS -->
 <div id="step2-scan-boxes" style="display:none;">
     <h1 id="scanning-header">Scanning Items</h1>
+    <div id="order-status-display"
+        style="display:none; margin-bottom: 15px; font-size: 1.2em; padding: 10px; border-radius: 4px; text-align: center;">
+    </div>
 
     <!-- Order Progress -->
     <div class="progress-section">
@@ -59,35 +63,38 @@
 
 <!-- STEP 4: PACK SHIPMENT -->
 <div id="step4-scan-carton" style="display:none;">
-    <h1>Pack Shipment</h1>
-    <p class="instruction">Scan a carton to select it. Then scan "Finish Shipment".</p>
+    <div style="display: flex; align-items: baseline; gap: 15px;">
+        <h1 style="margin-bottom: 5px;">Pack Shipment</h1>
+        <span class="instruction" style="font-size: 0.9em; color: #555;">Scan a carton to select it. Then scan "Finish
+            Shipment"</span>
+    </div>
 
     <div class="btn-stack" id="pack-screen-buttons">
         <!-- Standard Boxes defined in JS/Config usually, hardcoded here for parity -->
         <button id="btn-box-105" data-box="#105" class="btn-composite box-btn">
-            <span class="btn-text">Box #105 (12x10x5)</span>
+            <span class="btn-text">Box #105</span>
             <div class="btn-barcode"><svg class="bc-render" data-value="#105"></svg></div>
         </button>
         <button id="btn-box-115" data-box="#115" class="btn-composite box-btn">
-            <span class="btn-text">Box #115 (14x12x6)</span>
+            <span class="btn-text">Box #115</span>
             <div class="btn-barcode"><svg class="bc-render" data-value="#115"></svg></div>
         </button>
         <button id="btn-box-116" data-box="#116" class="btn-composite box-btn">
-            <span class="btn-text">Box #116 (14x12x10)</span>
+            <span class="btn-text">Box #116</span>
             <div class="btn-barcode"><svg class="bc-render" data-value="#116"></svg></div>
         </button>
         <button id="btn-box-160" data-box="#160" class="btn-composite box-btn">
-            <span class="btn-text">Box #160 (12x12x40)</span>
+            <span class="btn-text">Box #160</span>
             <div class="btn-barcode"><svg class="bc-render" data-value="#160"></svg></div>
         </button>
         <button id="btn-box-145" data-box="#145" class="btn-composite box-btn">
-            <span class="btn-text">Box #145 (18x12x12)</span>
+            <span class="btn-text">Box #145</span>
             <div class="btn-barcode"><svg class="bc-render" data-value="#145"></svg></div>
         </button>
 
         <div class="input-group">
-            <label>Or Scan Carton Barcode manually:</label>
-            <input type="text" id="carton-input" placeholder="Scan carton...">
+            <label>Or enter carton number manually:</label>
+            <input type="text" id="carton-input" placeholder="Enter carton number (Box#XXX)">
         </div>
 
         <button id="toggle-multi-btn" class="btn-composite active-info">
@@ -111,6 +118,11 @@
             <button id="add-custom-btn" class="btn-success-solid">Add Custom Package</button>
         </div>
 
+        <button id="finish-shipment-btn" class="btn-composite" disabled>
+            <span class="btn-text">Finish Shipment</span>
+            <div class="btn-barcode"><svg id="bc-finish"></svg></div>
+        </button>
+
         <div id="packed-list-container" style="display:none;">
             <h4>Packed Cartons:</h4>
             <div id="packed-cartons-list"></div>
@@ -120,13 +132,27 @@
         <div id="carton-status" class="status"></div>
         <div id="shipment-summary-display"></div>
 
-        <button id="finish-shipment-btn" class="btn-composite" disabled>
-            <span class="btn-text">Finish Shipment</span>
-            <div class="btn-barcode"><svg id="bc-finish"></svg></div>
-        </button>
-
         <button id="back-to-boxes-btn" style="display:none;">Back</button> <!-- Hidden helper -->
         <input type="checkbox" id="multi-mode-checkbox" style="display:none;">
+    </div>
+</div>
+
+<!-- Address Verification Modal -->
+<div id="address-verification-modal" class="modal-overlay" style="display:none;">
+    <div class="modal-content">
+        <h2>Address Mismatch!</h2>
+        <div class="address-comparison">
+            <div class="address-box">
+                <h4>Current</h4>
+                <pre id="current-address-display"></pre>
+            </div>
+            <div class="address-box">
+                <h4>New Order (<span id="new-order-id-modal"></span>)</h4>
+                <pre id="new-address-display"></pre>
+            </div>
+        </div>
+        <button id="modal-confirm-btn" class="btn-success-solid" style="padding:10px 20px;">Yes, Combine</button>
+        <button id="modal-cancel-btn" class="btn-warn-solid" style="padding:10px 20px;">No</button>
     </div>
 </div>
 {% endblock %}

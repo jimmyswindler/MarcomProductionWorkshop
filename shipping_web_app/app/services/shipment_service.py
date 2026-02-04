@@ -32,7 +32,7 @@ def generate_worldship_xml(shipment_data, packages, store_number_arg=None):
         final_company = f"Texas Roadhouse #{store_number_str.lstrip('0')}"
         final_attention = "Store Manager"
     else:
-        final_company = ship_to.get('company', '')
+        final_company = "Texas Roadhouse"
         final_attention = ship_to.get('name', '')
     
     ref2 = ",".join([o['order_number'] for o in shipment_data['orders']])
@@ -182,15 +182,40 @@ def process_shipment_logic(orders, scanned_boxes, package_list_in):
             
             final_packages.append({"weight": round(weight, 1), **dims})
 
-        # 4. Generate Shipment
-        timestamp_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        rand_suffix = str(random.randint(1000, 9999))
-        shipment_uid = f"SHIP_{timestamp_str}_{rand_suffix}"
+        # 4. Generate Shipment ID (YYYYMMDD_XXXX)
+        now = datetime.datetime.now()
+        date_str = now.strftime("%Y%m%d")
+        
+        # Lock table to prevent race conditions during ID generation
+        cur.execute("LOCK TABLE shipments IN ACCESS EXCLUSIVE MODE")
+        
+        # Find the last ID for today to increment
+        cur.execute("""
+            SELECT shipment_uid 
+            FROM shipments 
+            WHERE shipment_uid LIKE %s
+            ORDER BY shipment_uid DESC 
+            LIMIT 1
+        """, (f"{date_str}_%",))
+        
+        row = cur.fetchone()
+        if row:
+            last_uid = row['shipment_uid']
+            try:
+                # Extract suffix and increment
+                last_suffix = int(last_uid.split('_')[-1])
+                new_suffix = last_suffix + 1
+            except ValueError:
+                new_suffix = 1
+        else:
+            new_suffix = 1
+            
+        shipment_uid = f"{date_str}_{new_suffix:04d}"
         
         ref_order_number = orders[0]['order_number'] if orders else None
         
         cur.execute("""
-            INSERT INTO shipments (shipment_uid, job_ticket_number, marcom_sync_status, created_at)
+            INSERT INTO shipments (shipment_uid, order_number, marcom_sync_status, created_at)
             VALUES (%s, %s, 'PROCESSING', NOW())
             RETURNING id
         """, (shipment_uid, ref_order_number))
@@ -211,3 +236,40 @@ def process_shipment_logic(orders, scanned_boxes, package_list_in):
         print(e)
         if conn: conn.close()
         return {"error": str(e)}, 500
+
+def get_recent_shipments(limit=50):
+    conn = get_db_connection()
+    if not conn: return [], "DB Connection Failed"
+    
+    try:
+        cur = get_real_dict_cursor(conn)
+        cur.execute("""
+            SELECT order_number as job_ticket_number, tracking_number, marcom_sync_status,
+                   marcom_response_message, shipment_uid, created_at
+            FROM shipments
+            ORDER BY created_at DESC
+            LIMIT %s
+        """, (limit,))
+        
+        rows = cur.fetchall()
+        
+        feed = []
+        for r in rows:
+            # Format time
+            if r['created_at']:
+                r['created_at'] = r['created_at'].strftime("%H:%M:%S")
+            else:
+                r['created_at'] = ""
+            
+            # Ensure fields exist
+            if not r['marcom_sync_status']: r['marcom_sync_status'] = 'PENDING'
+            if not r['marcom_response_message']: r['marcom_response_message'] = ''
+            
+            feed.append(r)
+            
+        conn.close()
+        return feed, None
+        
+    except Exception as e:
+        if conn: conn.close()
+        return [], str(e)

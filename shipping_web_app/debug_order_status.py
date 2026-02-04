@@ -71,5 +71,4 @@ def debug_order(lookup_id):
     conn.close()
 
 if __name__ == "__main__":
-    debug_order("TXRH-1425067") # The problem order
-    debug_order("TXRH-1424427") # The working order
+    debug_order("TXRH-1433227") # The problem order

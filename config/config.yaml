@@ -218,8 +218,8 @@ column_names:
 
 product_ids:
   
-  # Outsource has the highest priority
-  Outsource:
+  # CBO has the highest priority
+  CBO:
     - "156"
     - "180"
     - "181"
@@ -518,15 +518,16 @@ bundling_rules:
   exempt_categories:
     - "PrintOnDemand"
     - "LargeFormat"
-    - "Outsource"
+    - "CBO"
   
 sheet_output_order:
   - "BUNDLES"
   - "12ptBounceBack"
   - "16ptBusinessCard"
+  - "CBO"
   - "exceptions"
   - "LargeFormat"
-  - "Outsource"
+  - "CBO"
   - "PrintOnDemand"
 
 pdf_settings:

@@ -20,7 +20,7 @@ def create_table():
         cur.execute("""
             CREATE TABLE IF NOT EXISTS shipments (
                 id SERIAL PRIMARY KEY,
-                job_ticket_number VARCHAR(50),
+                order_number VARCHAR(50),
                 tracking_number VARCHAR(100),
                 marcom_sync_status VARCHAR(50) DEFAULT 'PENDING',
                 marcom_response_message TEXT,

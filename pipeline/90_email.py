@@ -71,35 +71,35 @@ def main():
     conditional_attachments = []
 
     try:
-        # utils_ui.print_info(f"Checking for 'Outsource' in: {os.path.basename(args.bundled_excel_path)}")
+        # utils_ui.print_info(f"Checking for 'CBO' in: {os.path.basename(args.bundled_excel_path)}")
         xls = pd.ExcelFile(args.bundled_excel_path)
-        if 'Outsource' in xls.sheet_names:
-            utils_ui.print_warning("'Outsource' sheet FOUND.")
+        if 'CBO' in xls.sheet_names:
+            utils_ui.print_warning("'CBO' sheet FOUND.")
             subject += " OUTSIDE SERVICES REQUIRED"
-            df_outsource = pd.read_excel(xls, sheet_name='Outsource')
-            if 'job_ticket_number' in df_outsource.columns:
-                outsource_oneup_dir = os.path.join(args.oneup_files_dir, 'Outsource')
-                outsource_ticket_dir = os.path.join(args.job_tickets_dir, 'Outsource')
+            df_CBO = pd.read_excel(xls, sheet_name='CBO')
+            if 'job_ticket_number' in df_CBO.columns:
+                CBO_oneup_dir = os.path.join(args.oneup_files_dir, 'CBO')
+                CBO_ticket_dir = os.path.join(args.job_tickets_dir, 'CBO')
                 unique_base_jobs = set()
-                for job_ticket in df_outsource['job_ticket_number'].dropna().astype(str):
-                    one_up_path = os.path.join(outsource_oneup_dir, f"{job_ticket}.pdf")
+                for job_ticket in df_CBO['job_ticket_number'].dropna().astype(str):
+                    one_up_path = os.path.join(CBO_oneup_dir, f"{job_ticket}.pdf")
                     if os.path.exists(one_up_path): conditional_attachments.append(one_up_path)
                     
                     base_job_num = job_ticket.rsplit('-', 1)[0]
                     unique_base_jobs.add(base_job_num)
-                    ticket_path = os.path.join(outsource_ticket_dir, f"{base_job_num}_TICKETwPROOFS.pdf")
+                    ticket_path = os.path.join(CBO_ticket_dir, f"{base_job_num}_TICKETwPROOFS.pdf")
                     if os.path.exists(ticket_path): conditional_attachments.append(ticket_path)
 
                 conditional_attachments = sorted(list(set(conditional_attachments)))
-                outsource_job_numbers = sorted(list(unique_base_jobs))
-                body_lines = ["The following Job Numbers require outside services:", f"({', '.join(outsource_job_numbers)})", "\nOther attachments are for reference only."]
+                CBO_job_numbers = sorted(list(unique_base_jobs))
+                body_lines = ["The following Job Numbers require outside services:", f"({', '.join(CBO_job_numbers)})", "\nOther attachments are for reference only."]
             else:
-                body_lines = ["ATTENTION: 'Outsource' sheet found but missing job numbers."]
+                body_lines = ["ATTENTION: 'CBO' sheet found but missing job numbers."]
         else:
-            utils_ui.print_info("'Outsource' sheet not found.")
+            utils_ui.print_info("'CBO' sheet not found.")
 
     except Exception as e:
-        utils_ui.print_error(f"Excel Check Error: {e}"); body_lines.append("\nWARNING: Error checking Outsource files.")
+        utils_ui.print_error(f"Excel Check Error: {e}"); body_lines.append("\nWARNING: Error checking CBO files.")
 
     msg['Subject'] = subject 
     msg.attach(MIMEText("\n".join(body_lines), 'plain'))

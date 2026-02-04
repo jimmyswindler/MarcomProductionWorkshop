@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="WINDOWS-1252"?>
+<OpenShipments xmlns="x-schema:OpenShipments.xdr">
+    <OpenShipment ProcessStatus="Y">
+        <ShipTo>
+            <CompanyOrName>Texas Roadhouse #23</CompanyOrName>
+            <Attention>Store Manager</Attention>
+            <Address1>50 Tipple Street</Address1>
+            <CountryTerritory>US</CountryTerritory>
+            <PostalCode>26501</PostalCode>
+            <CityOrTown>Westover</CityOrTown>
+            <StateProvinceCounty>WV</StateProvinceCounty>
+            <ReceiverUpsAccountNumber>Y76383</ReceiverUpsAccountNumber>
+        </ShipTo>
+        <ShipFrom>
+            <CompanyOrName>Clark Riggs Printing</CompanyOrName>
+            <Attention>Shipping Dept</Attention>
+            <Address1>1705 W Jefferson St</Address1>
+            <CountryTerritory>US</CountryTerritory>
+            <PostalCode>40203</PostalCode>
+            <CityOrTown>Louisville</CityOrTown>
+            <StateProvinceCounty>KY</StateProvinceCounty>
+            <Telephone>502-493-9651</Telephone>
+            <UpsAccountNumber>4080e5</UpsAccountNumber>
+        </ShipFrom>
+        <ThirdParty>
+            <CompanyOrName>N-MOTION</CompanyOrName>
+            <Attention>Marney Bruner</Attention>
+            <Address1>6040 Dutchman's Lane</Address1>
+            <Address2>Suite 100</Address2>
+            <CityOrTown>Louisville</CityOrTown>
+            <CountryTerritory>US</CountryTerritory>
+            <PostalCode>40205</PostalCode>
+            <StateProvinceCounty>KY</StateProvinceCounty>
+            <UpsAccountNumber>Y76383</UpsAccountNumber>
+        </ThirdParty>
+        <ShipmentInformation>
+            <ServiceType>GND</ServiceType>
+            <NumberOfPackages>3</NumberOfPackages>
+            <BillTransportationTo>Third Party</BillTransportationTo>
+        </ShipmentInformation>
+        <Package>
+            <PackageType>CP</PackageType>
+            <Weight>43</Weight>
+            <Reference1>0023</Reference1>
+            <Reference2>TXRH-1436717</Reference2>
+            <Length>14</Length>
+            <Width>14</Width>
+            <Height>10</Height>
+            <MerchandiseDescription>PRINTED MATERIAL</MerchandiseDescription>
+        </Package>
+        <Package>
+            <PackageType>CP</PackageType>
+            <Weight>55</Weight>
+            <Reference1>0023</Reference1>
+            <Reference2>TXRH-1436717</Reference2>
+            <Length>9</Length>
+            <Width>6</Width>
+            <Height>4</Height>
+            <MerchandiseDescription>PRINTED MATERIAL</MerchandiseDescription>
+        </Package>
+        <Package>
+            <PackageType>CP</PackageType>
+            <Weight>7</Weight>
+            <Reference1>0023</Reference1>
+            <Reference2>TXRH-1436717</Reference2>
+            <Length>7</Length>
+            <Width>7</Width>
+            <Height>7</Height>
+            <MerchandiseDescription>PRINTED MATERIAL</MerchandiseDescription>
+        </Package>
+    </OpenShipment>
+</OpenShipments>
