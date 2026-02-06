@@ -65,6 +65,7 @@ paths:
       - "Pads_Bubbas_Achievement"
       - "Pads_Free_For_A_Year"
       - "ThankYouCard"
+      - "ValentinesDay"
       - "Other"
 
 # --- New section for script 80 ---
@@ -235,16 +236,19 @@ product_ids:
     - "302"
     - "1376"
     - "2690"
+    - "2728"
     - "2768"
     - "3549"
     - "3590"
     - "3933"
+    - "3974"
     - "4655"
     - "4678"
     - "4730"
     - "4738"
 
   LargeFormat:
+    - "4"
     - "5"
     - "6"
     - "22"
@@ -252,6 +256,7 @@ product_ids:
     - "80"
     - "89"
     - "141"
+    - "143"
     - "157"
     - "160"
     - "161"
@@ -278,10 +283,12 @@ product_ids:
     - "2169"
     - "2251"
     - "2343"
+    - "2362"
     - "2363"
     - "2364"
     - "2366"
     - "2370"
+    - "2446"
     - "2485"
     - "2567"
     - "2568"
@@ -308,11 +315,13 @@ product_ids:
     - "3234"
     - "3257"
     - "3285"
+    - "3548"
     - "3623"
     - "3624"
     - "3625"
     - "3629"
     - "3683"
+    - "3693"
     - "3684"
     - "3685"
     - "3686"
@@ -321,6 +330,7 @@ product_ids:
     - "3690"
     - "3692"
     - "3826"
+    - "3896"
     - "3976"
     - "4093"
     - "4094"
@@ -349,6 +359,7 @@ product_ids:
     - "4544"
     - "4558"
     - "4585"
+    - "4593"
     - "4594"
     - "4596"
     - "4601"
@@ -371,13 +382,18 @@ product_ids:
     - "4688"
     - "4689"
     - "4690"
+    - "4699"
     - "4708"
     - "4710"
     - "4715"
     - "4744"
+    - "4745"
     - "4781"
     - "4815"
+    - "4816"
     - "4817"
+    - "4836"
+    - "4837"
 
   16ptBusinessCard:
     - "1"
@@ -441,6 +457,7 @@ product_ids:
     - "207"
     - "232"
     - "234"
+    - "274"
     - "290"
     - "313"
     - "342"
@@ -455,7 +472,6 @@ product_ids:
     - "3229"
     - "3232"
     - "3977"
-    - "4087"
     - "4109"
     - "4122"
     - "4599"
@@ -463,6 +479,9 @@ product_ids:
     - "4751"
     - "4756"
     - "4758"
+
+  ValentinesDay:
+    - "4087"
   
 categorization_rules:
   business_card_identifiers: ['16pt', '16 pt']
@@ -519,6 +538,7 @@ bundling_rules:
     - "PrintOnDemand"
     - "LargeFormat"
     - "CBO"
+    - "ValentinesDay"
   
 sheet_output_order:
   - "BUNDLES"
@@ -527,8 +547,8 @@ sheet_output_order:
   - "CBO"
   - "exceptions"
   - "LargeFormat"
-  - "CBO"
   - "PrintOnDemand"
+  - "ValentinesDay"
 
 pdf_settings:
   generate_pdf_run_lists: true

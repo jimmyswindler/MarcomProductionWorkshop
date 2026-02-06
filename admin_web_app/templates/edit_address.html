@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card" style="max-width: 600px; margin: 0 auto;">
+    <h1>Edit Address</h1>
+    <h3 style="color: var(--accent);">Store #{{ addr.store_number }}</h3>
+
+    <form method="POST" style="margin-top: 1.5rem;">
+        <div class="form-group">
+            <label class="form-label">Company Name</label>
+            <input type="text" name="company_name" value="{{ addr.company_name or '' }}" required>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">Attn</label>
+            <input type="text" name="attn" value="{{ addr.attn or '' }}">
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">Address 1</label>
+            <input type="text" name="address1" value="{{ addr.address1 or '' }}" required>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">Address 2</label>
+            <input type="text" name="address2" value="{{ addr.address2 or '' }}">
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">Address 3</label>
+            <input type="text" name="address3" value="{{ addr.address3 or '' }}">
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+            <div class="form-group">
+                <label class="form-label">City</label>
+                <input type="text" name="city" value="{{ addr.city or '' }}" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">State</label>
+                <input type="text" name="state" value="{{ addr.state or '' }}" required style="width: 80px;">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Zip</label>
+                <input type="text" name="zip" value="{{ addr.zip or '' }}" required>
+            </div>
+        </div>
+
+        <div style="margin-top: 2rem; display: flex; gap: 1rem;">
+            <button type="submit" class="btn">Save Changes</button>
+            <a href="/address-book" class="btn"
+                style="background: transparent; border: 1px solid var(--border); color: var(--text-secondary);">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

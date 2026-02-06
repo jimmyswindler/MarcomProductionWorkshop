@@ -159,6 +159,16 @@ def parse_orders_xml(xml_path: str) -> pd.DataFrame:
                 order_item_id = find_tag_text(item, 'ID/_value_1')
                 job_ticket_number = find_tag_text(item, 'SupplierWorkOrder/Name')
                 cost_center = find_tag_text(item, 'Department/Number')
+                if not cost_center:
+                    cost_center = find_tag_text(item, 'CostCenter')
+                if not cost_center:
+                    # Fallback to Reference1 (seen in some Marcom formats)
+                    cost_center = find_tag_text(item, 'Reference1')
+                if not cost_center:
+                     # Check Custom Fields if structured that way (common in Marcom)
+                     # But without schema, we stick to common names
+                     cost_center = find_tag_text(item, 'StoreNumber')
+                
                 product_id = find_tag_text(item, 'ProductID/_value_1')
                 product_name = find_tag_text(item, 'ProductName')
                 product_desc = find_tag_text(item, 'ProductDescription')

@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+
+{% block content %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+        <h1>Production Dashboard</h1>
+
+        <!-- Status Lookup Placeholder -->
+        <div style="display: flex; gap: 0.5rem;">
+            <input type="text" placeholder="Status Lookup (Order, Job, Tracking #)" style="width: 300px;">
+            <button class="btn">Search</button>
+        </div>
+    </div>
+
+    <!-- Timeline Chart -->
+    <div style="height: 300px; margin-bottom: 2rem;">
+        <canvas id="productionChart"></canvas>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;">
+
+        <!-- Address Validation Report -->
+        <div style="background: rgba(255,255,255,0.03); padding: 1.5rem; border-radius: 8px;">
+            <h3>Address Validation Report</h3>
+            <div style="margin-top: 1rem; display: grid; gap: 0.5rem;">
+                <!-- Simple Bar visual for stats -->
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span>Valid</span>
+                    <span class="badge badge-success">{{ val_stats.VALID }}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span>Auto-Corrected</span>
+                    <span class="badge badge-warning"
+                        style="background: rgba(56, 189, 248, 0.2); color: var(--accent);">{{ val_stats.CORRECTED
+                        }}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span>Corrected by Address Book</span>
+                    <span class="badge badge-warning"
+                        style="background: rgba(56, 189, 248, 0.2); color: var(--accent);">{{
+                        val_stats.CORRECTED_BY_BOOK }}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span>Ambiguous</span>
+                    <span class="badge badge-warning">{{ val_stats.AMBIGUOUS }}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span>Invalid</span>
+                    <span class="badge badge-danger">{{ val_stats.INVALID }}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Corrections -->
+        <div style="background: rgba(255,255,255,0.03); padding: 1.5rem; border-radius: 8px;">
+            <h3>Recent Auto-Corrections</h3>
+            <div style="margin-top: 1rem; max-height: 200px; overflow-y: auto;">
+                {% if recent_corrections %}
+                <table style="font-size: 0.85rem;">
+                    <thead>
+                        <tr>
+                            <th>Order</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for rc in recent_corrections %}
+                        <tr>
+                            <td>{{ rc.order_number }}</td>
+                            <td style="color: var(--text-secondary);">
+                                {% if rc.address_validation_details and rc.address_validation_details.msg %}
+                                {{ rc.address_validation_details.msg }}
+                                {% else %}
+                                Corrected
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div style="color: var(--text-secondary); font-style: italic;">No recent corrections found.</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Key Metrics -->
+        <div style="background: rgba(255,255,255,0.03); padding: 1.5rem; border-radius: 8px; text-align: center;">
+            <h3>Exceptions Queue</h3>
+            <div
+                style="font-size: 2.5rem; font-weight: 700; color: {% if exceptions > 0 %}var(--danger){% else %}var(--success){% endif %}; margin: 1rem 0;">
+                {{ exceptions }}</div>
+            <div style="color: var(--text-secondary);">Orders needing review</div>
+            {% if exceptions > 0 %}
+            <div style="margin-top: 1rem;">
+                <a href="/exceptions" class="btn btn-sm">Review Now</a>
+            </div>
+            {% endif %}
+        </div>
+
+    </div>
+</div>
+
+<script>
+    const ctx = document.getElementById('productionChart').getContext('2d');
+    const productionChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: {{ chart_labels | tojson }},
+    datasets: [
+        {
+            label: 'Incoming Orders',
+            data: {{ chart_orders | tojson }},
+        borderColor: '#38bdf8', // accent
+        backgroundColor: 'rgba(56, 189, 248, 0.1)',
+        tension: 0.4,
+        fill: true
+                },
+        {
+            label: 'New Jobs',
+            data: {{ chart_jobs | tojson }},
+        borderColor: '#eab308', // warning color for variety
+        backgroundColor: 'rgba(234, 179, 8, 0.1)',
+        tension: 0.4,
+        fill: true
+                },
+        {
+            label: 'Outgoing Shipments',
+            data: {{ chart_shipments | tojson }},
+        borderColor: '#22c55e', // success
+        backgroundColor: 'rgba(34, 197, 94, 0.1)',
+        tension: 0.4,
+        fill: true
+                }
+    ]
+        },
+    options: {
+        responsive: true,
+            maintainAspectRatio: false,
+                plugins: {
+            legend: {
+                position: 'top',
+                    labels: { color: '#94a3b8' }
+            },
+            title: {
+                display: true,
+                    text: '30-Day Activity Volume',
+                        color: '#f8fafc'
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true,
+                    grid: { color: '#334155' },
+                ticks: { color: '#94a3b8' }
+            },
+            x: {
+                grid: { display: false },
+                ticks: { color: '#94a3b8' }
+            }
+        }
+    }
+    });
+</script>
+{% endblock %}

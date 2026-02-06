@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card">
+    <h1>Address Validation Exceptions</h1>
+    <p style="color: var(--text-secondary);">Orders flagged as AMBIGUOUS or INVALID by UPS that cound NOT be
+        auto-corrected via Address Book.</p>
+
+    <div style="margin-top: 1rem;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Order #</th>
+                    <th>Date</th>
+                    <th>Issue</th>
+                    <th>Input Address</th>
+                    <th>Details</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for order in orders %}
+                <tr>
+                    <td>{{ order.order_number }}</td>
+                    <td>{{ order.order_date }}</td>
+                    <td>
+                        {% if order.address_validation_status == 'AMBIGUOUS' %}
+                        <span class="badge badge-warning">Ambiguous</span>
+                        {% else %}
+                        <span class="badge badge-danger">Invalid</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {{ order.address1 }}<br>
+                        {% if order.address2 %}{{ order.address2 }}<br>{% endif %}
+                        {{ order.city }}, {{ order.state }} {{ order.zip }}
+                    </td>
+                    <td style="max-width: 300px; font-size: 0.8rem; color: var(--text-secondary);">
+                        {{ order.address_validation_details }}
+                    </td>
+                    <td>
+                        <a href="/exceptions/fix/{{ order.order_number }}" class="btn btn-sm">Review / Fix</a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-secondary);">No
+                        exceptions found. Great job!</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

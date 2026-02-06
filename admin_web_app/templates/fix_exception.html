@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div style="display: flex; gap: 2rem; align-items: flex-start;">
+
+    <!-- Left Column: The Problem -->
+    <div style="flex: 1;">
+        <div class="card">
+            <h1>Review Exception</h1>
+            <h2 style="color: var(--accent); margin-bottom: 0;">{{ order.order_number }}</h2>
+            <div style="font-size: 1.1rem; color: var(--text-secondary); margin-bottom: 1.5rem;">
+                {% if order.store_number %}
+                Store #<span style="color: var(--text-primary); font-weight: 600;">{{ order.store_number }}</span>
+                {% else %}
+                <span style="color: var(--warning); font-style: italic;">Store Number Not Found</span>
+                {% endif %}
+            </div>
+
+            <div style="margin-top: 1.5rem;">
+                <label class="form-label">Current Status</label>
+                {% if order.address_validation_status == 'AMBIGUOUS' %}
+                <span class="badge badge-warning">AMBIGUOUS</span>
+                {% else %}
+                <span class="badge badge-danger">INVALID</span>
+                {% endif %}
+            </div>
+
+            <div style="margin-top: 1.5rem;">
+                <label class="form-label">Validation Details</label>
+                <pre
+                    style="background: rgba(0,0,0,0.3); padding: 1rem; border-radius: 6px; overflow-x: auto; color: var(--text-secondary);">{{ order.address_validation_details }}</pre>
+            </div>
+
+            <div style="margin-top: 1.5rem;">
+                <label class="form-label">Incoming Address</label>
+                <div style="background: rgba(0,0,0,0.3); padding: 1rem; border-radius: 6px;">
+                    <strong>{{ order.ship_to_company }}</strong><br>
+                    {{ order.ship_to_name }}<br>
+                    {{ order.address1 }}<br>
+                    {% if order.address2 %}{{ order.address2 }}<br>{% endif %}
+                    {{ order.city }}, {{ order.state }} {{ order.zip }}
+                </div>
+            </div>
+        </div>
+
+        <a href="/exceptions" class="btn"
+            style="background: transparent; border: 1px solid var(--border); color: var(--text-secondary);">← Back to
+            Queue</a>
+    </div>
+
+    <!-- Right Column: The Solution -->
+    <div style="flex: 1;">
+
+        <!-- OPTION 1: Address Book -->
+        <div class="card" style="border-left: 4px solid var(--accent);">
+            <h3>Option 1: Apply Address Book</h3>
+            <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1rem;">
+                Force an update using a verified store address.
+            </p>
+
+            <form method="POST">
+                <input type="hidden" name="action" value="apply_book">
+                <div class="form-group">
+                    <label class="form-label">Store Number</label>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <input type="text" name="store_number" value="{{ guessed_store }}" placeholder="e.g. 0237"
+                            required>
+                        <button type="submit" class="btn">Apply</button>
+                    </div>
+                    <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.5rem;">
+                        System guessed: <strong>{{ guessed_store }}</strong>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <!-- OPTION 2: Manual Fix -->
+        <div class="card">
+            <h3>Option 2: Manual Edit</h3>
+            <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1rem;">
+                Manually correct the fields below.
+            </p>
+
+            <form method="POST">
+                <input type="hidden" name="action" value="manual_fix">
+
+                <div class="form-group">
+                    <label class="form-label">Address 1</label>
+                    <input type="text" name="address1" value="{{ order.address1 or '' }}" required>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Address 2</label>
+                    <input type="text" name="address2" value="{{ order.address2 or '' }}">
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+                    <div class="form-group">
+                        <label class="form-label">City</label>
+                        <input type="text" name="city" value="{{ order.city or '' }}" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">State</label>
+                        <input type="text" name="state" value="{{ order.state or '' }}" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Zip</label>
+                        <input type="text" name="zip" value="{{ order.zip or '' }}" required>
+                    </div>
+                </div>
+
+                <div style="margin-top: 1rem;">
+                    <button type="submit" class="btn" style="background-color: var(--success); color: white;">Mark as
+                        Corrected</button>
+                </div>
+            </form>
+        </div>
+
+    </div>
+
+</div>
+{% endblock %}
