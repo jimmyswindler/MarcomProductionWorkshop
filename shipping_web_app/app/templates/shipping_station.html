@@ -10,7 +10,7 @@
         <label for="order-id-input">Order / Job Ticket Number:</label>
         <input type="text" id="order-id-input" autofocus placeholder="Scan barcode...">
     </div>
-    <div id="status-message" class="status"></div>
+    <div id="status-message" class="status" role="status" aria-live="polite"></div>
 </div>
 
 <!-- STEP 2: SCANNING ITEMS -->
@@ -34,23 +34,23 @@
         <label for="box-barcode-input">Scan Item Barcode:</label>
         <input type="text" id="box-barcode-input" placeholder="Scan item...">
     </div>
-    <div id="box-scan-status" class="status"></div>
+    <div id="box-scan-status" class="status" role="status" aria-live="polite"></div>
 
     <!-- Commands -->
     <div class="btn-stack">
         <button id="process-shipment-btn" class="btn-composite" disabled>
             <span class="btn-text">Process Shipment</span>
-            <div class="btn-barcode"><svg id="bc-process"></svg></div>
+            <div class="btn-barcode" aria-hidden="true"><svg id="bc-process"></svg></div>
         </button>
 
         <button id="add-order-btn" class="btn-composite" disabled>
             <span class="btn-text">Add Another Job</span>
-            <div class="btn-barcode"><svg id="bc-add"></svg></div>
+            <div class="btn-barcode" aria-hidden="true"><svg id="bc-add"></svg></div>
         </button>
 
         <button id="cancel-btn" class="btn-composite active-danger">
             <span class="btn-text">Cancel & Reset</span>
-            <div class="btn-barcode"><svg id="bc-cancel"></svg></div>
+            <div class="btn-barcode" aria-hidden="true"><svg id="bc-cancel"></svg></div>
         </button>
     </div>
 
@@ -66,23 +66,23 @@
         <!-- Standard Boxes defined in JS/Config usually, hardcoded here for parity -->
         <button id="btn-box-105" data-box="#105" class="btn-composite box-btn">
             <span class="btn-text">Box #105 (12x10x5)</span>
-            <div class="btn-barcode"><svg class="bc-render" data-value="#105"></svg></div>
+            <div class="btn-barcode" aria-hidden="true"><svg class="bc-render" data-value="#105"></svg></div>
         </button>
         <button id="btn-box-115" data-box="#115" class="btn-composite box-btn">
             <span class="btn-text">Box #115 (14x12x6)</span>
-            <div class="btn-barcode"><svg class="bc-render" data-value="#115"></svg></div>
+            <div class="btn-barcode" aria-hidden="true"><svg class="bc-render" data-value="#115"></svg></div>
         </button>
         <button id="btn-box-116" data-box="#116" class="btn-composite box-btn">
             <span class="btn-text">Box #116 (14x12x10)</span>
-            <div class="btn-barcode"><svg class="bc-render" data-value="#116"></svg></div>
+            <div class="btn-barcode" aria-hidden="true"><svg class="bc-render" data-value="#116"></svg></div>
         </button>
         <button id="btn-box-160" data-box="#160" class="btn-composite box-btn">
             <span class="btn-text">Box #160 (12x12x40)</span>
-            <div class="btn-barcode"><svg class="bc-render" data-value="#160"></svg></div>
+            <div class="btn-barcode" aria-hidden="true"><svg class="bc-render" data-value="#160"></svg></div>
         </button>
         <button id="btn-box-145" data-box="#145" class="btn-composite box-btn">
             <span class="btn-text">Box #145 (18x12x12)</span>
-            <div class="btn-barcode"><svg class="bc-render" data-value="#145"></svg></div>
+            <div class="btn-barcode" aria-hidden="true"><svg class="bc-render" data-value="#145"></svg></div>
         </button>
 
         <div class="input-group">
@@ -92,12 +92,12 @@
 
         <button id="toggle-multi-btn" class="btn-composite active-info">
             <span class="btn-text" id="multi-mode-text">Enable Multi-Carton Mode</span>
-            <div class="btn-barcode"><svg id="bc-multi"></svg></div>
+            <div class="btn-barcode" aria-hidden="true"><svg id="bc-multi"></svg></div>
         </button>
 
         <button id="toggle-custom-btn" class="btn-composite active-info">
             <span class="btn-text" id="custom-mode-text">Use Custom Box</span>
-            <div class="btn-barcode"><svg id="bc-custom"></svg></div>
+            <div class="btn-barcode" aria-hidden="true"><svg id="bc-custom"></svg></div>
         </button>
 
         <div id="custom-box-section" class="custom-box-section" style="display:none;">
@@ -117,12 +117,12 @@
             <button id="clear-cartons-btn" class="btn-warn-solid" style="margin-top:10px;">Clear List</button>
         </div>
 
-        <div id="carton-status" class="status"></div>
+        <div id="carton-status" class="status" role="status" aria-live="polite"></div>
         <div id="shipment-summary-display"></div>
 
         <button id="finish-shipment-btn" class="btn-composite" disabled>
             <span class="btn-text">Finish Shipment</span>
-            <div class="btn-barcode"><svg id="bc-finish"></svg></div>
+            <div class="btn-barcode" aria-hidden="true"><svg id="bc-finish"></svg></div>
         </button>
 
         <button id="back-to-boxes-btn" style="display:none;">Back</button> <!-- Hidden helper -->
