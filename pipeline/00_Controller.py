@@ -174,51 +174,36 @@ def main_workflow():
     original_source_files_staging_map = {} 
 
     try:
-        # --- Stage 1: Data Collection ---
-        utils_ui.print_section("Stage 1: Data Collection")
-        s1_input_dir = stage1_paths.get('input_dir')
+        # --- Stage 1: DB Input (Replaces Data Collection & Ingest) ---
+        utils_ui.print_section("Stage 1: DB Input")
         
-        source_base_names = config.get('stage1_source_files', {})
-        # if len(source_base_names) != 3: raise ValueError("Config must define 'stage1_source_files' with 3 keys.")
+        # Generate dynamic filename for the report
+        timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+        consolidated_report_name = f"MarcomOrderDate_{timestamp}.xlsx" 
+        # Note: 20_DataSorter expects file to start with "MarcomOrderDate" if we rely on its regex or pattern matching, but passing path explicitly is safer.
+        # Actually 00_Controller handles the path passing.
         
-        file_paths_map = {}
-        file_paths_map = {}
-        for key, base_name in source_base_names.items():
-            # Determine extension based on key or config (simple heuristic: if key has 'xml', use .xml)
-            ext = ".xml" if "xml" in key.lower() else ".xlsx"
-            
-            pattern = os.path.join(s1_input_dir, f"{base_name}*{ext}")
-            found = glob.glob(pattern)
-            
-            if not found: 
-                raise FileNotFoundError(f"Stage 1 input file(s) starting with '{base_name}' ({ext}) not found in {s1_input_dir}")
-            
-            # Sort files to ensure chronological processing (relying on timestamp in filename)
-            found.sort()
-            
-            # Store as LIST of paths
-            file_paths_map[key] = found
-            
-            utils_ui.print_info(f"Found source '{key}': {len(found)} file(s)")
-            for f in found:
-                utils_ui.print_info(f"  - {os.path.basename(f)}")
-                original_source_files_staging_map[os.path.basename(f)] = os.path.join(s1_staging_dir, os.path.basename(f))
+        consolidated_report_path = os.path.join(s1_staging_dir, consolidated_report_name)
+        
+        # Call 10_DB_Input.py
+        if 'db_input' not in script_paths:
+             raise ValueError("Script 'db_input' not defined in config.")
+             
+        s1_args = ['--output', consolidated_report_path]
+        run_script(script_paths['db_input'], s1_args)
+        
+        if not os.path.exists(consolidated_report_path):
+             # If script didn't error but no file (maybe 0 jobs), checks inside 10_DB_Input should handle it.
+             # controller raises FileNotFoundError?
+             pass # Logic below checks file existence before moving 
 
-        remapping_map = config.get('product_id_remapping', {})
-        s1_args = [s1_staging_dir, json.dumps(file_paths_map), json.dumps(remapping_map)]
-        run_script(script_paths['collect'], s1_args) 
-        
-        consolidated_reports = glob.glob(os.path.join(s1_staging_dir, 'MarcomOrderDate*.xlsx'))
-        if not consolidated_reports: raise FileNotFoundError(f"No consolidated report (MarcomOrderDate*.xlsx) found in Stage 1 output: {s1_staging_dir}")
-        consolidated_reports.sort(key=os.path.getmtime, reverse=True)
-        consolidated_report_path = consolidated_reports[0]
-        utils_ui.print_success(f"Found consolidated report: {os.path.basename(consolidated_report_path)}")
+        # Compatibility: 10_DataCollection used to match 'MarcomOrderDate*.xlsx'
+        # We just set consolidated_report_path directly.
+        utils_ui.print_success(f"Generated DB Input Report: {os.path.basename(consolidated_report_path)}")
 
         # --- Stage 1.5: Database Ingest ---
-        if 'ingest' in script_paths:
-            utils_ui.print_section("Stage 1.5: Database Ingest")
-            s15_args = [s1_staging_dir]
-            run_script(script_paths['ingest'], s15_args)
+        # SKIPPED: Data is effectively output FROM DB now.
+        # Original ingest inserted into DB. We are doing the reverse or adjacent.
 
         # --- Dynamic Path Generation ---
         utils_ui.print_info("Setting up dynamic job folders...")

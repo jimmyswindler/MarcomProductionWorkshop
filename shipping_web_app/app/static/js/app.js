@@ -3,6 +3,7 @@
 let currentShipment = { ship_to: {}, orders: [], all_expected_barcodes: [], scanned_barcodes: new Set(), boxWeights: {}, orderProgress: {} };
 let packageList = [];
 let appMode = 'SCANNING_BOXES';
+let simulationEnabled = true; // Default, will fetch from server
 
 // Elements
 const el = (id) => document.getElementById(id);
@@ -12,6 +13,7 @@ const step4 = el('step4-scan-carton');
 const orderInput = el('order-id-input');
 const boxInput = el('box-barcode-input');
 const cartonInput = el('carton-input');
+const cartonStatus = el('carton-status');
 const multiModeCheckbox = el('multi-mode-checkbox');
 
 // Status Helper
@@ -75,28 +77,110 @@ function renderFeed(items) {
     const list = document.getElementById('live-feed-list');
     if (!list) return;
     list.innerHTML = items.map(item => {
-        let statusColor = '#007bff';
-        if (item.marcom_sync_status === 'SUCCESS') statusColor = '#28a745';
-        if (item.marcom_sync_status === 'FAILED' || item.marcom_sync_status === 'ERROR') statusColor = '#dc3545';
+        let statusColor = '#007bff'; // Default Blue
+        let marcomDetail = item.marcom_response_message || 'Pending...';
+        let marcomStatus = item.marcom_sync_status;
+
+        let shipper = item.carrier || 'UPS';
+
+        // Fix: Define contentsHtml before using it
+        let contentsHtml = '';
+        if (item.contents && item.contents.length > 0) {
+            contentsHtml = '<ul style="margin:0; padding-left:15px;">' +
+                item.contents.map(c => `<li>${c}</li>`).join('') +
+                '</ul>';
+        } else {
+            contentsHtml = '<span style="color:#999; font-style:italic;">No contents listed</span>';
+        }
 
         return `
         <li style="background: white; border: 1px solid #ddd; margin-bottom: 10px; padding: 10px; border-radius: 5px; border-left: 5px solid ${statusColor}; list-style:none;">
-            <div style="font-weight: bold; font-size: 0.9em; display:flex; justify-content:space-between;">
-                <span>${item.job_ticket_number || item.tracking_number}</span>
-                <span style="color: #999;">${item.created_at}</span>
+            <div style="font-weight: bold; font-size: 1.0em; display:flex; justify-content:space-between; margin-bottom: 4px; border-bottom:1px solid #eee; padding-bottom:5px;">
+                <span>${item.shipment_uid || 'Unknown ID'}</span>
+                <span style="color: #999; font-size:0.8em;">${item.created_at}</span>
             </div>
-            <div style="font-size: 0.8em; color: ${statusColor};">
-                ${item.marcom_sync_status}: ${(item.marcom_response_message || '').substring(0, 40)}
-                ${(item.marcom_response_message || '').includes('Simulated') ? '<span style="color:#666; font-size:0.8em;"> (Simulated)</span>' : ''}
+            <div style="font-size: 0.9em; color: #333; margin-bottom: 5px; font-weight:500;">
+                ${shipper}: ${item.tracking_number || 'Processing...'}
+            </div>
+            <div style="font-size: 0.85em; color: #555; margin-bottom: 8px; max-height:100px; overflow-y:auto; background:#f9f9f9; padding:5px; border-radius:3px;">
+                ${contentsHtml}
+            </div>
+            <div style="font-size: 0.8em; color: ${statusColor}; border-top:1px dashed #eee; padding-top:5px;">
+                ${marcomDetail}
+                ${marcomDetail.includes('Simulated') ? '<span style="color:#666; font-size:0.8em;">(Sim)</span>' : ''}
             </div>
         </li>`;
     }).join('');
+}
+
+// --- Simulation Toggle Logic ---
+async function initSimulationToggle() {
+    // Check initial status
+    try {
+        const res = await fetch('/api/get_simulation_status');
+        const data = await res.json();
+        simulationEnabled = data.simulation_enabled;
+        updateSimBadge();
+    } catch (e) { console.error("Sim Status Error:", e); }
+
+    // Create UI Elem if not exists (Best done in HTML, but injecting here for speed)
+    let badge = document.getElementById('sim-badge');
+    if (!badge) {
+        badge = document.createElement('div');
+        badge.id = 'sim-badge';
+        badge.style.position = 'absolute';
+        badge.style.top = '10px';
+        badge.style.right = '10px';
+        badge.style.padding = '5px 10px';
+        badge.style.borderRadius = '4px';
+        badge.style.fontWeight = 'bold';
+        badge.style.cursor = 'pointer';
+        badge.style.zIndex = '1000';
+        badge.title = 'Click to Toggle Mode (Admin)';
+        document.body.appendChild(badge);
+
+        badge.addEventListener('click', async () => {
+            if (!confirm(`Switch to ${simulationEnabled ? 'LIVE' : 'SIMULATION'} mode?`)) return;
+            try {
+                const res = await fetch('/api/toggle_simulation', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enabled: !simulationEnabled })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    simulationEnabled = data.simulation_enabled;
+                    updateSimBadge();
+                    fetchLiveFeed(); // Refresh feed immediately
+                }
+            } catch (e) { alert("Toggle Failed: " + e); }
+        });
+    }
+    updateSimBadge();
+}
+
+function updateSimBadge() {
+    const badge = document.getElementById('sim-badge');
+    if (!badge) return;
+
+    if (simulationEnabled) {
+        badge.textContent = "MODE: SIMULATION";
+        badge.style.backgroundColor = "#ffc107"; // Amber
+        badge.style.color = "#000";
+        badge.style.border = "1px solid #e0a800";
+    } else {
+        badge.textContent = "MODE: LIVE";
+        badge.style.backgroundColor = "#28a745"; // Green
+        badge.style.color = "#fff";
+        badge.style.border = "1px solid #1e7e34";
+    }
 }
 
 // Initialization
 window.onload = function () {
     initBarcodes();
     initListeners();
+    initSimulationToggle();
     if (orderInput) {
         orderInput.value = '';
         orderInput.focus();
@@ -775,7 +859,7 @@ function handleCartonInput(id) {
     }
 
     if (!validBoxes.includes(cleanId) && cleanId !== 'CUSTOM') {
-        showStatus(el('carton-status'), `INVALID BOX CODE: ${id}`, 'error');
+        showStatus(cartonStatus, `INVALID BOX CODE: ${id}`, 'error');
         return;
     }
 
@@ -833,7 +917,7 @@ function renderPackedList() {
 }
 
 async function finalizeShipment() {
-    showStatus(el('carton-status'), 'Processing...', 'warn', false);
+    showStatus(cartonStatus, 'Processing...', 'warn', false);
     try {
         const res = await fetch('/api/shipment/process', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -848,21 +932,15 @@ async function finalizeShipment() {
         step4.style.display = 'none'; step1.style.display = 'block';
         el('last-shipment-display').style.display = 'block';
         el('last-shipment-display').innerHTML = `
-            <div style="background:#d4edda; border:1px solid #155724; color:#155724; padding:15px; border-radius:5px; margin-bottom:20px;">
-                <h3 style="margin-top:0;">✅ Last Shipment: ${data.shipment_uid}</h3>
-                <p>Packages: ${packageList.length}</p>
-            </div>
-        `;
+        <div style="background:#d4edda; border:1px solid #155724; color:#155724; padding:15px; border-radius:5px; margin-bottom:20px;">
+            <h3 style="margin-top:0;">✅ Last Shipment: ${data.shipment_uid}</h3>
+            <p>Packages: ${packageList.length}</p>
+        </div>
+    `;
 
-        // Soft Reset State instead of reload
-        currentShipment = null;
-        packageList = [];
-        // Keep last-shipment-display visible!
-
-        orderInput.value = ''; orderInput.focus();
-        showStatus(el('status-message'), 'Success! Ready for next order.', 'success');
-
+        resetAll();
     } catch (e) {
-        showStatus(el('carton-status'), e.message || 'Error', 'error');
+        showStatus(cartonStatus, 'Error processing shipment', 'error');
+        console.error(e);
     }
 }

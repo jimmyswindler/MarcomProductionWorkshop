@@ -32,23 +32,44 @@ def process_shipment():
     result, status = shipment_service.process_shipment_logic(orders, scanned, pkgs)
     return jsonify(result), status
 
+
 @api_bp.route('/activity_feed', methods=['GET'])
 def get_feed():
-    # Trigger Simulation & Feedback Loop "Just In Time" for the demo
-    # In production, this would be a background job
     try:
         from ..services import simulation_service, feedback_loop
-        simulation_service.simulate_ups_worldship_processing()
-        feedback_loop.process_ups_output_files()
         
-        simulation_service.simulate_marcom_response()
-        feedback_loop.process_marcom_responses()
+        # 1. Process output files (ALWAYS run this to catch live files too)
+        feedback_loop.process_ups_output_files()
+
+        # 2. Simulate ONLY if enabled
+        if shipment_service.SIMULATION_ENABLED:
+            simulation_service.simulate_ups_worldship_processing()
+            simulation_service.simulate_marcom_response()
+            feedback_loop.process_marcom_responses()
+            
     except Exception as e:
-        print(f"Simulation Trigger Error: {e}")
+        print(f"Feed Processing Error: {e}")
 
     data, error = shipment_service.get_recent_shipments()
     if error: return jsonify({"error": error}), 500
     return jsonify(data)
+
+@api_bp.route('/toggle_simulation', methods=['POST'])
+def toggle_simulation():
+    data = request.json
+    new_mode = data.get('enabled')
+    
+    if new_mode is not None:
+        shipment_service.SIMULATION_ENABLED = bool(new_mode)
+        mode_str = "SIMULATION" if shipment_service.SIMULATION_ENABLED else "LIVE"
+        print(f"*** SWITCHING TO {mode_str} MODE ***")
+        return jsonify({"success": True, "simulation_enabled": shipment_service.SIMULATION_ENABLED})
+    
+    return jsonify({"success": False, "error": "Missing 'enabled' boolean"}), 400
+
+@api_bp.route('/get_simulation_status', methods=['GET'])
+def get_simulation_status():
+    return jsonify({"simulation_enabled": shipment_service.SIMULATION_ENABLED})
 
 @api_bp.route('/order/compare', methods=['POST'])
 def compare_order():
@@ -59,3 +80,4 @@ def compare_order():
     result, error = order_service.compare_addresses(current_addr, new_id)
     if error: return jsonify({"error": error}), 500
     return jsonify(result)
+

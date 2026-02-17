@@ -1,7 +1,8 @@
 paths:
   scripts:
-    collect: './pipeline/10_DataCollection.py'
-    ingest: './pipeline/15_DataIngest.py'
+    collect: './pipeline/10_DataCollection.py' # Deprecated for active pipeline
+    db_input: './pipeline/10_DB_Input.py'      # NEW DB Input Adapter
+    ingest: './pipeline/15_DataIngest.py'      # Deprecated for active pipeline
     sort: './pipeline/20_DataSorter.py'
     bundle: './pipeline/30_DataBundler.py'
     pdfgen: './pipeline/40_PdfRunlistGenerator.py'
@@ -268,10 +269,12 @@ product_ids:
     - "288"
     - "291"
     - "315"
+    - "316"
     - "339"
     - "340"
     - "350"
     - "364"
+    - "963"
     - "985"
     - "1375"
     - "1380"

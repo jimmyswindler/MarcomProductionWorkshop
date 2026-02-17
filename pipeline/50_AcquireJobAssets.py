@@ -11,6 +11,11 @@ import traceback
 
 import utils_ui 
 
+# Setup path for shared_lib
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(project_root)
+from shared_lib.database import get_db_connection
+
 def sanitize_filename(filename):
     filename = str(filename).replace('/', '-')
     return re.sub(r'[\\:*?"<>|]', '', filename).strip()
@@ -72,7 +77,28 @@ def process_sheet_downloads(df, files_path, sheet_name):
     
     if not download_tasks:
         utils_ui.print_info("No new files to download.")
+        # Even if no download, we might need to update DB if it was already local?
+        # But we only track 'tasks'. 
         return
+
+    # Prepare DB updates
+    db_updates = []
+    for t in download_tasks:
+        # Task is (idx, url, dest_path)
+        # We need order_item_id from df.
+        # t[0] is original index (if preserve index) or row index.
+        # In download_worker we pass t[0] = row['index']
+        # rows_with_index has 'index' column if we did reset_index().
+        
+        idx = t[0]
+        # Find row data
+        # Optimize: create a map?
+        # Just iterating is slow if large.
+        # But download_tasks is subset.
+        # Actually row is available in the loop above.
+        pass
+
+    # Better approach: Collect updates in the main loop
 
     utils_ui.print_info(f"Downloading {len(download_tasks)} files...")
     
@@ -98,6 +124,38 @@ def process_sheet_downloads(df, files_path, sheet_name):
         utils_ui.print_warning(f"Downloaded {success_count} files. Failed: {fail_count}.")
     else:
         utils_ui.print_success(f"Successfully acquired {success_count} files.")
+
+    # --- DB Update ---
+    try:
+        conn = get_db_connection()
+        if conn:
+            cur = conn.cursor()
+            updates_count = 0
+            for row in rows_with_index:
+                job_num = str(row.get("job_ticket_number", ""))
+                if not job_num or pd.isna(job_num): continue
+                
+                # Re-calculate filename logic (or store it earlier)
+                file_base = sanitize_filename(job_num)
+                filename = f"{file_base}.pdf"
+                
+                order_item_id = row.get('order_item_id')
+                if order_item_id:
+                    # Update Item
+                    cur.execute("UPDATE items SET print_filename = %s WHERE order_item_id = %s", (filename, order_item_id))
+                    
+                    # Also Update Job? 
+                    # If multiple items map to same job (e.g. suffixes), last one wins? 
+                    # Or jobs table 'print_filename' is for single-job. 
+                    # We will update items primarily.
+                    updates_count += 1
+            
+            conn.commit()
+            cur.close()
+            conn.close()
+            utils_ui.print_success(f"Updated DB with filenames for {updates_count} items.")
+    except Exception as db_e:
+        utils_ui.print_error(f"Failed to update DB filenames: {db_e}")
 
 def main(input_excel_path, files_base_folder):
     utils_ui.setup_logging(None)

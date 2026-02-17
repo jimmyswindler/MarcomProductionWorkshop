@@ -47,6 +47,7 @@ def organize_by_product_id(input_file, config):
     col_pid = col_names.get('product_id'); col_job = col_names.get('job_ticket_number'); col_qty = col_names.get('quantity_ordered')
     col_order = col_names.get('order_number'); col_paper = col_names.get('paper_description'); col_ord_date = col_names.get('order_date')
     col_prod_desc = col_names.get('product_description'); col_sku = col_names.get('sku'); col_ship_date = col_names.get('ship_date')
+    col_item_id = col_names.get('order_item_id')
     col_base_job = 'Base Job Ticket Number'; col_job_total_lines = 'job_total_line_items'
 
     required_config_cols = ['product_id', 'job_ticket_number', 'quantity_ordered', 'order_number','paper_description', 'order_date', 'product_description', 'sku', 'ship_date']
@@ -121,7 +122,10 @@ def organize_by_product_id(input_file, config):
         task = progress.add_task("Renaming Jobs...", total=len(groups))
         for base_ticket, group in groups:
             if len(group) > 1:
-                group_sorted = group.sort_index()
+                if col_item_id and col_item_id in df.columns:
+                     group_sorted = group.sort_values(by=col_item_id)
+                else:
+                     group_sorted = group.sort_index()
                 for i, idx in enumerate(group_sorted.index):
                      if idx in df.index: df.loc[idx, col_job] = f"{base_ticket}-{i + 1:02d}"
             progress.update(task, advance=1)

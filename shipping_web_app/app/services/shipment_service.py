@@ -6,8 +6,15 @@ import random
 from shared_lib.database import get_db_connection, get_real_dict_cursor
 from shared_lib.config import get_env_var
 from shared_lib.utils import get_store_number
+from . import marcom_service
 
 XML_OUTPUT_FOLDER = 'xml_output'
+LIVE_XML_DIR = '/Volumes/XML Auto Import'
+def is_simulation_mode():
+    return get_env_var("SIMULATION_MODE", "True").lower() == "true"
+
+SIMULATION_ENABLED = is_simulation_mode() # Keep for backward compat if needed, but better to replace usages
+
 # Ensure absolute path relative to root if running from root
 if not os.path.exists(XML_OUTPUT_FOLDER):
     os.makedirs(XML_OUTPUT_FOLDER)
@@ -220,6 +227,14 @@ def process_shipment_logic(orders, scanned_boxes, package_list_in):
             RETURNING id
         """, (shipment_uid, ref_order_number))
         
+        # Link Boxes to Shipment
+        if scanned_boxes:
+            cur.execute("""
+                UPDATE item_boxes 
+                SET shipment_uid = %s 
+                WHERE barcode_value = ANY(%s)
+            """, (shipment_uid, scanned_boxes))
+        
         conn.commit()
         cur.close()
         conn.close()
@@ -227,9 +242,48 @@ def process_shipment_logic(orders, scanned_boxes, package_list_in):
         # 5. XML
         xml_string = generate_worldship_xml({"orders": orders}, final_packages, store_number)
         filename = f"{shipment_uid}.xml"
-        with open(os.path.join(XML_OUTPUT_FOLDER, filename), "w") as f:
+        if SIMULATION_ENABLED:
+            target_folder = XML_OUTPUT_FOLDER
+        else:
+            target_folder = LIVE_XML_DIR
+            
+        with open(os.path.join(target_folder, filename), "w") as f:
             f.write(xml_string)
             
+        print(f"XML written to {target_folder}/{filename}")
+            
+        # 6. Marcom Sync (If Live)
+        marcom_results = []
+        if not SIMULATION_ENABLED:
+             # Iterate through items to close them
+             # Finding line_item_id is tricky if we only have order_number or package info.
+             # We need to query the DB for the line item IDs associated with this shipment's boxes.
+             
+             cur.execute("""
+                SELECT DISTINCT i.order_item_id, i.sku
+                FROM item_boxes b
+                JOIN items i ON b.order_item_id = i.order_item_id
+                WHERE b.barcode_value = ANY(%s)
+             """, (scanned_boxes,))
+             
+             line_items_to_close = cur.fetchall()
+             
+             # Assuming single tracking number for whole shipment (Worldship .out file provided it previously)
+             # BUT here we are at generating the XML stage. We don't have tracking number yet?
+             # Wait. The legacy app scanned Tracking Number *manually*.
+             # The new app generates XML for Worldship, then Worldship prints label (getting tracking), 
+             # then we parse Worldship output to get tracking.
+             # SO... we CANNOT close the order with Marcom yet because we don't have the tracking number!
+             # We must wait for the feedback loop (Worldship -> App -> Tracking -> Marcom).
+             
+             # CORRECTION: The verified plan says "After generating Worldship XML... Call marcom_service".
+             # But legacy app required Tracking Number.
+             # If we don't have it, we can't close it.
+             
+             # Update DB status to 'PENDING_TRACKING' so the feedback loop knows to pick it up?
+             # Or rely on feedback_loop to trigger Marcom sync once tracking is available.
+             pass
+
         return {"success": True, "shipment_uid": shipment_uid}, 200
 
     except Exception as e:
@@ -243,11 +297,38 @@ def get_recent_shipments(limit=50):
     
     try:
         cur = get_real_dict_cursor(conn)
+        # Query for Shipments + Contents
+        # We aggregate contents into a list
         cur.execute("""
-            SELECT order_number as job_ticket_number, tracking_number, marcom_sync_status,
-                   marcom_response_message, shipment_uid, created_at
-            FROM shipments
-            ORDER BY created_at DESC
+            SELECT s.shipment_uid, s.tracking_number, s.marcom_sync_status,
+                   s.marcom_response_message, s.created_at, s.packing_slip_id, s.carrier,
+                   COALESCE(
+                       array_agg(DISTINCT c.val) FILTER (WHERE c.val IS NOT NULL), 
+                       '{}'
+                   ) as contents
+            FROM shipments s
+            LEFT JOIN LATERAL (
+                -- Priority 1: Items from Boxes (Specific to this shipment)
+                SELECT i.job_ticket_display_id as val
+                FROM item_boxes ib 
+                JOIN items i ON ib.order_item_id = i.order_item_id
+                WHERE ib.shipment_uid = s.shipment_uid
+                
+                UNION ALL
+                
+                -- Priority 2: Items from Order (Fallback if no boxes found)
+                SELECT i.job_ticket_display_id as val
+                FROM orders o 
+                JOIN jobs j ON o.id = j.order_id
+                JOIN items i ON j.id = i.job_id
+                WHERE o.order_number = s.order_number
+                AND NOT EXISTS (
+                    SELECT 1 FROM item_boxes ib_check WHERE ib_check.shipment_uid = s.shipment_uid
+                )
+            ) c ON TRUE
+            GROUP BY s.shipment_uid, s.tracking_number, s.marcom_sync_status, 
+                     s.marcom_response_message, s.created_at, s.packing_slip_id, s.carrier
+            ORDER BY s.created_at DESC
             LIMIT %s
         """, (limit,))
         
@@ -264,6 +345,10 @@ def get_recent_shipments(limit=50):
             # Ensure fields exist
             if not r['marcom_sync_status']: r['marcom_sync_status'] = 'PENDING'
             if not r['marcom_response_message']: r['marcom_response_message'] = ''
+            
+            # Sort contents for display (e.g. CL123-01, CL123-02)
+            if r['contents']:
+                r['contents'].sort()
             
             feed.append(r)
             
