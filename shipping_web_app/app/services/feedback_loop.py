@@ -221,7 +221,12 @@ def sync_shipment_to_marcom(cur, ship_uid, tracking, order_number=None):
         resp = marcom_service.send_packing_slip(item['order_item_id'], tracking)
         
         if resp['success']:
-            messages.append(f"Item {item['order_item_id']}: OK (Slip {resp['packing_slip_id']})")
+            code = resp.get('code')
+            if code:
+                messages.append(f"Item {item['order_item_id']}: Code: {code}, {resp['message']}")
+            else:
+                messages.append(f"Item {item['order_item_id']}: OK (Slip {resp['packing_slip_id']})")
+            
             last_slip_id = resp['packing_slip_id']
         else:
             code = resp.get('code')
@@ -270,9 +275,13 @@ def process_marcom_responses():
                 ref_uid = root.find('OriginalReference').text
                 status = root.find('Status').text
                 msg = root.find('Message').text
+                code = root.find('Code').text if root.find('Code') is not None else None
                 
                 # Append (Simulated) tag if not present
-                final_msg = f"{msg} (Simulated)"
+                if code:
+                    final_msg = f"Code: {code}, {msg} (Simulated)"
+                else:
+                    final_msg = f"{msg} (Simulated)"
                 
                 # Update DB
                 cur.execute("""

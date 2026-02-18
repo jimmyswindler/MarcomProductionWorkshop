@@ -77,6 +77,7 @@ def simulate_marcom_response():
 <MarcomResponse>
     <OriginalReference>{base_name}</OriginalReference>
     <Status>SUCCESS</Status>
+    <Code>1</Code>
     <Message>Order successfully received and processed.</Message>
     <Timestamp>{timestamp}</Timestamp>
 </MarcomResponse>"""
