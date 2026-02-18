@@ -10,10 +10,10 @@ from . import marcom_service
 
 XML_OUTPUT_FOLDER = 'xml_output'
 LIVE_XML_DIR = '/Volumes/XML Auto Import'
-def is_simulation_mode():
-    return get_env_var("SIMULATION_MODE", "True").lower() == "true"
+SIMULATION_ENABLED = get_env_var("SIMULATION_MODE", "True").lower() == "true"
 
-SIMULATION_ENABLED = is_simulation_mode() # Keep for backward compat if needed, but better to replace usages
+def is_simulation_mode():
+    return SIMULATION_ENABLED
 
 # Ensure absolute path relative to root if running from root
 if not os.path.exists(XML_OUTPUT_FOLDER):

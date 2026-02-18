@@ -8,7 +8,29 @@ from . import shipment_service
 
 
 # Directory paths
+# Directory paths
 XML_DIR = 'xml_output'
+
+def ensure_processed_dir(base_dir):
+    """Ensures the 'processed' subdirectory exists."""
+    processed_dir = os.path.join(base_dir, 'processed')
+    if not os.path.exists(processed_dir):
+        os.makedirs(processed_dir)
+    return processed_dir
+
+def move_to_processed(file_path, base_dir):
+    """Moves a file to the 'processed' subdirectory."""
+    try:
+        processed_dir = ensure_processed_dir(base_dir)
+        filename = os.path.basename(file_path)
+        dest_path = os.path.join(processed_dir, filename)
+        
+        # If destination exists, overwrite or rename? 
+        # Overwrite is safer to avoid clutter, as we've processed it.
+        os.replace(file_path, dest_path)
+        print(f"Archived {filename} to processed/")
+    except Exception as e:
+        print(f"Failed to move {file_path}: {e}")
 
 def process_ups_output_files():
     """
@@ -20,15 +42,18 @@ def process_ups_output_files():
         # We only care if local dir exists if we are in sim mode, actually. 
         pass
 
-    target_dir = XML_DIR if shipment_service.is_simulation_mode() else shipment_service.LIVE_XML_DIR
+    target_dir = XML_DIR if shipment_service.SIMULATION_ENABLED else shipment_service.LIVE_XML_DIR
     if not os.path.exists(target_dir):
         print(f"Target dir {target_dir} does not exist.")
         return 0
 
+    # Ensure processed dir exists
+    processed_dir = ensure_processed_dir(target_dir)
+
     count = 0
     # Match standard Worldship output pattern
     out_files = glob.glob(os.path.join(target_dir, "[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]_*.out"))
-    if not out_files and not shipment_service.is_simulation_mode():
+    if not out_files and not shipment_service.SIMULATION_ENABLED:
          out_files = glob.glob(os.path.join(target_dir, "[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]_*.Out"))
     
     conn = get_db_connection()
@@ -101,12 +126,16 @@ def process_ups_output_files():
                         
             except Exception as e:
                 print(f"Error reading UPS output {fpath}: {e}")
+            
+            # ALWAYS move the file to processed, even if it failed parsing or was legacy/ignored.
+            # This prevents infinite loops of trying to read bad files.
+            move_to_processed(fpath, target_dir)
                 
         conn.commit()
         
         # --- SYNC STEP ---
         # If in LIVE mode, find ANY shipment that has tracking but is PENDING or FAILED sync
-        if not shipment_service.is_simulation_mode():
+        if not shipment_service.SIMULATION_ENABLED:
              process_pending_marcom_syncs(conn)
 
     except Exception as e:
@@ -195,8 +224,12 @@ def sync_shipment_to_marcom(cur, ship_uid, tracking, order_number=None):
             messages.append(f"Item {item['order_item_id']}: OK (Slip {resp['packing_slip_id']})")
             last_slip_id = resp['packing_slip_id']
         else:
-            overall_status = "PARTIAL_FAIL"
-            messages.append(f"Item {item['order_item_id']}: {resp['status']} - {resp['message']}")
+            code = resp.get('code')
+            if code:
+                messages.append(f"Item {item['order_item_id']}: Code: {code}, {resp['message']}")
+            else:
+                messages.append(f"Item {item['order_item_id']}: {resp['status']} - {resp['message']}")
+
             print(f"Marcom Error: {resp['message']}")
     
     final_msg = "; ".join(messages)

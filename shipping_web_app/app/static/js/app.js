@@ -204,7 +204,7 @@ window.addEventListener('keydown', (e) => {
     // If Enter, process buffer
     if (e.key === 'Enter') {
         if (scanBuffer.length > 2) {
-            handleGlobalScan(scanBuffer);
+            handleGlobalScan(scanBuffer.toUpperCase());
         }
         scanBuffer = "";
         return;
@@ -231,7 +231,7 @@ function initBarcodes() {
         { id: "#bc-custom", val: "CMD-TOGGLE-CUSTOM" }
     ];
     cmds.forEach(c => {
-        try { JsBarcode(c.id, c.val, { format: "CODE128", width: 2, height: 40, displayValue: false, margin: 0 }); }
+        try { JsBarcode(c.id, c.val.toUpperCase(), { format: "CODE128", width: 2, height: 40, displayValue: false, margin: 0 }); }
         catch (e) { }
     });
     document.querySelectorAll('.bc-render').forEach(el => {
@@ -244,9 +244,9 @@ function initListeners() {
     orderInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
             const val = orderInput.value.trim();
-            if (val && !val.includes('CMD-')) {
+            if (val && !val.toUpperCase().includes('CMD-')) {
                 fetchOrderData(val);
-            } else if (val.includes('CMD-')) {
+            } else if (val.toUpperCase().includes('CMD-')) {
                 orderInput.value = ''; // Clear command text
             }
         }
@@ -314,7 +314,7 @@ function initListeners() {
                 showStatus(el('box-scan-status'), 'Tracking number ignored.', 'warn');
                 boxInput.value = ''; return;
             }
-            if (val.includes('CMD-')) {
+            if (val.toUpperCase().includes('CMD-')) {
                 // Let global handler pick it up, just clear input
                 boxInput.value = '';
                 return;
@@ -394,7 +394,7 @@ function handleGlobalScan(code) {
     // Helper to clear command text from inputs
     const clearInputs = () => {
         [orderInput, boxInput, cartonInput].forEach(inp => {
-            if (inp && inp.value.includes('CMD-')) inp.value = '';
+            if (inp && inp.value.toUpperCase().includes('CMD-')) inp.value = '';
         });
     };
 

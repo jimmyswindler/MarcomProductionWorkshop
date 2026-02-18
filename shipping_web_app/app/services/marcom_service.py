@@ -25,7 +25,8 @@ def send_packing_slip(line_item_id, tracking_number):
             "success": False,
             "status": "CONFIG_ERROR",
             "message": "Missing MARCOM_PARTNER_TOKEN",
-            "packing_slip_id": None
+            "packing_slip_id": None,
+            "code": None
         }
 
     # Construct XML
@@ -86,7 +87,8 @@ def send_packing_slip(line_item_id, tracking_number):
                 "success": False,
                 "status": "HTTP_ERROR",
                 "message": f"HTTP {response.status_code}: {response.text[:200]}",
-                "packing_slip_id": None
+                "packing_slip_id": None,
+                "code": str(response.status_code)
             }
             
         return parse_soap_response(response.text)
@@ -96,7 +98,8 @@ def send_packing_slip(line_item_id, tracking_number):
             "success": False,
             "status": "NETWORK_ERROR",
             "message": str(e),
-            "packing_slip_id": None
+            "packing_slip_id": None,
+            "code": "NET_ERR"
         }
 
 def parse_soap_response(xml_text):
@@ -146,8 +149,11 @@ def parse_soap_response(xml_text):
                     return {
                         "success": False,
                         "status": f"API_ERROR_{main_code}",
+                        "success": False,
+                        "status": f"API_ERROR_{main_code}",
                         "message": f"{main_status}: {main_message}",
-                        "packing_slip_id": None
+                        "packing_slip_id": None,
+                        "code": main_code
                     }
             
             # 2. Look for Line Item Responses
@@ -157,6 +163,7 @@ def parse_soap_response(xml_text):
                 # We assume 1 line item per request based on usage
                 li_status_node = find_any(li, "Status")
                 li_status = li_status_node.get("Status") if li_status_node is not None else "Unknown"
+                li_code = li_status_node.get("Code") if li_status_node is not None else None
                 li_message = li_status_node.get("Message") if li_status_node is not None else ""
                 
                 # Check for Action/ReferenceID (Packing Slip ID)
@@ -169,8 +176,11 @@ def parse_soap_response(xml_text):
                         return {
                             "success": True,
                             "status": "SUCCESS" if li_status in ["ProcessComplete", "ProcessSuccess"] else li_status,
+                            "success": True,
+                            "status": "SUCCESS" if li_status in ["ProcessComplete", "ProcessSuccess"] else li_status,
                             "message": li_message,
-                            "packing_slip_id": ref_id
+                            "packing_slip_id": ref_id,
+                            "code": li_code
                         }
                 
                 # If no Action/ID found, check if it was a failure
@@ -178,23 +188,30 @@ def parse_soap_response(xml_text):
                      return {
                         "success": False,
                         "status": "API_FAILURE",
+                        "success": False,
+                        "status": "API_FAILURE",
                         "message": f"{li_status}: {li_message}",
-                        "packing_slip_id": None
+                        "packing_slip_id": None,
+                        "code": li_code
                     }
 
             # If we got here, maybe top level was success but no line items found?
             return {
                 "success": False,
                 "status": "NO_DATA",
+                "success": False,
+                "status": "NO_DATA",
                 "message": "Top level success but no line item info found",
-                "packing_slip_id": None
+                "packing_slip_id": None,
+                "code": None
             }
 
         # Fallback to legacy "Action" search if Result node missing
         action_node = find_any(root, "Action")
         if action_node is not None:
-             # Legacy/Fallback logic
+            # Legacy/Fallback logic
             status = action_node.get("Status")
+            code = action_node.get("Code")
             message = action_node.get("Message")
             ref_id = action_node.get("ReferenceId")
             
@@ -202,28 +219,40 @@ def parse_soap_response(xml_text):
                 return {
                     "success": True,
                     "status": "SUCCESS",
+                    "success": True,
+                    "status": "SUCCESS",
                     "message": message,
-                    "packing_slip_id": ref_id
+                    "packing_slip_id": ref_id,
+                    "code": code
                 }
             else:
                 return {
                     "success": False,
                     "status": "API_FAILURE",
+                    "success": False,
+                    "status": "API_FAILURE",
                     "message": f"{status}: {message}",
-                    "packing_slip_id": None
+                    "packing_slip_id": None,
+                    "code": code
                 }
         
         return {
             "success": False,
             "status": "PARSE_ERROR",
+            "success": False,
+            "status": "PARSE_ERROR",
             "message": "Could not find Result or Action node in response",
-            "packing_slip_id": None
+            "packing_slip_id": None,
+            "code": None
         }
 
     except Exception as e:
         return {
             "success": False,
             "status": "PARSE_ERROR",
+            "success": False,
+            "status": "PARSE_ERROR",
             "message": f"XML Parse Error: {str(e)}",
-            "packing_slip_id": None
+            "packing_slip_id": None,
+            "code": None
         }
