@@ -62,6 +62,27 @@ function resetAll() {
     orderInput.focus();
 }
 
+// --- System Status Logic ---
+async function fetchSystemStatus() {
+    try {
+        const res = await fetch('/api/status');
+        if (res.ok) {
+            const data = await res.json();
+            updateIndicator('status-db', data.db);
+            updateIndicator('status-marcom', data.marcom);
+            updateIndicator('status-ups', data.ups);
+        }
+    } catch (e) {
+        console.error("Status Check Failed", e);
+    }
+}
+
+function updateIndicator(id, isOk) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.className = isOk ? 'indicator ok' : 'indicator err';
+}
+
 // --- Live Feed Logic ---
 async function fetchLiveFeed() {
     try {
@@ -189,6 +210,10 @@ window.onload = function () {
     // Start Polling
     setInterval(fetchLiveFeed, 5000);
     fetchLiveFeed();
+
+    // System Status
+    setInterval(fetchSystemStatus, 30000);
+    fetchSystemStatus();
 };
 
 // 2. Global Scan Listener

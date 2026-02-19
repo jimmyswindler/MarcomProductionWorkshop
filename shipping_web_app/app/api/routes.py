@@ -81,3 +81,48 @@ def compare_order():
     if error: return jsonify({"error": error}), 500
     return jsonify(result)
 
+
+@api_bp.route('/status', methods=['GET'])
+def get_system_status():
+    import os
+    import requests
+    from shared_lib.database import get_db_connection
+    from shared_lib.config import get_env_var
+
+    status = {
+        "db": False,
+        "marcom": False,
+        "ups": False
+    }
+
+    # 1. DB Check
+    try:
+        conn = get_db_connection()
+        if conn:
+            cur = conn.cursor()
+            cur.execute("SELECT 1")
+            cur.fetchone()
+            conn.close()
+            status["db"] = True
+    except:
+        pass
+
+    # 2. Marcom API Check
+    try:
+        url = get_env_var("MARCOM_API_URL", "https://services.printable.com/trans/1.0/PackingSlip.asmx")
+        # Just check connectivity with a fast timeout
+        # Using verify=False to match legacy settings, though risky in prod
+        requests.get(url, timeout=5, verify=False)
+        # 405 or 200 or 500 means server is reachable. ConnectionError means not reachable.
+        status["marcom"] = True
+    except:
+        pass
+
+    # 3. UPS Worldship Lock File
+    # /Volumes/XML Auto Import/WSXMLAIFOLDERLOCK.dat
+    lock_file = "/Volumes/XML Auto Import/WSXMLAIFOLDERLOCK.dat"
+    if os.path.exists(lock_file):
+        status["ups"] = True
+    
+    return jsonify(status)
+

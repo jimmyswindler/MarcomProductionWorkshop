@@ -34,9 +34,33 @@ body {
     border-bottom: 1px solid #dee2e6;
 }
 
-.status-indicator {
-    font-size: 0.8em;
+#system-status-list {
+    list-style: none;
+    padding: 0;
+    margin: 10px 0 0 0;
+}
+
+#system-status-list li {
+    margin-bottom: 5px;
+    font-size: 0.95em;
+    color: #333;
+    display: flex;
+    align-items: center;
+}
+
+.indicator {
+    margin-right: 10px;
+    font-size: 1.2em;
+    color: #ccc; /* Default / Loading */
+    transition: color 0.3s;
+}
+
+.indicator.ok {
     color: #28a745;
+}
+
+.indicator.err {
+    color: #dc3545;
 }
 
 #xml-feed-content {

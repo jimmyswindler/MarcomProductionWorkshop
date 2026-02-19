@@ -13,8 +13,12 @@
 <body>
     <div id="sidebar-feed" class="sidebar">
         <div class="sidebar-header">
-            <h3>📡 Live Marcom Sync</h3>
-            <span class="status-indicator">● Connected</span>
+            <h3>Marcom Shipping App</h3>
+            <ul id="system-status-list">
+                <li><span id="status-db" class="indicator">●</span> Database</li>
+                <li><span id="status-marcom" class="indicator">●</span> Marcom API</li>
+                <li><span id="status-ups" class="indicator">●</span> UPS Worldship</li>
+            </ul>
         </div>
         <div id="xml-feed-content">
             <ul id="live-feed-list"></ul>
