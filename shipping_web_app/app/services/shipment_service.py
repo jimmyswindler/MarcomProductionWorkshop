@@ -1,11 +1,11 @@
-
 import math
 import os
 import datetime
 import random
 from shared_lib.database import get_db_connection, get_real_dict_cursor
 from shared_lib.config import get_env_var
-from shared_lib.utils import get_store_number
+from shared_lib.utils import get_store_number, get_product_category
+from . import marcom_service
 from . import marcom_service
 
 XML_OUTPUT_FOLDER = 'xml_output'
@@ -18,6 +18,19 @@ def is_simulation_mode():
 # Ensure absolute path relative to root if running from root
 if not os.path.exists(XML_OUTPUT_FOLDER):
     os.makedirs(XML_OUTPUT_FOLDER)
+def get_shipping_cartons():
+    conn = get_db_connection()
+    if not conn: return {}, "DB Connection Failed"
+    
+    try:
+        cur = get_real_dict_cursor(conn)
+        cur.execute("SELECT code, weight FROM shipping_cartons")
+        cartons = {c['code']: float(c['weight']) for c in cur.fetchall() if c['weight'] is not None}
+        conn.close()
+        return cartons, None
+    except Exception as e:
+        if conn: conn.close()
+        return {}, str(e)
 
 def generate_worldship_xml(shipment_data, packages, store_number_arg=None):
     # ... copied logic ...
@@ -88,7 +101,7 @@ def generate_worldship_xml(shipment_data, packages, store_number_arg=None):
 
     for pkg in packages:
         weight_raw = float(pkg.get('weight', 1.0))
-        weight_int = int(math.ceil(weight_raw))
+        weight_str = f"{weight_raw:.2f}"
         
         l_int = int(float(pkg.get('L', 0)))
         w_int = int(float(pkg.get('W', 0)))
@@ -97,7 +110,7 @@ def generate_worldship_xml(shipment_data, packages, store_number_arg=None):
         xml_parts.append(f"""
         <Package>
             <PackageType>CP</PackageType>
-            <Weight>{weight_int}</Weight>
+            <Weight>{weight_str}</Weight>
             <Reference1>{store_number_str}</Reference1>
             <Reference2>{ref2}</Reference2>
             <Length>{l_int}</Length>
@@ -143,8 +156,12 @@ def process_shipment_logic(orders, scanned_boxes, package_list_in):
             """, (scanned_boxes,))
 
         # 2. Calculate Weights (Simplified for now, similar to original)
-        cur.execute("SELECT category_name, quantity, box_weight FROM product_shipping_rules")
-        rules = {(r['category_name'], r['quantity']): r['box_weight'] for r in cur.fetchall()}
+        cur.execute("""
+            SELECT category_name, quantity, box_weight, 
+                   white_box_weight, blue_box_weight, white_box_qty, blue_box_qty 
+            FROM product_shipping_rules
+        """)
+        rules = {(r['category_name'], r['quantity']): r for r in cur.fetchall()}
         
         cur.execute("SELECT code, weight, length, width, height FROM shipping_cartons")
         cartons = {c['code']: c for c in cur.fetchall()}
@@ -154,15 +171,30 @@ def process_shipment_logic(orders, scanned_boxes, package_list_in):
         
         if scanned_boxes:
              cur.execute("""
-                SELECT i.quantity_ordered, i.cost_center 
+                SELECT i.quantity_ordered, i.cost_center, i.product_id, b.box_sequence
                 FROM item_boxes b
                 JOIN items i ON b.order_item_id = i.order_item_id
                 WHERE b.barcode_value = ANY(%s)
              """, (scanned_boxes,))
              for row in cur.fetchall():
+                 cat = get_product_category(row['product_id'])
                  q = row['quantity_ordered']
-                 cat = row['cost_center']
-                 w = rules.get((cat, q), 1.0)
+                 seq = row['box_sequence'] or 1
+                 
+                 rule = rules.get((cat, q))
+                 if rule:
+                     white_qty = rule['white_box_qty'] or 0
+                     if seq <= white_qty and rule['white_box_weight'] is not None:
+                         w = rule['white_box_weight']
+                     elif rule['blue_box_weight'] is not None:
+                         w = rule['blue_box_weight']
+                     elif rule['box_weight'] is not None:
+                         w = rule['box_weight']
+                     else:
+                         w = 1.0
+                 else:
+                     w = 1.0
+                     
                  total_shipment_product_weight += w
                  if not store_number and row['cost_center']:
                      store_number = row['cost_center']
@@ -187,7 +219,7 @@ def process_shipment_logic(orders, scanned_boxes, package_list_in):
                 else:
                      weight = total_shipment_product_weight + carton_data['weight']
             
-            final_packages.append({"weight": round(weight, 1), **dims})
+            final_packages.append({"weight": round(weight, 2), **dims})
 
         # 4. Generate Shipment ID (YYYYMMDD_XXXX)
         now = datetime.datetime.now()

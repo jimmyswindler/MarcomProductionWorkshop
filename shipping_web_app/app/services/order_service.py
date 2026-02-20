@@ -1,6 +1,6 @@
 
 from shared_lib.database import get_db_connection, get_real_dict_cursor
-from shared_lib.utils import extract_store_number_strict
+from shared_lib.utils import extract_store_number_strict, get_product_category
 from fuzzywuzzy import fuzz
 
 def get_job_details(lookup_id):
@@ -14,7 +14,7 @@ def get_job_details(lookup_id):
         cur.execute("""
             SELECT j.id as job_id, j.order_id, j.job_ticket_number, o.order_number, 
                    o.ship_to_company, o.ship_to_name, 
-                   o.address1, o.city, o.state, o.zip, o.country 
+                   o.address1, o.city, o.state, o.zip, o.country, o.store_number 
             FROM jobs j
             JOIN orders o ON j.order_id = o.id
             WHERE j.job_ticket_number = %s
@@ -36,6 +36,7 @@ def get_job_details(lookup_id):
                     "state": job_data['state'],
                     "zip": job_data['zip'],
                     "country": job_data['country'],
+                    "store_number": str(job_data['store_number']).strip().zfill(4) if job_data.get('store_number') else None,
                     "account_number": "Y76383"
                 },
                 "reference2": job_data['job_ticket_number']
@@ -44,7 +45,7 @@ def get_job_details(lookup_id):
             # 2. Order Number Check and Partial Match Fallback
             cur.execute("""
                 SELECT id, order_number, ship_to_company, ship_to_name, 
-                       address1, city, state, zip, country 
+                       address1, city, state, zip, country, store_number 
                 FROM orders 
                 WHERE order_number = %s
             """, (lookup_id,))
@@ -67,6 +68,7 @@ def get_job_details(lookup_id):
                         "state": order_data['state'],
                         "zip": order_data['zip'],
                         "country": order_data['country'],
+                        "store_number": str(order_data['store_number']).strip().zfill(4) if order_data.get('store_number') else None,
                         "account_number": "Y76383"
                     },
                     "reference2": order_data['order_number']
@@ -77,7 +79,7 @@ def get_job_details(lookup_id):
                 cur.execute("""
                     SELECT j.id as job_id, j.order_id, j.job_ticket_number, o.order_number, 
                            o.ship_to_company, o.ship_to_name, 
-                           o.address1, o.city, o.state, o.zip, o.country 
+                           o.address1, o.city, o.state, o.zip, o.country, o.store_number 
                     FROM jobs j
                     JOIN orders o ON j.order_id = o.id
                     WHERE j.job_ticket_number LIKE %s
@@ -98,6 +100,7 @@ def get_job_details(lookup_id):
                             "state": job_data['state'],
                             "zip": job_data['zip'],
                             "country": job_data['country'],
+                            "store_number": str(job_data['store_number']).strip().zfill(4) if job_data.get('store_number') else None,
                             "account_number": "Y76383"
                         },
                         "reference2": job_data['job_ticket_number'],
@@ -107,7 +110,7 @@ def get_job_details(lookup_id):
                     # Next try Suffix on Order Number
                     cur.execute("""
                         SELECT id, order_number, ship_to_company, ship_to_name, 
-                               address1, city, state, zip, country 
+                               address1, city, state, zip, country, store_number 
                         FROM orders 
                         WHERE order_number LIKE %s
                         ORDER BY id DESC LIMIT 1
@@ -132,6 +135,7 @@ def get_job_details(lookup_id):
                             "state": order_data['state'],
                             "zip": order_data['zip'],
                             "country": order_data['country'],
+                            "store_number": str(order_data['store_number']).strip().zfill(4) if order_data.get('store_number') else None,
                             "account_number": "Y76383"
                         },
                         "reference2": order_data['order_number'],
@@ -141,11 +145,15 @@ def get_job_details(lookup_id):
         # 3. Items
         if target_job_ids:
             # Fetch Rules for Weights
-            cur.execute("SELECT category_name, quantity, box_weight FROM product_shipping_rules")
-            rules = {(r['category_name'], r['quantity']): r['box_weight'] for r in cur.fetchall()}
+            cur.execute("""
+                SELECT category_name, quantity, box_weight, 
+                       white_box_weight, blue_box_weight, white_box_qty, blue_box_qty 
+                FROM product_shipping_rules
+            """)
+            rules = {(r['category_name'], r['quantity']): r for r in cur.fetchall()}
             
             cur.execute("""
-                SELECT b.barcode_value, b.status, b.packed_at, i.sku, i.sku_description, i.order_item_id, 
+                SELECT b.barcode_value, b.status, b.packed_at, b.box_sequence, i.sku, i.sku_description, i.order_item_id, 
                        i.quantity_ordered, i.cost_center, i.product_id, j.job_ticket_number
                 FROM item_boxes b
                 JOIN items i ON b.order_item_id = i.order_item_id
@@ -171,9 +179,23 @@ def get_job_details(lookup_id):
                     }
                 
                 # Weight Calc
-                cat = row['cost_center']
+                cat = get_product_category(row['product_id'])
                 q = row['quantity_ordered']
-                est_weight = rules.get((cat, q), 1.0)
+                seq = row['box_sequence'] or 1
+                
+                rule = rules.get((cat, q))
+                if rule:
+                    white_qty = rule['white_box_qty'] or 0
+                    if seq <= white_qty and rule['white_box_weight'] is not None:
+                        est_weight = rule['white_box_weight']
+                    elif rule['blue_box_weight'] is not None:
+                        est_weight = rule['blue_box_weight']
+                    elif rule['box_weight'] is not None:
+                        est_weight = rule['box_weight']
+                    else:
+                        est_weight = 1.0
+                else:
+                    est_weight = 1.0
 
                 # Format Date
                 packed_at_str = None

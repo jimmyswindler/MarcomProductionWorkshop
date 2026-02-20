@@ -12,6 +12,12 @@ def get_job(lookup_id):
         return jsonify({"error": error}), status
     return jsonify(data)
 
+@api_bp.route('/cartons', methods=['GET'])
+def get_cartons():
+    mapping, error = shipment_service.get_shipping_cartons()
+    if error: return jsonify({"error": error}), 500
+    return jsonify(mapping)
+
 @api_bp.route('/order/search', methods=['GET'])
 def search_orders():
     query = request.args.get('q', '')

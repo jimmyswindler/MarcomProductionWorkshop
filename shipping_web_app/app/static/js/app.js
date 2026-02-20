@@ -4,6 +4,7 @@ let currentShipment = { ship_to: {}, orders: [], all_expected_barcodes: [], scan
 let packageList = [];
 let appMode = 'SCANNING_BOXES';
 let simulationEnabled = true; // Default, will fetch from server
+let cartonWeights = {};
 
 // Elements
 const el = (id) => document.getElementById(id);
@@ -207,6 +208,12 @@ window.onload = function () {
         orderInput.focus();
     }
 
+    // Fetch Carton Weights
+    fetch('/api/cartons')
+        .then(res => res.json())
+        .then(data => cartonWeights = data)
+        .catch(e => console.error("Error fetching carton weights:", e));
+
     // Start Polling
     setInterval(fetchLiveFeed, 5000);
     fetchLiveFeed();
@@ -253,7 +260,9 @@ function initBarcodes() {
         { id: "#bc-cancel", val: "CMD-CANCEL-ORDER" },
         { id: "#bc-finish", val: "CMD-FINISH-SHIP" },
         { id: "#bc-multi", val: "CMD-TOGGLE-MULTI" },
-        { id: "#bc-custom", val: "CMD-TOGGLE-CUSTOM" }
+        { id: "#bc-custom", val: "CMD-TOGGLE-CUSTOM" },
+        { id: "#bc-back-step4", val: "CMD-BACK-SCAN" },
+        { id: "#bc-cancel-step4", val: "CMD-CANCEL-ORDER" }
     ];
     cmds.forEach(c => {
         try { JsBarcode(c.id, c.val.toUpperCase(), { format: "CODE128", width: 2, height: 40, displayValue: false, margin: 0 }); }
@@ -363,6 +372,14 @@ function initListeners() {
     el('finish-shipment-btn').addEventListener('click', finalizeShipment);
     el('toggle-multi-btn').addEventListener('click', () => handleGlobalScan('CMD-TOGGLE-MULTI'));
     el('toggle-custom-btn').addEventListener('click', () => handleGlobalScan('CMD-TOGGLE-CUSTOM'));
+
+    // New Step 4 Navigation Buttons
+    if (el('back-to-scan-btn')) {
+        el('back-to-scan-btn').addEventListener('click', backToScanning);
+    }
+    if (el('cancel-step4-btn')) {
+        el('cancel-step4-btn').addEventListener('click', resetAll);
+    }
 
     if (el('clear-cartons-btn')) {
         el('clear-cartons-btn').addEventListener('click', () => {
@@ -474,6 +491,11 @@ function handleGlobalScan(code) {
             const isVisible = customSec.style.display !== 'none';
             customSec.style.display = isVisible ? 'none' : 'block';
             el('custom-mode-text').textContent = !isVisible ? "Use Standard Box" : "Use Custom Box";
+            return;
+        }
+        if (code === 'CMD-BACK-SCAN') {
+            clearInputs();
+            backToScanning();
             return;
         }
     }
@@ -706,7 +728,17 @@ function updateBarcodeList() {
 
         groupItems.forEach((item, idx) => {
             const itemDiv = document.createElement('div');
-            itemDiv.style.marginBottom = (idx === groupItems.length - 1) ? "0" : "20px";
+            const isMultiple = groupItems.length > 1;
+
+            if (isMultiple) {
+                itemDiv.style.border = "1px solid #ccc";
+                itemDiv.style.borderRadius = "6px";
+                itemDiv.style.padding = "15px";
+                itemDiv.style.backgroundColor = "#fafafa";
+                itemDiv.style.marginBottom = (idx === groupItems.length - 1) ? "0" : "15px";
+            } else {
+                itemDiv.style.marginBottom = (idx === groupItems.length - 1) ? "0" : "20px";
+            }
 
             // Check Item Status
             let allItemBoxesPacked = true;
@@ -718,9 +750,14 @@ function updateBarcodeList() {
                 if (bc.packed_at) itemPackDate = bc.packed_at;
             });
 
+            const nestedHeaderHtml = isMultiple
+                ? `<div style="font-weight:bold; font-size:1.05em; color:#555; margin-bottom:10px; padding-bottom:5px; border-bottom:1px solid #ddd;">${jt}-${String(idx + 1).padStart(2, '0')}</div>`
+                : '';
+
             // Item Title
             itemDiv.innerHTML = `
-                <div style="margin-bottom:10px; border-bottom:1px dashed #eee; padding-bottom:5px;">
+                ${nestedHeaderHtml}
+                <div style="margin-bottom:10px; ${isMultiple ? '' : 'border-bottom:1px dashed #eee; padding-bottom:5px;'}">
                      <div style="font-weight:bold; font-size:1.1em; margin-bottom:4px; line-height:1.2;">
                         ${item.sku_description || 'Item'}
                      </div>
@@ -767,7 +804,6 @@ function updateBarcodeList() {
                 bcContainer.innerHTML += `
                 <div class="barcode-card" style="width:140px; padding:8px 10px; background:${bg}; border:2px solid ${border}; border-radius:8px; transition:0.2s; min-height:auto; opacity:${isPacked ? 0.8 : 1}; text-align:center;">
                      <span class="barcode-label" style="font-size:1.0em; font-weight:bold; display:block; margin-bottom:2px;">${code}</span>
-                     <span style="font-size:0.8em; color:#666;">${weight} lbs</span>
                      ${isPacked ? '<div style="font-size:0.7em; color:#28a745; font-weight:bold; margin-top:2px;">PACKED</div>' : ''}
                 </div>`;
             });
@@ -868,16 +904,26 @@ function goToPackStep() {
     });
     currentShipment.calculatedTotalWeight = totalW;
 
-    // Display summary
-    el('shipment-summary-display').innerText = `Total Shipment Weight: ${totalW.toFixed(1)} lbs`;
+    el('shipment-summary-display').innerHTML = '';
+    renderPackedList();
 
     // Removed "Est Weight" prominence on step 4 as per request
     const container = el('pack-screen-buttons');
 }
 
+function backToScanning() {
+    step4.style.display = 'none';
+    step2.style.display = 'block';
+
+    // Clear any package list progress if simpler? Or keep it?
+    // Usually "Back" implies "I forgot to scan something", so we keep everything.
+    // But we might want to clear the "Weight" display
+    el('shipment-summary-display').innerHTML = '';
+}
+
 // Packing Logic Helpers
 function handleCartonInput(id) {
-    const validBoxes = ['#105', '#115', '#116', '#160', '#145'];
+    const validBoxes = ['#105', '#115', '#116', '#118', '#123', '#145', '#160', '#999'];
     let cleanId = id.toUpperCase().trim();
     if (!cleanId.startsWith('#') && cleanId !== 'CUSTOM') {
         if (validBoxes.includes('#' + cleanId)) cleanId = '#' + cleanId;
@@ -903,7 +949,8 @@ function handleCartonInput(id) {
         }
     } else {
         // Single Mode
-        packageList = [{ id: cleanId, weight: finalW }];
+        const cartonDbWeight = cartonWeights[cleanId] || 0;
+        packageList = [{ id: cleanId, weight: finalW + cartonDbWeight, cartonWeight: cartonDbWeight }];
     }
     renderPackedList();
 }
@@ -929,15 +976,54 @@ function addCustomCarton() {
 function renderPackedList() {
     const div = el('packed-cartons-list');
     const container = el('packed-list-container');
+    const summaryDisplay = el('shipment-summary-display');
 
-    div.innerHTML = packageList.map(p => `<span>${p.id} (${p.weight}lbs)</span>`).join(', ');
+    if (multiModeCheckbox.checked) {
+        div.innerHTML = packageList.map(p => `<span>${p.id} (${p.weight.toFixed(2)}lbs)</span>`).join(', ');
+
+        let totalCartonWeights = 0;
+        packageList.forEach(p => totalCartonWeights += p.weight);
+        const itemSum = currentShipment.calculatedTotalWeight || 0;
+        summaryDisplay.innerHTML = `<div style="font-size: 1.2em; font-weight: bold; margin-top: 10px;">Total Shipment Weight: ${(itemSum + totalCartonWeights).toFixed(2)} lbs</div>`;
+    } else {
+        let breakdownHtml = '<ul style="list-style-type: none; padding-left: 0; margin-bottom: 5px; font-family: monospace; font-size: 1.1em;">';
+        let itemSum = 0;
+
+        // Convert Set to Array to sort it alphabetically
+        let sortedBarcodes = Array.from(currentShipment.scanned_barcodes).sort();
+
+        sortedBarcodes.forEach(bc => {
+            const w = currentShipment.boxWeights[bc] || 1.0;
+            itemSum += w;
+            breakdownHtml += `<li>${bc} ${(w).toFixed(2)} lbs</li>`;
+        });
+
+        let cartonSum = 0;
+        packageList.forEach(p => {
+            let cWeight = p.cartonWeight !== undefined ? p.cartonWeight : (p.weight - itemSum);
+            if (cWeight < 0) cWeight = 0;
+            cartonSum += cWeight;
+            breakdownHtml += `<li>Carton ${p.id} ${(cWeight).toFixed(2)} lbs</li>`;
+        });
+
+        breakdownHtml += '</ul>';
+        div.innerHTML = breakdownHtml;
+
+        const grandTotal = itemSum + cartonSum;
+        summaryDisplay.innerHTML = `<div style="font-size: 1.2em; font-weight: bold; margin-top: 10px;">Total Shipment Weight: ${(grandTotal).toFixed(2)} lbs</div>`;
+    }
 
     if (packageList.length > 0) {
         updateButtonState(el('finish-shipment-btn'), true, 'active-success');
-        if (container) container.style.display = 'block';
     } else {
         updateButtonState(el('finish-shipment-btn'), false);
-        if (container) container.style.display = 'none';
+    }
+
+    // Always show container once items exist
+    if (container && currentShipment.scanned_barcodes.size > 0) {
+        container.style.display = 'block';
+    } else if (container) {
+        container.style.display = 'none';
     }
 }
 
