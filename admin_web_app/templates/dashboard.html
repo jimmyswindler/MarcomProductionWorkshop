@@ -123,13 +123,13 @@
             {% endif %}
         </div>
 
-        <!-- Open Orders (Overdue) Link -->
+        <!-- Open Items (Overdue) Link -->
         <div style="background: rgba(255,255,255,0.03); padding: 1.5rem; border-radius: 8px; text-align: center;">
-            <h3>Overdue Orders</h3>
+            <h3>Overdue Items</h3>
             <div style="font-size: 2.5rem; font-weight: 700; color: var(--danger); margin: 1rem 0;">
                 {{ total_overdue }}
             </div>
-            <div style="color: var(--text-secondary);">Shipment Past Due</div>
+            <div style="color: var(--text-secondary);">Items Past Due</div>
             <div style="margin-top: 1rem;">
                 <a href="{{ url_for('open_orders') }}" class="btn btn-sm">View List</a>
             </div>
@@ -149,7 +149,7 @@
 
     </div>
 
-    <!-- Open Orders (Overdue) -->
+    <!-- Open Items (Overdue) -->
 </div>
 
 <script>

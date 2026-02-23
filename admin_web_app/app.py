@@ -101,11 +101,13 @@ def get_chart_data(days_range):
             GROUP BY DATE(actual_ship_date)
         ),
         daily_overdue AS (
-            SELECT DATE(ship_date) as day, COUNT(id) as cnt
-            FROM orders
-            WHERE ship_date >= CURRENT_DATE - INTERVAL '{interval_str}'
-              AND actual_ship_date IS NULL
-            GROUP BY DATE(ship_date)
+            SELECT DATE(o.ship_date) as day, COUNT(i.id) as cnt
+            FROM items i
+            JOIN jobs j ON i.job_id = j.id
+            JOIN orders o ON j.order_id = o.id
+            WHERE o.ship_date >= CURRENT_DATE - INTERVAL '{interval_str}'
+              AND o.actual_ship_date IS NULL
+            GROUP BY DATE(o.ship_date)
         )
         SELECT 
             TO_CHAR(d.day, 'YYYY-MM-DD') as day_str,
@@ -127,7 +129,13 @@ def get_chart_data(days_range):
     timeline_data = cur.fetchall()
     
     # Calculate Global Overdue (All Time Backlog)
-    cur.execute("SELECT COUNT(*) as cnt FROM orders WHERE actual_ship_date IS NULL AND ship_date < CURRENT_DATE")
+    cur.execute("""
+        SELECT COUNT(i.id) as cnt 
+        FROM items i
+        JOIN jobs j ON i.job_id = j.id
+        JOIN orders o ON j.order_id = o.id
+        WHERE o.actual_ship_date IS NULL AND o.ship_date < CURRENT_DATE
+    """)
     global_overdue = cur.fetchone()['cnt']
     
     cur.close()
@@ -296,19 +304,22 @@ def open_orders():
     # and the 'previously calculated ship date' is in the past.
     cur.execute("""
         SELECT 
-            id, order_number, order_date, ship_date, ship_to_company, 
-            city, state
-        FROM orders
-        WHERE actual_ship_date IS NULL
-          AND ship_date < CURRENT_DATE
-        ORDER BY ship_date ASC
+            i.job_ticket_display_id AS line_item_number,
+            o.id, o.order_number, o.order_date, o.ship_date, o.ship_to_company, 
+            o.city, o.state
+        FROM items i
+        JOIN jobs j ON i.job_id = j.id
+        JOIN orders o ON j.order_id = o.id
+        WHERE o.actual_ship_date IS NULL
+          AND o.ship_date < CURRENT_DATE
+        ORDER BY o.ship_date ASC, i.job_ticket_display_id ASC
     """)
-    orders = cur.fetchall()
+    items = cur.fetchall()
     
     cur.close()
     conn.close()
     
-    return render_template('open_orders.html', orders=orders)
+    return render_template('open_orders.html', items=items)
 
 @app.route('/search')
 def search():

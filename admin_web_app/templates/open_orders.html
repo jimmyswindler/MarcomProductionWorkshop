@@ -4,8 +4,8 @@
 <div class="card">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
         <div>
-            <h1>Open Orders (Overdue) <span class="badge bg-danger">{{ orders|length }}</span></h1>
-            <p class="text-secondary small">Orders with no actual ship date where the scheduled ship date is in the
+            <h1>Open Items (Overdue) <span class="badge bg-danger">{{ items|length }}</span></h1>
+            <p class="text-secondary small">Items with no actual ship date where the scheduled ship date is in the
                 past.</p>
         </div>
         <div>
@@ -14,10 +14,11 @@
     </div>
 
     <div style="margin-top: 1rem;">
-        {% if orders %}
+        {% if items %}
         <table class="table table-dark table-hover width-100">
             <thead>
                 <tr>
+                    <th>Line Item #</th>
                     <th>Order #</th>
                     <th>Date Ordered</th>
                     <th>Ship Date (Past)</th>
@@ -27,16 +28,17 @@
                 </tr>
             </thead>
             <tbody>
-                {% for order in orders %}
+                {% for item in items %}
                 <tr>
-                    <td>{{ order.order_number }}</td>
-                    <td>{{ order.order_date|string|truncate(10, True, '') }}</td>
-                    <td class="text-danger">{{ order.ship_date|string|truncate(10, True, '') }}</td>
-                    <td>{{ order.ship_to_company }}</td>
-                    <td>{{ order.city }}, {{ order.state }}</td>
+                    <td><strong>{{ item.line_item_number }}</strong></td>
+                    <td>{{ item.order_number }}</td>
+                    <td>{{ item.order_date|string|truncate(10, True, '') }}</td>
+                    <td class="text-danger">{{ item.ship_date|string|truncate(10, True, '') }}</td>
+                    <td>{{ item.ship_to_company }}</td>
+                    <td>{{ item.city }}, {{ item.state }}</td>
                     <td>
-                        <a href="{{ url_for('fix_exception', order_number=order.order_number) }}"
-                            class="btn btn-sm btn-outline-secondary">View</a>
+                        <a href="{{ url_for('fix_exception', order_number=item.order_number) }}"
+                            class="btn btn-sm btn-outline-secondary">View Order</a>
                     </td>
                 </tr>
                 {% endfor %}
@@ -45,7 +47,7 @@
         {% else %}
         <div style="padding: 2rem; text-align: center; color: var(--text-secondary);">
             <i class="bi bi-check-circle" style="font-size: 2rem; color: var(--success);"></i>
-            <p style="margin-top: 0.5rem;">No overdue open orders found.</p>
+            <p style="margin-top: 0.5rem;">No overdue open items found.</p>
         </div>
         {% endif %}
     </div>

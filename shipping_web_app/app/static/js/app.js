@@ -365,7 +365,24 @@ function initListeners() {
     });
     el('cancel-btn').addEventListener('click', resetAll);
     el('add-order-btn').addEventListener('click', () => {
-        alert("Add Order feature coming soon");
+        if (appMode === 'SCANNING_BOXES') {
+            appMode = 'SCANNING_ORDER';
+            el('add-order-btn').querySelector('.btn-text').textContent = 'Cancel Adding Job';
+            el('add-order-btn').classList.replace('active-blue', 'active-danger');
+            boxInput.placeholder = 'Scan another Job Ticket to combine...';
+            showStatus(el('box-scan-status'), 'Ready to scan new Order/Job Ticket', 'info');
+            boxInput.value = '';
+            boxInput.focus();
+        } else {
+            // Cancel adding order
+            appMode = 'SCANNING_BOXES';
+            el('add-order-btn').querySelector('.btn-text').textContent = 'Add Another Job';
+            el('add-order-btn').classList.replace('active-danger', 'active-blue');
+            boxInput.placeholder = 'Scan item...';
+            showStatus(el('box-scan-status'), 'Cancelled adding job', 'info');
+            boxInput.value = '';
+            boxInput.focus();
+        }
     });
 
     // 5. Buttons - Step 4
@@ -411,19 +428,17 @@ function initListeners() {
     }
 
     // Modal Listeners
-    if (el('modal-confirm-btn')) {
-        el('modal-confirm-btn').addEventListener('click', () => {
-            el('address-verification-modal').style.display = 'none';
-            if (tempNewOrderData) {
-                mergeNewOrder(tempNewOrderData);
-            }
-        });
-    }
-
     if (el('modal-cancel-btn')) {
         el('modal-cancel-btn').addEventListener('click', () => {
             el('address-verification-modal').style.display = 'none';
             tempNewOrderData = null;
+
+            // Reset state
+            appMode = 'SCANNING_BOXES';
+            el('add-order-btn').querySelector('.btn-text').textContent = 'Add Another Job';
+            el('add-order-btn').classList.replace('active-danger', 'active-blue');
+            boxInput.placeholder = 'Scan item...';
+
             boxInput.value = ''; boxInput.focus();
         });
     }
@@ -559,19 +574,25 @@ async function fetchAndCompareOrder(newId) {
         const data = await res.json();
 
         if (data.status === 'mismatch') {
-            // Trigger Modal
-            tempNewOrderData = data.new_order; // Hold for confirmation
+            // Trigger Modal (Strict no-combine)
+            tempNewOrderData = null; // We don't hold this anymore
 
             el('new-order-id-modal').innerText = newId;
             el('current-address-display').innerText = formatAddr(currentShipment.ship_to);
-            el('new-address-display').innerText = formatAddr(data.new_order.ship_to);
+            el('new-address-display').innerText = formatAddr(data.new_order_data.ship_to);
 
             el('address-verification-modal').style.display = 'flex';
 
         } else {
             // Match (Exact or Fuzzy) - Auto Merge
             showStatus(el('box-scan-status'), 'Address Matched. Merging...', 'success');
-            mergeNewOrder(data.new_order);
+            mergeNewOrder(data.new_order_data);
+
+            // Reset state back to scanning boxes
+            appMode = 'SCANNING_BOXES';
+            el('add-order-btn').querySelector('.btn-text').textContent = 'Add Another Job';
+            el('add-order-btn').classList.replace('active-danger', 'active-blue');
+            boxInput.placeholder = 'Scan item...';
         }
 
     } catch (e) {
@@ -619,7 +640,7 @@ function setupStep2() {
     boxInput.value = ''; boxInput.disabled = false; boxInput.focus();
 
     updateButtonState(el('process-shipment-btn'), false);
-    updateButtonState(el('add-order-btn'), false);
+    updateButtonState(el('add-order-btn'), currentShipment.status !== 'COMPLETED');
 
     // Status Banner
     const statusEl = el('order-status-display');

@@ -338,12 +338,21 @@ def compare_addresses(current_address_obj, new_lookup_id):
         
         conn.close()
         
-        return {
-            "status": status,
-            "new_order_data": {
+        new_order_data = {}
+        if status in ['exact_match', 'fuzzy_match']:
+            # If it's a match, we need the FULL order details including items so the frontend can merge it
+            full_details, err = get_job_details(new_lookup_id)
+            if not err:
+                new_order_data = full_details
+        else:
+            new_order_data = {
                 "order_number": job_data.get('job_ticket_number') or job_data.get('order_number'),
                 "ship_to": new_address
             }
+        
+        return {
+            "status": status,
+            "new_order_data": new_order_data
         }, None
 
     except Exception as e:
