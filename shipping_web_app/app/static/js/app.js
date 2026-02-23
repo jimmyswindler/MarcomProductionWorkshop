@@ -3,7 +3,6 @@
 let currentShipment = { ship_to: {}, orders: [], all_expected_barcodes: [], scanned_barcodes: new Set(), boxWeights: {}, orderProgress: {} };
 let packageList = [];
 let appMode = 'SCANNING_BOXES';
-let simulationEnabled = true; // Default, will fetch from server
 let cartonWeights = {};
 
 // Elements
@@ -135,74 +134,12 @@ function renderFeed(items) {
     }).join('');
 }
 
-// --- Simulation Toggle Logic ---
-async function initSimulationToggle() {
-    // Check initial status
-    try {
-        const res = await fetch('/api/get_simulation_status');
-        const data = await res.json();
-        simulationEnabled = data.simulation_enabled;
-        updateSimBadge();
-    } catch (e) { console.error("Sim Status Error:", e); }
 
-    // Create UI Elem if not exists (Best done in HTML, but injecting here for speed)
-    let badge = document.getElementById('sim-badge');
-    if (!badge) {
-        badge = document.createElement('div');
-        badge.id = 'sim-badge';
-        badge.style.position = 'absolute';
-        badge.style.top = '10px';
-        badge.style.right = '10px';
-        badge.style.padding = '5px 10px';
-        badge.style.borderRadius = '4px';
-        badge.style.fontWeight = 'bold';
-        badge.style.cursor = 'pointer';
-        badge.style.zIndex = '1000';
-        badge.title = 'Click to Toggle Mode (Admin)';
-        document.body.appendChild(badge);
-
-        badge.addEventListener('click', async () => {
-            if (!confirm(`Switch to ${simulationEnabled ? 'LIVE' : 'SIMULATION'} mode?`)) return;
-            try {
-                const res = await fetch('/api/toggle_simulation', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ enabled: !simulationEnabled })
-                });
-                const data = await res.json();
-                if (data.success) {
-                    simulationEnabled = data.simulation_enabled;
-                    updateSimBadge();
-                    fetchLiveFeed(); // Refresh feed immediately
-                }
-            } catch (e) { alert("Toggle Failed: " + e); }
-        });
-    }
-    updateSimBadge();
-}
-
-function updateSimBadge() {
-    const badge = document.getElementById('sim-badge');
-    if (!badge) return;
-
-    if (simulationEnabled) {
-        badge.textContent = "MODE: SIMULATION";
-        badge.style.backgroundColor = "#ffc107"; // Amber
-        badge.style.color = "#000";
-        badge.style.border = "1px solid #e0a800";
-    } else {
-        badge.textContent = "MODE: LIVE";
-        badge.style.backgroundColor = "#28a745"; // Green
-        badge.style.color = "#fff";
-        badge.style.border = "1px solid #1e7e34";
-    }
-}
 
 // Initialization
 window.onload = function () {
     initBarcodes();
     initListeners();
-    initSimulationToggle();
     if (orderInput) {
         orderInput.value = '';
         orderInput.focus();
@@ -506,6 +443,17 @@ function handleGlobalScan(code) {
             const isVisible = customSec.style.display !== 'none';
             customSec.style.display = isVisible ? 'none' : 'block';
             el('custom-mode-text').textContent = !isVisible ? "Use Standard Box" : "Use Custom Box";
+
+            // Reset values when turning off Custom Box Mode
+            if (isVisible) {
+                el('custom-L').value = '';
+                el('custom-W').value = '';
+                el('custom-H').value = '';
+                el('custom-Weight').value = '';
+                // Fully remove custom package from memory
+                packageList = packageList.filter(p => p.id !== 'CUSTOM');
+                renderPackedList();
+            }
             return;
         }
         if (code === 'CMD-BACK-SCAN') {
@@ -964,7 +912,7 @@ function handleCartonInput(id) {
     const finalW = currentShipment.calculatedTotalWeight || 0;
 
     if (multiModeCheckbox.checked) {
-        const w = prompt(`Weight for ${cleanId}?`);
+        const w = prompt(`Please weigh carton ${cleanId} WITH its contents.\n\nEnter the total weight in lbs:`);
         if (w) {
             packageList.push({ id: cleanId, weight: parseFloat(w) });
         }
@@ -1004,8 +952,7 @@ function renderPackedList() {
 
         let totalCartonWeights = 0;
         packageList.forEach(p => totalCartonWeights += p.weight);
-        const itemSum = currentShipment.calculatedTotalWeight || 0;
-        summaryDisplay.innerHTML = `<div style="font-size: 1.2em; font-weight: bold; margin-top: 10px;">Total Shipment Weight: ${(itemSum + totalCartonWeights).toFixed(2)} lbs</div>`;
+        summaryDisplay.innerHTML = `<div style="font-size: 1.2em; font-weight: bold; margin-top: 10px;">Total Shipment Weight: ${(totalCartonWeights).toFixed(2)} lbs</div>`;
     } else {
         let breakdownHtml = '<ul style="list-style-type: none; padding-left: 0; margin-bottom: 5px; font-family: monospace; font-size: 1.1em;">';
         let itemSum = 0;

@@ -38,11 +38,7 @@ def process_ups_output_files():
     Updates the database with the tracking number.
     Returns number of records updated.
     """
-    if not os.path.exists(XML_DIR):
-        # We only care if local dir exists if we are in sim mode, actually. 
-        pass
-
-    target_dir = XML_DIR if shipment_service.SIMULATION_ENABLED else shipment_service.LIVE_XML_DIR
+    target_dir = shipment_service.LIVE_XML_DIR
     if not os.path.exists(target_dir):
         print(f"Target dir {target_dir} does not exist.")
         return 0
@@ -53,7 +49,7 @@ def process_ups_output_files():
     count = 0
     # Match standard Worldship output pattern
     out_files = glob.glob(os.path.join(target_dir, "[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]_*.out"))
-    if not out_files and not shipment_service.SIMULATION_ENABLED:
+    if not out_files:
          out_files = glob.glob(os.path.join(target_dir, "[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]_*.Out"))
     
     conn = get_db_connection()
@@ -134,9 +130,8 @@ def process_ups_output_files():
         conn.commit()
         
         # --- SYNC STEP ---
-        # If in LIVE mode, find ANY shipment that has tracking but is PENDING or FAILED sync
-        if not shipment_service.SIMULATION_ENABLED:
-             process_pending_marcom_syncs(conn)
+        # Find ANY shipment that has tracking but is PENDING or FAILED sync
+        process_pending_marcom_syncs(conn)
 
     except Exception as e:
         print(f"DB Error in feedback loop (UPS): {e}")
@@ -250,63 +245,6 @@ def sync_shipment_to_marcom(cur, ship_uid, tracking, order_number=None):
     print(f"Marcom Sync Complete for {ship_uid}. Status: {overall_status}")
 
 
-def process_marcom_responses():
-    """
-    Reads MARCOM_CONFIRM_*.xml files.
-    Updates the shipment status to SUCCESS or FAILED.
-    """
-    if not os.path.exists(XML_DIR):
-        return 0
-
-    count = 0
-    xml_files = glob.glob(os.path.join(XML_DIR, "MARCOM_CONFIRM_*.xml"))
-    
-    conn = get_db_connection()
-    if not conn: return 0
-    
-    try:
-        cur = get_real_dict_cursor(conn)
-        
-        for fpath in xml_files:
-            try:
-                tree = ET.parse(fpath)
-                root = tree.getroot()
-                
-                ref_uid = root.find('OriginalReference').text
-                status = root.find('Status').text
-                msg = root.find('Message').text
-                code = root.find('Code').text if root.find('Code') is not None else None
-                
-                # Append (Simulated) tag if not present
-                if code:
-                    final_msg = f"Code: {code}, {msg} (Simulated)"
-                else:
-                    final_msg = f"{msg} (Simulated)"
-                
-                # Update DB
-                cur.execute("""
-                    UPDATE shipments 
-                    SET marcom_sync_status = %s,
-                        marcom_response_message = %s
-                    WHERE shipment_uid = %s AND marcom_sync_status != %s
-                """, (status, final_msg, ref_uid, status))
-                
-                if cur.rowcount > 0:
-                    count += 1
-            
-            except Exception as e:
-                print(f"Error reading Marcom XML {fpath}: {e}")
-                
-        cur.close()
-        conn.close()
-        return count
-        
-    except Exception as e:
-        print(f"DB Error processing Marcom responses: {e}")
-        if conn: conn.close()
-        return 0
-
 def run_feedback_cycle():
     c1 = process_ups_output_files()
-    c2 = process_marcom_responses()
-    return c1, c2
+    return c1, 0

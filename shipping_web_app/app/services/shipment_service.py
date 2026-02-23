@@ -8,16 +8,7 @@ from shared_lib.utils import get_store_number, get_product_category
 from . import marcom_service
 from . import marcom_service
 
-XML_OUTPUT_FOLDER = 'xml_output'
 LIVE_XML_DIR = '/Volumes/XML Auto Import'
-SIMULATION_ENABLED = get_env_var("SIMULATION_MODE", "True").lower() == "true"
-
-def is_simulation_mode():
-    return SIMULATION_ENABLED
-
-# Ensure absolute path relative to root if running from root
-if not os.path.exists(XML_OUTPUT_FOLDER):
-    os.makedirs(XML_OUTPUT_FOLDER)
 def get_shipping_cartons():
     conn = get_db_connection()
     if not conn: return {}, "DB Connection Failed"
@@ -55,7 +46,15 @@ def generate_worldship_xml(shipment_data, packages, store_number_arg=None):
         final_company = "Texas Roadhouse"
         final_attention = ship_to.get('name', '')
     
-    ref2 = ",".join([o['order_number'] for o in shipment_data['orders']])
+    unique_numeric_orders = []
+    for o in shipment_data['orders']:
+        order_str = o.get('related_order_number') or o.get('order_number') or ""
+        parts = str(order_str).split('-')
+        num_part = parts[-1] if len(parts) > 1 else str(order_str)
+        if num_part and num_part not in unique_numeric_orders:
+            unique_numeric_orders.append(num_part)
+            
+    ref2 = ", ".join(unique_numeric_orders)
 
     xml_parts = []
     xml_parts.append(f"""<?xml version="1.0" encoding="WINDOWS-1252"?>
@@ -274,47 +273,43 @@ def process_shipment_logic(orders, scanned_boxes, package_list_in):
         # 5. XML
         xml_string = generate_worldship_xml({"orders": orders}, final_packages, store_number)
         filename = f"{shipment_uid}.xml"
-        if SIMULATION_ENABLED:
-            target_folder = XML_OUTPUT_FOLDER
-        else:
-            target_folder = LIVE_XML_DIR
+        target_folder = LIVE_XML_DIR
             
         with open(os.path.join(target_folder, filename), "w") as f:
             f.write(xml_string)
             
         print(f"XML written to {target_folder}/{filename}")
             
-        # 6. Marcom Sync (If Live)
+        # 6. Marcom Sync
         marcom_results = []
-        if not SIMULATION_ENABLED:
-             # Iterate through items to close them
-             # Finding line_item_id is tricky if we only have order_number or package info.
-             # We need to query the DB for the line item IDs associated with this shipment's boxes.
-             
-             cur.execute("""
-                SELECT DISTINCT i.order_item_id, i.sku
-                FROM item_boxes b
-                JOIN items i ON b.order_item_id = i.order_item_id
-                WHERE b.barcode_value = ANY(%s)
-             """, (scanned_boxes,))
-             
-             line_items_to_close = cur.fetchall()
-             
-             # Assuming single tracking number for whole shipment (Worldship .out file provided it previously)
-             # BUT here we are at generating the XML stage. We don't have tracking number yet?
-             # Wait. The legacy app scanned Tracking Number *manually*.
-             # The new app generates XML for Worldship, then Worldship prints label (getting tracking), 
-             # then we parse Worldship output to get tracking.
-             # SO... we CANNOT close the order with Marcom yet because we don't have the tracking number!
-             # We must wait for the feedback loop (Worldship -> App -> Tracking -> Marcom).
-             
-             # CORRECTION: The verified plan says "After generating Worldship XML... Call marcom_service".
-             # But legacy app required Tracking Number.
-             # If we don't have it, we can't close it.
-             
-             # Update DB status to 'PENDING_TRACKING' so the feedback loop knows to pick it up?
-             # Or rely on feedback_loop to trigger Marcom sync once tracking is available.
-             pass
+        # Iterate through items to close them
+        # Finding line_item_id is tricky if we only have order_number or package info.
+        # We need to query the DB for the line item IDs associated with this shipment's boxes.
+        
+        cur.execute("""
+            SELECT DISTINCT i.order_item_id, i.sku
+            FROM item_boxes b
+            JOIN items i ON b.order_item_id = i.order_item_id
+            WHERE b.barcode_value = ANY(%s)
+        """, (scanned_boxes,))
+        
+        line_items_to_close = cur.fetchall()
+        
+        # Assuming single tracking number for whole shipment (Worldship .out file provided it previously)
+        # BUT here we are at generating the XML stage. We don't have tracking number yet?
+        # Wait. The legacy app scanned Tracking Number *manually*.
+        # The new app generates XML for Worldship, then Worldship prints label (getting tracking), 
+        # then we parse Worldship output to get tracking.
+        # SO... we CANNOT close the order with Marcom yet because we don't have the tracking number!
+        # We must wait for the feedback loop (Worldship -> App -> Tracking -> Marcom).
+        
+        # CORRECTION: The verified plan says "After generating Worldship XML... Call marcom_service".
+        # But legacy app required Tracking Number.
+        # If we don't have it, we can't close it.
+        
+        # Update DB status to 'PENDING_TRACKING' so the feedback loop knows to pick it up?
+        # Or rely on feedback_loop to trigger Marcom sync once tracking is available.
+        pass
 
         return {"success": True, "shipment_uid": shipment_uid}, 200
 

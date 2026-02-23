@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<MarcomResponse>
-    <OriginalReference>20260220_0001</OriginalReference>
-    <Status>SUCCESS</Status>
-    <Code>1</Code>
-    <Message>Order successfully received and processed.</Message>
-    <Timestamp>2026-02-20T15:35:42.711171</Timestamp>
-</MarcomResponse>

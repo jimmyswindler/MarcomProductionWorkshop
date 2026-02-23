@@ -42,17 +42,11 @@ def process_shipment():
 @api_bp.route('/activity_feed', methods=['GET'])
 def get_feed():
     try:
-        from ..services import simulation_service, feedback_loop
+        from ..services import feedback_loop
         
         # 1. Process output files (ALWAYS run this to catch live files too)
         feedback_loop.process_ups_output_files()
 
-        # 2. Simulate ONLY if enabled
-        if shipment_service.SIMULATION_ENABLED:
-            simulation_service.simulate_ups_worldship_processing()
-            simulation_service.simulate_marcom_response()
-            feedback_loop.process_marcom_responses()
-            
     except Exception as e:
         print(f"Feed Processing Error: {e}")
 
@@ -60,22 +54,7 @@ def get_feed():
     if error: return jsonify({"error": error}), 500
     return jsonify(data)
 
-@api_bp.route('/toggle_simulation', methods=['POST'])
-def toggle_simulation():
-    data = request.json
-    new_mode = data.get('enabled')
-    
-    if new_mode is not None:
-        shipment_service.SIMULATION_ENABLED = bool(new_mode)
-        mode_str = "SIMULATION" if shipment_service.SIMULATION_ENABLED else "LIVE"
-        print(f"*** SWITCHING TO {mode_str} MODE ***")
-        return jsonify({"success": True, "simulation_enabled": shipment_service.SIMULATION_ENABLED})
-    
-    return jsonify({"success": False, "error": "Missing 'enabled' boolean"}), 400
 
-@api_bp.route('/get_simulation_status', methods=['GET'])
-def get_simulation_status():
-    return jsonify({"simulation_enabled": shipment_service.SIMULATION_ENABLED})
 
 @api_bp.route('/order/compare', methods=['POST'])
 def compare_order():
