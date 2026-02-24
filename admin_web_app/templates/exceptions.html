@@ -3,8 +3,8 @@
 {% block content %}
 <div class="card">
     <h1>Address Validation Exceptions</h1>
-    <p style="color: var(--text-secondary);">Orders flagged as AMBIGUOUS or INVALID by UPS that cound NOT be
-        auto-corrected via Address Book.</p>
+    <p style="color: var(--text-secondary);">Orders flagged as an EXCEPTION by UPS or the automated fallback sequence.
+    </p>
 
     <div style="margin-top: 1rem;">
         <table>
@@ -24,11 +24,7 @@
                     <td>{{ order.order_number }}</td>
                     <td>{{ order.order_date }}</td>
                     <td>
-                        {% if order.address_validation_status == 'AMBIGUOUS' %}
-                        <span class="badge badge-warning">Ambiguous</span>
-                        {% else %}
-                        <span class="badge badge-danger">Invalid</span>
-                        {% endif %}
+                        <span class="badge badge-danger">Exception</span>
                     </td>
                     <td>
                         {{ order.address1 }}<br>

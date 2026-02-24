@@ -245,7 +245,7 @@ def dashboard():
     val_stats_raw = cur.fetchall()
     
     # Normalize for UI
-    val_stats = {'VALID': 0, 'CORRECTED': 0, 'AMBIGUOUS': 0, 'INVALID': 0, 'MANUALLY_CORRECTED': 0, 'CORRECTED_BY_BOOK': 0}
+    val_stats = {'VALID': 0, 'AUTO_CORRECTED': 0, 'EXCEPTION': 0, 'MANUALLY_CORRECTED': 0}
     for row in val_stats_raw:
         s = row['status']
         if s in val_stats: val_stats[s] += row['count']
@@ -256,7 +256,7 @@ def dashboard():
     cur.execute("""
         SELECT order_number, address_validation_details 
         FROM orders 
-        WHERE address_validation_status IN ('CORRECTED', 'CORRECTED_BY_BOOK', 'MANUALLY_CORRECTED')
+        WHERE address_validation_status IN ('AUTO_CORRECTED', 'MANUALLY_CORRECTED')
         ORDER BY order_date DESC
         LIMIT 10
     """)
@@ -423,7 +423,7 @@ def exceptions():
     
     cur.execute("""
         SELECT * FROM orders 
-        WHERE address_validation_status IN ('AMBIGUOUS', 'INVALID') 
+        WHERE address_validation_status = 'EXCEPTION' 
         ORDER BY order_date DESC
     """)
     orders = cur.fetchall()
@@ -475,7 +475,7 @@ def fix_exception(order_number):
                         address1 = %s, address2 = %s, address3 = %s,
                         city = %s, state = %s, zip = %s,
                         address_validated = TRUE,
-                        address_validation_status = 'CORRECTED_BY_BOOK',
+                        address_validation_status = 'MANUALLY_CORRECTED',
                         address_validation_details = %s
                     WHERE order_number = %s
                 """
@@ -540,7 +540,7 @@ def production_review():
     # Fetch NEW jobs where order is Validated
     where_clause = """
         WHERE j.production_status = 'NEW'
-          AND o.address_validation_status IN ('VALID', 'CORRECTED', 'CORRECTED_BY_BOOK', 'MANUALLY_CORRECTED')
+          AND o.address_validation_status IN ('VALID', 'AUTO_CORRECTED', 'MANUALLY_CORRECTED')
     """
     
     # --- METRICS ---
@@ -632,7 +632,7 @@ def submit_production():
                 SELECT j.id FROM jobs j
                 JOIN orders o ON j.order_id = o.id
                 WHERE j.production_status = 'NEW'
-                AND o.address_validation_status IN ('VALID', 'CORRECTED', 'CORRECTED_BY_BOOK', 'MANUALLY_CORRECTED')
+                AND o.address_validation_status IN ('VALID', 'AUTO_CORRECTED', 'MANUALLY_CORRECTED')
             )
         """, (batch_id,))
         

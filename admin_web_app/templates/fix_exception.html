@@ -4,7 +4,7 @@
 <div style="display: flex; gap: 2rem; align-items: flex-start;">
 
     <!-- Left Column: The Problem -->
-    <div style="flex: 1;">
+    <div style="flex: 2;">
         <div class="card">
             <h1>Review Exception</h1>
             <h2 style="color: var(--accent); margin-bottom: 0;">{{ order.order_number }}</h2>
@@ -17,21 +17,6 @@
             </div>
 
             <div style="margin-top: 1.5rem;">
-                <label class="form-label">Current Status</label>
-                {% if order.address_validation_status == 'AMBIGUOUS' %}
-                <span class="badge badge-warning">AMBIGUOUS</span>
-                {% else %}
-                <span class="badge badge-danger">INVALID</span>
-                {% endif %}
-            </div>
-
-            <div style="margin-top: 1.5rem;">
-                <label class="form-label">Validation Details</label>
-                <pre
-                    style="background: rgba(0,0,0,0.3); padding: 1rem; border-radius: 6px; overflow-x: auto; color: var(--text-secondary);">{{ order.address_validation_details }}</pre>
-            </div>
-
-            <div style="margin-top: 1.5rem;">
                 <label class="form-label">Incoming Address</label>
                 <div style="background: rgba(0,0,0,0.3); padding: 1rem; border-radius: 6px;">
                     <strong>{{ order.ship_to_company }}</strong><br>
@@ -40,6 +25,17 @@
                     {% if order.address2 %}{{ order.address2 }}<br>{% endif %}
                     {{ order.city }}, {{ order.state }} {{ order.zip }}
                 </div>
+            </div>
+
+            <div style="margin-top: 1.5rem;">
+                <label class="form-label">Current Status</label>
+                <span class="badge badge-danger">EXCEPTION</span>
+            </div>
+
+            <div style="margin-top: 1.5rem;">
+                <label class="form-label">Validation Details</label>
+                <pre
+                    style="background: rgba(0,0,0,0.3); padding: 1rem; border-radius: 6px; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word; color: var(--text-secondary);">{{ order.address_validation_details }}</pre>
             </div>
         </div>
 
@@ -64,7 +60,7 @@
                     <label class="form-label">Store Number</label>
                     <div style="display: flex; gap: 0.5rem;">
                         <input type="text" name="store_number" value="{{ guessed_store }}" placeholder="e.g. 0237"
-                            required>
+                            style="min-width: 120px;" required>
                         <button type="submit" class="btn">Apply</button>
                     </div>
                     <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.5rem;">

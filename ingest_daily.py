@@ -188,25 +188,58 @@ def process_ingestion(input_dir, processed_dir, config, dry_run=False):
             'country': get_db_string(row.get('country')) or 'US'
         }
         
+        # We need a store number for the address book fallback
+        store_number = get_db_string(row.get('cost_center')) # Used as store number fallback in DB insertion
+        
         if ups_validator:
-            # Check address book first? (Skipping for brevity, can add later)
             lines = [addr_args['address1'], addr_args['address2'], addr_args['address3']]
             res = ups_validator.validate_address(lines, addr_args['city'], addr_args['state'], addr_args['zip'], addr_args['country'])
             
-            val_status = res.get('status', 'ERROR')
-            if val_status in ['VALID', 'CORRECTED']:
+            ups_status = res.get('status', 'ERROR')
+            val_details = res
+            
+            if ups_status == 'VALID':
                 is_validated = True
+                val_status = 'VALID'
                 d = res.get('data')
                 if d:
-                    # Update addr_args with corrected data
+                    # Update addr_args with UPS standardized data
                     addr_args['address1'] = d.get('address1')
                     addr_args['address2'] = d.get('address2')
                     addr_args['address3'] = d.get('address3')
                     addr_args['city'] = d.get('city')
                     addr_args['state'] = d.get('state')
                     addr_args['zip'] = f"{d.get('zip')}-{d.get('zip_extension')}" if d.get('zip_extension') else d.get('zip')
-            
-            val_details = res
+            else:
+                # If UPS is not perfectly valid (AMBIGUOUS, INVALID, ERROR), check the Address Book
+                if store_number:
+                    # Normalize store number for lookup
+                    lookup_store = str(store_number).zfill(4) if str(store_number).isdigit() else store_number
+                    cur.execute("SELECT * FROM address_book WHERE store_number = %s", (lookup_store,))
+                    book_entry = cur.fetchone()
+                    
+                    if book_entry:
+                        is_validated = True
+                        val_status = 'AUTO_CORRECTED'
+                        # Use Address Book details instead
+                        addr_args['address1'] = book_entry[3] # address1
+                        addr_args['address2'] = book_entry[4] # address2
+                        addr_args['address3'] = book_entry[5] # address3
+                        addr_args['city'] = book_entry[6] # city
+                        addr_args['state'] = book_entry[7] # state
+                        addr_args['zip'] = book_entry[8] # zip
+                        
+                        val_details = {
+                            'msg': 'Corrected via local Address Book',
+                            'store_number': lookup_store,
+                            'ups_raw': res # Keep UPS data for reference if needed
+                        }
+                    else:
+                        is_validated = False
+                        val_status = 'EXCEPTION'
+                else:
+                    is_validated = False
+                    val_status = 'EXCEPTION'
 
         if dry_run:
             logging.info(f"[DRY RUN] Would insert Order {order_num} Ticket {job_ticket}")

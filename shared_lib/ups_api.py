@@ -99,25 +99,17 @@ class UPSAddressValidator:
             
             # Case 1: Valid (UPS recognizes it exactly or close enough to be confident)
             if is_valid:
-                # Even if valid, UPS might return a standardized version in the candidate list (usually 1 candidate)
-                # We should use that standardized version.
+                # Even if valid, UPS might return a standardized version in the candidate list
                 if candidates:
                     std_addr = self._parse_candidate_address(candidates[0])
                     return {'status': 'VALID', 'data': std_addr, 'raw_response': data}
                 else:
-                    # Should be rare for Valid indicator with no candidate, but implies input was perfect?
-                    # Or we just return input as confirmed.
-                    # Actually XAV usually returns the standardized form in Candidate even if valid.
                     return {'status': 'VALID', 'data': None, 'raw_response': data, 'msg': 'Valid but no candidate returned'}
 
             # Case 2: Ambiguous (Multiple Candidates usually, or just one that is a "guess")
-            # User Rule: Auto-accept if len(candidates) == 1. Flag if > 1.
+            # We defer all non-valid addresses to the local Address Book workflow.
             if is_ambiguous:
-                if len(candidates) == 1:
-                    std_addr = self._parse_candidate_address(candidates[0])
-                    return {'status': 'CORRECTED', 'data': std_addr, 'raw_response': data}
-                elif len(candidates) > 1:
-                    return {'status': 'AMBIGUOUS', 'candidates': [self._parse_candidate_address(c) for c in candidates], 'raw_response': data}
+                return {'status': 'AMBIGUOUS', 'candidates': [self._parse_candidate_address(c) for c in candidates], 'raw_response': data}
             
             # Case 3: No Candidates / Invalid
             if is_no_match:
@@ -125,11 +117,7 @@ class UPSAddressValidator:
 
             # Fallback (Edge cases where UPS returns candidates but no indicators?)
             if candidates:
-                if len(candidates) == 1:
-                    std_addr = self._parse_candidate_address(candidates[0])
-                    return {'status': 'CORRECTED', 'data': std_addr, 'raw_response': data}
-                else:
-                    return {'status': 'AMBIGUOUS', 'candidates': [self._parse_candidate_address(c) for c in candidates], 'raw_response': data}
+                return {'status': 'AMBIGUOUS', 'candidates': [self._parse_candidate_address(c) for c in candidates], 'raw_response': data}
 
             return {'status': 'INVALID', 'raw_response': data}
 

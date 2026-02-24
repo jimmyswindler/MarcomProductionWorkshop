@@ -56,22 +56,18 @@
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                     <span>Auto-Corrected</span>
                     <span class="badge badge-warning"
-                        style="background: rgba(56, 189, 248, 0.2); color: var(--accent);">{{ val_stats.CORRECTED
+                        style="background: rgba(56, 189, 248, 0.2); color: var(--accent);">{{ val_stats.AUTO_CORRECTED
                         }}</span>
                 </div>
                 <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <span>Corrected by Address Book</span>
+                    <span>Manually Corrected</span>
                     <span class="badge badge-warning"
                         style="background: rgba(56, 189, 248, 0.2); color: var(--accent);">{{
-                        val_stats.CORRECTED_BY_BOOK }}</span>
+                        val_stats.MANUALLY_CORRECTED }}</span>
                 </div>
                 <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <span>Ambiguous</span>
-                    <span class="badge badge-warning">{{ val_stats.AMBIGUOUS }}</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <span>Invalid</span>
-                    <span class="badge badge-danger">{{ val_stats.INVALID }}</span>
+                    <span>Exceptions</span>
+                    <span class="badge badge-danger">{{ val_stats.EXCEPTION }}</span>
                 </div>
             </div>
         </div>

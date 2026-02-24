@@ -69,12 +69,10 @@
                         <td>
                             {% if job.address_validation_status == 'VALID' %}
                             <span class="badge bg-success">Valid</span>
-                            {% elif job.address_validation_status == 'CORRECTED' %}
-                            <span class="badge bg-info text-dark">Corrected</span>
+                            {% elif job.address_validation_status == 'AUTO_CORRECTED' %}
+                            <span class="badge bg-info text-dark">Auto-Corrected</span>
                             {% elif job.address_validation_status == 'MANUALLY_CORRECTED' %}
                             <span class="badge bg-warning text-dark">Manual</span>
-                            {% elif job.address_validation_status == 'CORRECTED_BY_BOOK' %}
-                            <span class="badge bg-primary">Book</span>
                             {% else %}
                             <span class="badge bg-secondary">{{ job.address_validation_status }}</span>
                             {% endif %}
