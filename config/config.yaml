@@ -67,6 +67,7 @@ paths:
       - "Pads_Free_For_A_Year"
       - "ThankYouCard"
       - "ValentinesDay"
+      - "Easter"
       - "Other"
 
 # --- New section for script 80 ---
@@ -489,6 +490,9 @@ product_ids:
 
   ValentinesDay:
     - "4087"
+
+  Easter:
+    - "4087"
   
 categorization_rules:
   business_card_identifiers: ['16pt', '16 pt']
@@ -546,6 +550,7 @@ bundling_rules:
     - "LargeFormat"
     - "CBO"
     - "ValentinesDay"
+    - "Easter"
   
 sheet_output_order:
   - "BUNDLES"
@@ -556,6 +561,7 @@ sheet_output_order:
   - "LargeFormat"
   - "PrintOnDemand"
   - "ValentinesDay"
+  - "Easter"
 
 pdf_settings:
   generate_pdf_run_lists: true

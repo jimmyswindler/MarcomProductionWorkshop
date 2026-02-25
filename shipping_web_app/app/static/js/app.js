@@ -1,6 +1,6 @@
 
 // State
-let currentShipment = { ship_to: {}, orders: [], all_expected_barcodes: [], scanned_barcodes: new Set(), boxWeights: {}, orderProgress: {} };
+let currentShipment = { ship_to: {}, orders: [], all_expected_barcodes: [], scanned_barcodes: new Set(), boxWeights: {}, unknownWeights: new Set(), orderProgress: {} };
 let packageList = [];
 let appMode = 'SCANNING_BOXES';
 let cartonWeights = {};
@@ -15,6 +15,14 @@ const boxInput = el('box-barcode-input');
 const cartonInput = el('carton-input');
 const cartonStatus = el('carton-status');
 const multiModeCheckbox = el('multi-mode-checkbox');
+
+// Inline Weight Elements
+const inlineWeightSection = el('inline-weight-section');
+const inlineWeightHeader = el('inline-weight-header');
+const inlineWeightInput = el('inline-weight-input');
+const inlineWeightConfirmBtn = el('inline-weight-confirm-btn');
+const inlineWeightCancelBtn = el('inline-weight-cancel-btn');
+let pendingInlineCartonId = null;
 
 // Status Helper
 function showStatus(element, message, type = 'info', autoHide = true) {
@@ -202,11 +210,11 @@ function initBarcodes() {
         { id: "#bc-cancel-step4", val: "CMD-CANCEL-ORDER" }
     ];
     cmds.forEach(c => {
-        try { JsBarcode(c.id, c.val.toUpperCase(), { format: "CODE128", width: 2, height: 40, displayValue: false, margin: 0 }); }
+        try { JsBarcode(c.id, c.val.toUpperCase(), { format: "CODE128", width: 2.2, height: 40, displayValue: false, margin: 0 }); }
         catch (e) { }
     });
     document.querySelectorAll('.bc-render').forEach(el => {
-        JsBarcode(el, el.dataset.value, { format: "CODE128", width: 2, height: 40, displayValue: false });
+        JsBarcode(el, el.dataset.value, { format: "CODE128", width: 2.2, height: 40, displayValue: false, margin: 0 });
     });
 }
 
@@ -340,6 +348,26 @@ function initListeners() {
             packageList = [];
             renderPackedList();
             document.querySelectorAll('.box-btn').forEach(b => b.classList.remove('selected'));
+        });
+    }
+
+    // Inline Weight Listeners
+    if (inlineWeightConfirmBtn) {
+        inlineWeightConfirmBtn.addEventListener('click', handleInlineWeightConfirm);
+    }
+    if (inlineWeightCancelBtn) {
+        inlineWeightCancelBtn.addEventListener('click', () => {
+            inlineWeightSection.style.display = 'none';
+            inlineWeightInput.value = '';
+            pendingInlineCartonId = null;
+            if (!multiModeCheckbox.checked) {
+                document.querySelectorAll('.box-btn').forEach(btn => btn.classList.remove('selected'));
+            }
+        });
+    }
+    if (inlineWeightInput) {
+        inlineWeightInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') handleInlineWeightConfirm();
         });
     }
 
@@ -477,6 +505,7 @@ async function fetchOrderData(id) {
             all_expected_barcodes: [...(data.expected_barcodes || [])],
             scanned_barcodes: new Set(),
             boxWeights: {},
+            unknownWeights: new Set(),
             orderProgress: data.order_progress || {}, // Ensure object
             status: data.status || 'OPEN'
         };
@@ -484,7 +513,10 @@ async function fetchOrderData(id) {
         // Populate weights map
         if (data.line_items) {
             data.line_items.forEach(li => {
-                li.barcodes.forEach(bc => currentShipment.boxWeights[bc.value] = bc.estimated_weight || 1.0);
+                li.barcodes.forEach(bc => {
+                    currentShipment.boxWeights[bc.value] = bc.estimated_weight || 1.0;
+                    if (bc.unknown_weight) currentShipment.unknownWeights.add(bc.value);
+                });
             });
         }
 
@@ -766,14 +798,19 @@ function updateBarcodeList() {
                 } else if (isScanned) {
                     bg = '#d4edda';
                     border = '#28a745';
+                } else if (bcObj.is_master_scan) {
+                    bg = '#f3e5f5';  // light purple
+                    border = '#ce93d8';
                 }
 
                 const weight = bcObj.estimated_weight || 1.0;
+                let masterBadge = bcObj.is_master_scan ? `<div style="font-size:0.75em; color:#8e24aa; font-weight:bold; margin-top:4px;">SCANS ALL ${item.quantity_ordered}</div>` : '';
 
                 bcContainer.innerHTML += `
                 <div class="barcode-card" style="width:140px; padding:8px 10px; background:${bg}; border:2px solid ${border}; border-radius:8px; transition:0.2s; min-height:auto; opacity:${isPacked ? 0.8 : 1}; text-align:center;">
                      <span class="barcode-label" style="font-size:1.0em; font-weight:bold; display:block; margin-bottom:2px;">${code}</span>
                      ${isPacked ? '<div style="font-size:0.7em; color:#28a745; font-weight:bold; margin-top:2px;">PACKED</div>' : ''}
+                     ${masterBadge}
                 </div>`;
             });
 
@@ -867,13 +904,39 @@ function goToPackStep() {
 
     // Calculate Weight
     let totalW = 0.0;
+    let hasUnknownWeights = false;
+
     currentShipment.scanned_barcodes.forEach(bc => {
         const w = currentShipment.boxWeights[bc] || 1.0;
         totalW += w;
+        if (currentShipment.unknownWeights && currentShipment.unknownWeights.has(bc)) {
+            hasUnknownWeights = true;
+        }
     });
+
     currentShipment.calculatedTotalWeight = totalW;
 
     el('shipment-summary-display').innerHTML = '';
+
+    // Check for Unknown Weights Safeguard
+    const warningBanner = el('unknown-weight-warning');
+    if (hasUnknownWeights) {
+        if (warningBanner) {
+            warningBanner.style.display = 'block';
+            warningBanner.innerHTML = '<div style="background:#fff3cd; color:#856404; border:1px solid #ffeeba; padding:10px; border-radius:5px; margin-bottom:15px;"><strong>⚠️ Shipment contains items with unknown weights. You will need to weigh all cartons.</strong></div>';
+        }
+    } else {
+        if (warningBanner) {
+            warningBanner.style.display = 'none';
+        }
+    }
+
+    // ALWAYS Enable standard box buttons
+    document.querySelectorAll('.box-btn').forEach(btn => {
+        btn.style.opacity = '1';
+        btn.style.pointerEvents = 'auto';
+    });
+
     renderPackedList();
 
     // Removed "Est Weight" prominence on step 4 as per request
@@ -911,17 +974,51 @@ function handleCartonInput(id) {
 
     const finalW = currentShipment.calculatedTotalWeight || 0;
 
-    if (multiModeCheckbox.checked) {
-        const w = prompt(`Please weigh carton ${cleanId} WITH its contents.\n\nEnter the total weight in lbs:`);
-        if (w) {
-            packageList.push({ id: cleanId, weight: parseFloat(w) });
+    // Check if we need to force manual weight
+    let hasUnknownWeights = false;
+    currentShipment.scanned_barcodes.forEach(bc => {
+        if (currentShipment.unknownWeights && currentShipment.unknownWeights.has(bc)) {
+            hasUnknownWeights = true;
         }
+    });
+
+    if (multiModeCheckbox.checked || hasUnknownWeights) {
+        // Show inline weight entry
+        pendingInlineCartonId = cleanId;
+        inlineWeightHeader.innerText = `Enter Weight for Box ${cleanId}`;
+        inlineWeightSection.style.display = 'block';
+        inlineWeightInput.value = '';
+        inlineWeightInput.focus();
     } else {
-        // Single Mode
+        // Single Mode with known weights
         const cartonDbWeight = cartonWeights[cleanId] || 0;
         packageList = [{ id: cleanId, weight: finalW + cartonDbWeight, cartonWeight: cartonDbWeight }];
+        renderPackedList();
     }
-    renderPackedList();
+}
+
+function handleInlineWeightConfirm() {
+    if (!pendingInlineCartonId) return;
+
+    const w = inlineWeightInput.value;
+    if (w && !isNaN(w) && parseFloat(w) > 0) {
+        packageList.push({ id: pendingInlineCartonId, weight: parseFloat(w) });
+
+        // Hide and reset inline section
+        inlineWeightSection.style.display = 'none';
+        inlineWeightInput.value = '';
+        pendingInlineCartonId = null;
+
+        // Ensure standard boxes unselect visually if not in multi-mode
+        if (!multiModeCheckbox.checked) {
+            document.querySelectorAll('.box-btn').forEach(btn => btn.classList.remove('selected'));
+        }
+
+        renderPackedList();
+    } else {
+        showStatus(cartonStatus, "Please enter a valid weight.", 'error');
+        inlineWeightInput.focus();
+    }
 }
 
 function addCustomCarton() {

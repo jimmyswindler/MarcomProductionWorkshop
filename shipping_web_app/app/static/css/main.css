@@ -51,7 +51,8 @@ body {
 .indicator {
     margin-right: 10px;
     font-size: 1.2em;
-    color: #ccc; /* Default / Loading */
+    color: #ccc;
+    /* Default / Loading */
     transition: color 0.3s;
 }
 
@@ -216,8 +217,7 @@ body {
     align-items: center;
     justify-content: flex-start;
     /* Align Left */
-    background-color: #6c757d;
-    opacity: 0.6;
+    background-color: rgba(108, 117, 125, 0.6);
     color: white;
     border: none;
     border-radius: 8px;
@@ -234,7 +234,6 @@ body {
 }
 
 .box-btn.selected {
-    opacity: 1.0;
     background-color: #007bff;
     border: 3px solid #ffc107;
     transform: scale(1.02);
@@ -242,27 +241,23 @@ body {
 
 .btn-composite.active-blue {
     background-color: #007bff;
-    opacity: 1.0;
 }
 
 .btn-composite.active-danger {
     background-color: #dc3545;
-    opacity: 1.0;
 }
 
 .btn-composite.active-success {
     background-color: #28a745;
-    opacity: 1.0;
 }
 
 .btn-composite.active-info {
     background-color: #17a2b8;
-    opacity: 1.0;
 }
 
 .btn-composite:disabled {
-    background-color: #6c757d;
-    opacity: 0.4;
+    background-color: rgba(108, 117, 125, 0.4);
+    color: rgba(255, 255, 255, 0.6);
     cursor: not-allowed;
     box-shadow: none;
 }
@@ -279,7 +274,7 @@ body {
 
 .btn-barcode {
     background: white;
-    padding: 2px 5px;
+    padding: 2px 15px;
     border-radius: 4px;
     margin-left: 15px;
     display: flex;
@@ -362,4 +357,74 @@ body {
     background-color: #f8f9fa;
     padding: 15px;
     border-radius: 5px;
+}
+
+/* Pack Shipment Grid Layout */
+.box-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.btn-centered,
+.box-grid .btn-composite {
+    height: auto;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.btn-centered .btn-barcode,
+.box-grid .btn-composite .btn-barcode {
+    margin-left: 0;
+    margin-bottom: 10px;
+}
+
+.btn-centered .btn-text,
+.box-grid .btn-composite .btn-text {
+    text-align: center;
+    font-size: 1.2em;
+    white-space: normal;
+    flex: none;
+}
+
+.manual-entry-cell {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    background: #eee;
+    padding: 15px;
+    border-radius: 8px;
+    border: 2px dashed #999;
+    box-sizing: border-box;
+    height: 100%;
+}
+
+.manual-entry-cell .input-group {
+    margin-bottom: 0;
+    width: 100%;
+}
+
+.manual-entry-cell label {
+    text-align: center;
+    font-size: 0.9em;
+}
+
+.manual-entry-cell input {
+    text-align: center;
+}
+
+.spacer {
+    border: 0;
+    border-top: 1px solid #000;
+    margin: 20px 0;
+}
+
+.button-row {
+    display: flex;
+    gap: 15px;
+}
+
+.button-row .btn-composite {
+    flex: 1;
 }

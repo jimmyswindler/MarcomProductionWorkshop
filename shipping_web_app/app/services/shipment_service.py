@@ -130,6 +130,24 @@ def process_shipment_logic(orders, scanned_boxes, package_list_in):
     try:
         cur = get_real_dict_cursor(conn)
         
+        # 0. JIT Box Insertion for Master Scans
+        if scanned_boxes:
+            updated_scanned_boxes = []
+            for box in scanned_boxes:
+                # If it's a base order_item_id (8 digits), insert the Z box
+                if len(box) == 8 and box.isdigit():
+                    z_barcode = f"{box}Z"
+                    cur.execute("""
+                        INSERT INTO item_boxes (order_item_id, box_sequence, barcode_value)
+                        VALUES (%s, 1, %s)
+                        ON CONFLICT (order_item_id, box_sequence) DO NOTHING
+                    """, (box, z_barcode))
+                    updated_scanned_boxes.append(z_barcode)
+                else:
+                    updated_scanned_boxes.append(box)
+            
+            scanned_boxes = updated_scanned_boxes
+
         # 1a. Partial Check
         if scanned_boxes:
             cur.execute("""
@@ -190,9 +208,9 @@ def process_shipment_logic(orders, scanned_boxes, package_list_in):
                      elif rule['box_weight'] is not None:
                          w = rule['box_weight']
                      else:
-                         w = 1.0
+                         return {"error": f"Item with product category '{cat}' and quantity {q} has no defined shipping weight rule. Manual weight entry required."}, 400
                  else:
-                     w = 1.0
+                     return {"error": f"Item with product category '{cat}' and quantity {q} has no defined shipping weight rule. Manual weight entry required."}, 400
                      
                  total_shipment_product_weight += w
                  if not store_number and row['cost_center']:
@@ -267,20 +285,18 @@ def process_shipment_logic(orders, scanned_boxes, package_list_in):
             """, (shipment_uid, scanned_boxes))
         
         conn.commit()
-        cur.close()
-        conn.close()
         
         # 5. XML
         xml_string = generate_worldship_xml({"orders": orders}, final_packages, store_number)
         filename = f"{shipment_uid}.xml"
         target_folder = LIVE_XML_DIR
             
-        with open(os.path.join(target_folder, filename), "w") as f:
-            f.write(xml_string)
-            
-        print(f"XML written to {target_folder}/{filename}")
-            
-        # 6. Marcom Sync
+        try:
+            with open(os.path.join(target_folder, filename), "w") as f:
+                f.write(xml_string)
+            print(f"XML written to {target_folder}/{filename}")
+        except OSError as e:
+            print(f"Warning: Could not write XML to {target_folder}/{filename}: {e}")
         marcom_results = []
         # Iterate through items to close them
         # Finding line_item_id is tricky if we only have order_number or package info.

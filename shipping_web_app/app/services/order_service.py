@@ -155,11 +155,11 @@ def get_job_details(lookup_id):
             cur.execute("""
                 SELECT b.barcode_value, b.status, b.packed_at, b.box_sequence, i.sku, i.sku_description, i.order_item_id, 
                        i.quantity_ordered, i.cost_center, i.product_id, j.job_ticket_number
-                FROM item_boxes b
-                JOIN items i ON b.order_item_id = i.order_item_id
+                FROM items i
+                LEFT JOIN item_boxes b ON i.order_item_id = b.order_item_id
                 JOIN jobs j ON i.job_id = j.id
                 WHERE i.job_id = ANY(%s)
-                ORDER BY j.job_ticket_number, i.order_item_id, b.box_sequence
+                ORDER BY j.job_ticket_number, i.order_item_id, b.box_sequence NULLS FIRST
             """, (target_job_ids,))
             
             rows = cur.fetchall()
@@ -167,7 +167,13 @@ def get_job_details(lookup_id):
             all_barcodes = []
             seen_items = {}
             for row in rows:
-                all_barcodes.append(row['barcode_value'])
+                code = row['barcode_value']
+                is_master_scan = False
+                if not code:
+                    code = row['order_item_id']
+                    is_master_scan = True
+                
+                all_barcodes.append(code)
                 oid = row['order_item_id']
                 if oid not in seen_items:
                     seen_items[oid] = {
@@ -183,6 +189,7 @@ def get_job_details(lookup_id):
                 q = row['quantity_ordered']
                 seq = row['box_sequence'] or 1
                 
+                unknown_weight = False
                 rule = rules.get((cat, q))
                 if rule:
                     white_qty = rule['white_box_qty'] or 0
@@ -194,8 +201,10 @@ def get_job_details(lookup_id):
                         est_weight = rule['box_weight']
                     else:
                         est_weight = 1.0
+                        unknown_weight = True
                 else:
                     est_weight = 1.0
+                    unknown_weight = True
 
                 # Format Date
                 packed_at_str = None
@@ -204,10 +213,12 @@ def get_job_details(lookup_id):
                     packed_at_str = row['packed_at'].strftime("%Y-%m-%d")
                 
                 seen_items[oid]['barcodes'].append({
-                    "value": row['barcode_value'],
+                    "value": code,
                     "status": row.get('status'),
                     "packed_at": packed_at_str,
-                    "estimated_weight": float(est_weight)
+                    "estimated_weight": float(est_weight),
+                    "unknown_weight": unknown_weight,
+                    "is_master_scan": is_master_scan
                 })
             
             response_data['expected_barcodes'] = all_barcodes
