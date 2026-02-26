@@ -185,6 +185,7 @@ def process_shipment_logic(orders, scanned_boxes, package_list_in):
         
         total_shipment_product_weight = 0.0
         store_number = None
+        missing_weight_error = None
         
         if scanned_boxes:
              cur.execute("""
@@ -208,9 +209,13 @@ def process_shipment_logic(orders, scanned_boxes, package_list_in):
                      elif rule['box_weight'] is not None:
                          w = rule['box_weight']
                      else:
-                         return {"error": f"Item with product category '{cat}' and quantity {q} has no defined shipping weight rule. Manual weight entry required."}, 400
+                         w = 0.0
+                         if not missing_weight_error:
+                             missing_weight_error = f"Item with product category '{cat}' and quantity {q} has no defined shipping weight rule. Manual weight entry required."
                  else:
-                     return {"error": f"Item with product category '{cat}' and quantity {q} has no defined shipping weight rule. Manual weight entry required."}, 400
+                     w = 0.0
+                     if not missing_weight_error:
+                         missing_weight_error = f"Item with product category '{cat}' and quantity {q} has no defined shipping weight rule. Manual weight entry required."
                      
                  total_shipment_product_weight += w
                  if not store_number and row['cost_center']:
@@ -234,6 +239,8 @@ def process_shipment_logic(orders, scanned_boxes, package_list_in):
                 if 'weight' in pkg_in and pkg_in['weight']:
                      weight = float(pkg_in['weight'])
                 else:
+                     if missing_weight_error:
+                         return {"error": missing_weight_error}, 400
                      weight = total_shipment_product_weight + carton_data['weight']
             
             final_packages.append({"weight": round(weight, 2), **dims})

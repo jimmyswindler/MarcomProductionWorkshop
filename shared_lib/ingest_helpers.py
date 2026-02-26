@@ -179,8 +179,9 @@ def parse_job_tickets_xml(xml_path):
     if items_node is None: return pd.DataFrame()
 
     records = []
+    import datetime as dt_module
     eval_context = {
-        'datetime': datetime,
+        'datetime': dt_module,
         'date': date,
         'timedelta': timedelta,
         'True': True, 'False': False, 'None': None
@@ -219,6 +220,7 @@ def calculate_box_requirements(df, config):
 
     product_ids_map = config.get('product_ids', {})
     rules_map = config.get('shipping_box_rules', {})
+    remapping_map = config.get('product_id_remapping', {})
     
     pid_to_cat = {}
     for cat, pids in product_ids_map.items():
@@ -228,10 +230,13 @@ def calculate_box_requirements(df, config):
     box_data = {f'box_{chr(65+i)}': [] for i in range(8)}
 
     for idx, row in df.iterrows():
-        pid = str(row.get('product_id', '')).split('.')[0].strip()
+        raw_pid = str(row.get('product_id', '')).split('.')[0].strip()
         qty = str(int(row.get('quantity_ordered', 0)))
         
-        category = pid_to_cat.get(pid)
+        # Apply remapping first to handle legacy string IDs like T_TY_FA_BBK
+        remapped_pid = str(remapping_map.get(raw_pid, raw_pid))
+        
+        category = pid_to_cat.get(remapped_pid)
         if not category:
              paper_desc = str(row.get('paper_description', ''))
              if '16pt' in paper_desc.lower() or '16 pt' in paper_desc.lower():

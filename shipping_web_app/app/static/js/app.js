@@ -514,8 +514,12 @@ async function fetchOrderData(id) {
         if (data.line_items) {
             data.line_items.forEach(li => {
                 li.barcodes.forEach(bc => {
-                    currentShipment.boxWeights[bc.value] = bc.estimated_weight || 1.0;
-                    if (bc.unknown_weight) currentShipment.unknownWeights.add(bc.value);
+                    if (bc.unknown_weight || bc.estimated_weight === null || bc.estimated_weight === undefined || bc.estimated_weight === 0) {
+                        currentShipment.unknownWeights.add(bc.value);
+                        currentShipment.boxWeights[bc.value] = 0; // Explicitly 0 for unknown
+                    } else {
+                        currentShipment.boxWeights[bc.value] = bc.estimated_weight;
+                    }
                 });
             });
         }
@@ -586,6 +590,14 @@ function formatAddr(a) {
     return `${a.company}\n${a.name}\n${a.address1}\n${a.city}, ${a.state} ${a.zip}`;
 }
 
+function formatOrderNumbers(orders) {
+    const nums = [...new Set(orders.map(o => o.related_order_number || o.order_number))];
+    if (nums.length === 1) return nums[0];
+    if (nums.length === 2) return nums.join(' and ');
+    const last = nums.pop();
+    return nums.join(', ') + ', and ' + last;
+}
+
 function mergeNewOrder(newOrder) {
     // Add to currentShipment
     currentShipment.orders.push(newOrder);
@@ -610,8 +622,8 @@ function setupStep2() {
     step2.style.display = 'block';
     el('last-shipment-display').style.display = 'none';
 
-    const orderNum = currentShipment.orders[0].related_order_number || currentShipment.orders[0].order_number;
-    el('scanning-header').textContent = `Scanning Items for ${orderNum}`;
+    const ordersFormatted = formatOrderNumbers(currentShipment.orders);
+    el('scanning-header').textContent = `Scanning Items for ${ordersFormatted}`;
 
     const a = currentShipment.ship_to;
     el('shipping-address').innerHTML = `<strong>Ship To:</strong> ${a.name} (Store #: ${a.store_number || 'N/A'})<br>${a.address1}<br>${a.city}, ${a.state} ${a.zip}`;
@@ -658,7 +670,7 @@ function updateBarcodeList() {
     el('scan-progress-text').textContent = `${grandPacked} / ${grandTotal}`;
 
     // Header Dynamic Update
-    const activeOrderNum = currentShipment.orders[0].related_order_number || currentShipment.orders[0].order_number;
+    const activeOrderNum = formatOrderNumbers(currentShipment.orders);
     const h1 = step2.querySelector('h1');
     if (h1) h1.innerHTML = `Scanning Items for <span style="color:#007bff; font-weight:bold;">${activeOrderNum}</span>`;
 
@@ -803,7 +815,7 @@ function updateBarcodeList() {
                     border = '#ce93d8';
                 }
 
-                const weight = bcObj.estimated_weight || 1.0;
+                const weight = currentShipment.boxWeights ? currentShipment.boxWeights[code] : (bcObj.estimated_weight || 0);
                 let masterBadge = bcObj.is_master_scan ? `<div style="font-size:0.75em; color:#8e24aa; font-weight:bold; margin-top:4px;">SCANS ALL ${item.quantity_ordered}</div>` : '';
 
                 bcContainer.innerHTML += `
@@ -902,15 +914,34 @@ function checkProcessShipmentEligibility() {
 function goToPackStep() {
     step2.style.display = 'none'; step4.style.display = 'block';
 
+    // 1. Reset state whenever we enter this step
+    packageList = [];
+    document.querySelectorAll('.box-btn').forEach(btn => btn.classList.remove('selected'));
+
+    // Clear custom / manual inputs
+    if (cartonInput) cartonInput.value = '';
+
+    // Reset Inline Weight UI
+    if (inlineWeightSection) inlineWeightSection.style.display = 'none';
+    if (inlineWeightInput) inlineWeightInput.value = '';
+    pendingInlineCartonId = null;
+
+    // Clear Custom Box Dimensions if visible
+    if (el('custom-L')) el('custom-L').value = '';
+    if (el('custom-W')) el('custom-W').value = '';
+    if (el('custom-H')) el('custom-H').value = '';
+    if (el('custom-Weight')) el('custom-Weight').value = '';
+
     // Calculate Weight
     let totalW = 0.0;
     let hasUnknownWeights = false;
 
     currentShipment.scanned_barcodes.forEach(bc => {
-        const w = currentShipment.boxWeights[bc] || 1.0;
-        totalW += w;
         if (currentShipment.unknownWeights && currentShipment.unknownWeights.has(bc)) {
             hasUnknownWeights = true;
+        } else {
+            const w = currentShipment.boxWeights[bc] || 0;
+            totalW += w;
         }
     });
 
@@ -1002,7 +1033,11 @@ function handleInlineWeightConfirm() {
 
     const w = inlineWeightInput.value;
     if (w && !isNaN(w) && parseFloat(w) > 0) {
-        packageList.push({ id: pendingInlineCartonId, weight: parseFloat(w) });
+        if (multiModeCheckbox.checked) {
+            packageList.push({ id: pendingInlineCartonId, weight: parseFloat(w) });
+        } else {
+            packageList = [{ id: pendingInlineCartonId, weight: parseFloat(w) }]; // Replace in single-carton mode
+        }
 
         // Hide and reset inline section
         inlineWeightSection.style.display = 'none';
@@ -1058,9 +1093,13 @@ function renderPackedList() {
         let sortedBarcodes = Array.from(currentShipment.scanned_barcodes).sort();
 
         sortedBarcodes.forEach(bc => {
-            const w = currentShipment.boxWeights[bc] || 1.0;
-            itemSum += w;
-            breakdownHtml += `<li>${bc} ${(w).toFixed(2)} lbs</li>`;
+            if (currentShipment.unknownWeights && currentShipment.unknownWeights.has(bc)) {
+                breakdownHtml += `<li>${bc} <span style="font-style:italic;">weight not defined</span></li>`;
+            } else {
+                const w = currentShipment.boxWeights[bc] || 0;
+                itemSum += w;
+                breakdownHtml += `<li>${bc} ${(w).toFixed(2)} lbs</li>`;
+            }
         });
 
         let cartonSum = 0;
@@ -1104,6 +1143,10 @@ async function finalizeShipment() {
             })
         });
         const data = await res.json();
+
+        if (!res.ok) {
+            throw new Error(data.error || 'Server error processing shipment');
+        }
 
         step4.style.display = 'none'; step1.style.display = 'block';
         el('last-shipment-display').style.display = 'block';

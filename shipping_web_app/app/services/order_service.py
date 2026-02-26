@@ -75,6 +75,10 @@ def get_job_details(lookup_id):
                 }
             else:
                 # Case B: Partial / Suffix Match
+                if len(lookup_id.strip()) < 5:
+                    conn.close()
+                    return None, f"Input '{lookup_id}' is too short for a partial match. Please enter at least 5 characters or the full order number."
+
                 # First try Suffix on Job Ticket
                 cur.execute("""
                     SELECT j.id as job_id, j.order_id, j.job_ticket_number, o.order_number, 
@@ -313,6 +317,32 @@ def compare_addresses(current_address_obj, new_lookup_id):
                 WHERE order_number = %s
             """, (new_lookup_id,))
             job_data = cur.fetchone()
+            # If still nothing, try partial match if >= 5 chars
+            if not job_data:
+                if len(new_lookup_id.strip()) >= 5:
+                    # First try Suffix on Job Ticket
+                    cur.execute("""
+                        SELECT j.job_ticket_number, o.order_number, 
+                               o.ship_to_company, o.ship_to_name, 
+                               o.address1, o.city, o.state, o.zip, o.country 
+                        FROM jobs j
+                        JOIN orders o ON j.order_id = o.id
+                        WHERE j.job_ticket_number ILIKE %s
+                        ORDER BY j.id DESC LIMIT 1
+                    """, (f'%{new_lookup_id}',))
+                    job_data = cur.fetchone()
+                    
+                    if not job_data:
+                        # Next try Suffix on Order Number
+                        cur.execute("""
+                            SELECT order_number, ship_to_company, ship_to_name, 
+                                   address1, city, state, zip, country 
+                            FROM orders 
+                            WHERE order_number ILIKE %s
+                            ORDER BY id DESC LIMIT 1
+                        """, (f'%{new_lookup_id}',))
+                        job_data = cur.fetchone()
+
             # If still nothing, error
             if not job_data:
                 conn.close()
