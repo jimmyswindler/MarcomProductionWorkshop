@@ -128,10 +128,14 @@ function renderFeed(items) {
                 <span>${item.shipment_uid || 'Unknown ID'}</span>
                 <span style="color: #999; font-size:0.8em;">${item.created_at}</span>
             </div>
+            <div style="font-size: 0.95em; color: #0056b3; margin-bottom: 3px; font-weight:bold;">
+                Order: ${item.order_number || 'N/A'}
+            </div>
             <div style="font-size: 0.9em; color: #333; margin-bottom: 5px; font-weight:500;">
                 ${shipper}: ${item.tracking_number || 'Processing...'}
             </div>
             <div style="font-size: 0.85em; color: #555; margin-bottom: 8px; max-height:100px; overflow-y:auto; background:#f9f9f9; padding:5px; border-radius:3px;">
+                <div style="font-weight:bold; margin-bottom:2px; color:#666;">Jobs:</div>
                 ${contentsHtml}
             </div>
             <div style="font-size: 0.8em; color: ${statusColor}; border-top:1px dashed #eee; padding-top:5px;">
@@ -507,7 +511,8 @@ async function fetchOrderData(id) {
             boxWeights: {},
             unknownWeights: new Set(),
             orderProgress: data.order_progress || {}, // Ensure object
-            status: data.status || 'OPEN'
+            status: data.status || 'OPEN',
+            focusedJobTicket: data.searched_job_ticket || null // Capture the exact job searched
         };
 
         // Populate weights map
@@ -704,6 +709,7 @@ function updateBarcodeList() {
 
         // Job Container (Frame)
         const jobContainer = document.createElement('div');
+        jobContainer.id = `job-container-${jt}`; // Add ID for scrolling
         const borderColor = allJobBoxesPacked ? "#28a745" : "#007bff";
         jobContainer.style.border = `2px solid ${borderColor}`; // Blue or Green
         jobContainer.style.borderRadius = "8px";
@@ -853,6 +859,30 @@ function updateBarcodeList() {
         jobContainer.appendChild(itemsList);
         el('expected-barcodes').appendChild(jobContainer);
     });
+
+    // Auto-Scroll and Highlight for specific Job Ticket searches
+    if (currentShipment && currentShipment.focusedJobTicket) {
+        // Need a tiny timeout to ensure the DOM has rendered the new elements
+        setTimeout(() => {
+            const targetEl = document.getElementById('job-container-' + currentShipment.focusedJobTicket);
+            if (targetEl) {
+                targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+                // Add a brief blue glow highlight
+                const originalBoxShadow = targetEl.style.boxShadow;
+                const originalTransition = targetEl.style.transition;
+
+                targetEl.style.transition = 'box-shadow 0.4s ease-in-out';
+                targetEl.style.boxShadow = '0 0 20px rgba(0, 123, 255, 0.9)';
+
+                // Remove highlight after a couple seconds
+                setTimeout(() => {
+                    targetEl.style.boxShadow = originalBoxShadow;
+                    setTimeout(() => targetEl.style.transition = originalTransition, 400); // restore transition after fade
+                }, 2000);
+            }
+        }, 150); // 150ms should be enough for browser paint
+    }
 }
 
 function processBoxScan(code) {

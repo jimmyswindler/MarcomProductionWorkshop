@@ -351,7 +351,7 @@ def get_recent_shipments(limit=50):
         # We aggregate contents into a list
         cur.execute("""
             SELECT s.shipment_uid, s.tracking_number, s.marcom_sync_status,
-                   s.marcom_response_message, s.created_at, s.packing_slip_id, s.carrier,
+                   s.marcom_response_message, s.created_at, s.packing_slip_id, s.carrier, s.order_number,
                    COALESCE(
                        array_agg(DISTINCT c.val) FILTER (WHERE c.val IS NOT NULL), 
                        '{}'
@@ -377,7 +377,7 @@ def get_recent_shipments(limit=50):
                 )
             ) c ON TRUE
             GROUP BY s.shipment_uid, s.tracking_number, s.marcom_sync_status, 
-                     s.marcom_response_message, s.created_at, s.packing_slip_id, s.carrier
+                     s.marcom_response_message, s.created_at, s.packing_slip_id, s.carrier, s.order_number
             ORDER BY s.created_at DESC
             LIMIT %s
         """, (limit,))
