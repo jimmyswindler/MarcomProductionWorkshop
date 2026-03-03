@@ -77,7 +77,8 @@ def get_system_status():
     status = {
         "db": False,
         "marcom": False,
-        "ups": False
+        "ups_folder": False,
+        "ups_auto_import": False
     }
 
     # 1. DB Check
@@ -103,11 +104,15 @@ def get_system_status():
     except:
         pass
 
-    # 3. UPS Worldship Lock File
+    # 3. UPS Worldship Folder and Lock File
     # /Volumes/XML Auto Import/WSXMLAIFOLDERLOCK.dat
-    lock_file = "/Volumes/XML Auto Import/WSXMLAIFOLDERLOCK.dat"
+    folder_path = "/Volumes/XML Auto Import"
+    if os.path.exists(folder_path) and os.path.isdir(folder_path):
+        status["ups_folder"] = True
+        
+    lock_file = os.path.join(folder_path, "WSXMLAIFOLDERLOCK.dat")
     if os.path.exists(lock_file):
-        status["ups"] = True
+        status["ups_auto_import"] = True
     
     return jsonify(status)
 

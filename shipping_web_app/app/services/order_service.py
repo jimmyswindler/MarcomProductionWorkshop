@@ -164,9 +164,11 @@ def get_job_details(lookup_id):
             
             cur.execute("""
                 SELECT b.barcode_value, b.status, b.packed_at, b.box_sequence, i.sku, i.sku_description, i.order_item_id, 
-                       i.quantity_ordered, i.cost_center, i.product_id, j.job_ticket_number
+                       i.quantity_ordered, i.cost_center, i.product_id, j.job_ticket_number,
+                       s.tracking_number, s.marcom_response_message
                 FROM items i
                 LEFT JOIN item_boxes b ON i.order_item_id = b.order_item_id
+                LEFT JOIN shipments s ON b.shipment_uid = s.shipment_uid
                 JOIN jobs j ON i.job_id = j.id
                 WHERE i.job_id = ANY(%s)
                 ORDER BY j.job_ticket_number, i.order_item_id, b.box_sequence NULLS FIRST
@@ -221,6 +223,12 @@ def get_job_details(lookup_id):
                 if row['packed_at']:
                     # Format: YYYY-MM-DD (ISO 8601) for correct string comparison
                     packed_at_str = row['packed_at'].strftime("%Y-%m-%d")
+
+                # Shipped logic
+                is_shipped = False
+                if row.get('tracking_number') and row.get('marcom_response_message'):
+                    if f"Item {oid}: Code: 3" in row['marcom_response_message']:
+                        is_shipped = True
                 
                 seen_items[oid]['barcodes'].append({
                     "value": code,
@@ -228,7 +236,9 @@ def get_job_details(lookup_id):
                     "packed_at": packed_at_str,
                     "estimated_weight": float(est_weight),
                     "unknown_weight": unknown_weight,
-                    "is_master_scan": is_master_scan
+                    "is_master_scan": is_master_scan,
+                    "is_shipped": is_shipped,
+                    "tracking_number": row.get('tracking_number')
                 })
             
             response_data['expected_barcodes'] = all_barcodes
@@ -237,15 +247,16 @@ def get_job_details(lookup_id):
             # Determine Order Status
             total_boxes = len(rows)
             packed_boxes = sum(1 for r in rows if r.get('status') == 'packed')
-            
-            cur.execute("SELECT count(*) FROM shipments WHERE order_number = %s", (response_data['order_number'],))
-            shipment_res = cur.fetchone()
-            shipment_count = shipment_res['count'] if shipment_res else 0
-            
-            if total_boxes > 0 and packed_boxes == total_boxes:
-                response_data['status'] = 'COMPLETED'
-            elif shipment_count > 0:
+            shipped_boxes = sum(1 for row in rows if row.get('tracking_number') and row.get('marcom_response_message') and f"Item {row['order_item_id']}: Code: 3" in row['marcom_response_message'])
+
+            if total_boxes > 0 and shipped_boxes == total_boxes:
+                response_data['status'] = 'SHIPPED'
+            elif shipped_boxes > 0:
                 response_data['status'] = 'PARTIALLY SHIPPED'
+            elif total_boxes > 0 and packed_boxes == total_boxes:
+                response_data['status'] = 'PACKED'
+            elif packed_boxes > 0:
+                response_data['status'] = 'PARTIALLY PACKED'
             else:
                 response_data['status'] = 'OPEN'
 

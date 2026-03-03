@@ -201,7 +201,7 @@ def dashboard():
     cur.execute("SELECT COUNT(*) FROM address_book")
     total_ab = cur.fetchone()['count']
     
-    cur.execute("SELECT COUNT(*) FROM orders WHERE address_validation_status IN ('AMBIGUOUS', 'INVALID')")
+    cur.execute("SELECT COUNT(*) FROM orders WHERE address_validation_status IN ('EXCEPTION', 'AMBIGUOUS', 'INVALID')")
     exceptions = cur.fetchone()['count']
     
     # --- CHART DATA ---
@@ -248,15 +248,16 @@ def dashboard():
     val_stats = {'VALID': 0, 'AUTO_CORRECTED': 0, 'EXCEPTION': 0, 'MANUALLY_CORRECTED': 0}
     for row in val_stats_raw:
         s = row['status']
-        if s in val_stats: val_stats[s] += row['count']
+        if s in ('EXCEPTION', 'AMBIGUOUS', 'INVALID'): val_stats['EXCEPTION'] += row['count']
+        elif s in val_stats: val_stats[s] += row['count']
         elif s == 'NOT_VALIDATED': pass # Ignore for report? or add separate?
         else: val_stats.setdefault('OTHER', 0); val_stats['OTHER'] += row['count']
         
-    # --- RECENT AUTO-CORRECTIONS ---
+    # --- RECENT MANUAL CORRECTIONS ---
     cur.execute("""
         SELECT order_number, address_validation_details 
         FROM orders 
-        WHERE address_validation_status IN ('AUTO_CORRECTED', 'MANUALLY_CORRECTED')
+        WHERE address_validation_status = 'MANUALLY_CORRECTED'
         ORDER BY order_date DESC
         LIMIT 10
     """)
@@ -383,6 +384,29 @@ def address_book():
     conn.close()
     return render_template('address_book.html', addresses=addresses, search=search)
 
+@app.route('/api/address-book/<store_number>')
+def api_address_book(store_number):
+    conn = get_db_connection()
+    if not conn:
+        return {"error": "Database Error"}, 500
+        
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    # Normalize valid store number for query
+    if store_number.isdigit():
+         store_number = store_number.zfill(4)
+         
+    cur.execute("SELECT * FROM address_book WHERE store_number = %s", (store_number,))
+    addr = cur.fetchone()
+    
+    cur.close()
+    conn.close()
+    
+    if addr:
+        return addr
+    else:
+         return {"error": "Not Found"}, 404
+
+
 @app.route('/address-book/edit/<store_number>', methods=['GET', 'POST'])
 def edit_address(store_number):
     conn = get_db_connection()
@@ -423,7 +447,7 @@ def exceptions():
     
     cur.execute("""
         SELECT * FROM orders 
-        WHERE address_validation_status = 'EXCEPTION' 
+        WHERE address_validation_status IN ('EXCEPTION', 'AMBIGUOUS', 'INVALID')
         ORDER BY order_date DESC
     """)
     orders = cur.fetchall()

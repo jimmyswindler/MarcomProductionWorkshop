@@ -149,8 +149,6 @@ def parse_soap_response(xml_text):
                     return {
                         "success": False,
                         "status": f"API_ERROR_{main_code}",
-                        "success": False,
-                        "status": f"API_ERROR_{main_code}",
                         "message": f"{main_status}: {main_message}",
                         "packing_slip_id": None,
                         "code": main_code
@@ -176,8 +174,6 @@ def parse_soap_response(xml_text):
                         return {
                             "success": True,
                             "status": "SUCCESS" if li_status in ["ProcessComplete", "ProcessSuccess"] else li_status,
-                            "success": True,
-                            "status": "SUCCESS" if li_status in ["ProcessComplete", "ProcessSuccess"] else li_status,
                             "message": li_message,
                             "packing_slip_id": ref_id,
                             "code": li_code
@@ -188,8 +184,6 @@ def parse_soap_response(xml_text):
                      return {
                         "success": False,
                         "status": "API_FAILURE",
-                        "success": False,
-                        "status": "API_FAILURE",
                         "message": f"{li_status}: {li_message}",
                         "packing_slip_id": None,
                         "code": li_code
@@ -197,8 +191,6 @@ def parse_soap_response(xml_text):
 
             # If we got here, maybe top level was success but no line items found?
             return {
-                "success": False,
-                "status": "NO_DATA",
                 "success": False,
                 "status": "NO_DATA",
                 "message": "Top level success but no line item info found",
@@ -219,16 +211,12 @@ def parse_soap_response(xml_text):
                 return {
                     "success": True,
                     "status": "SUCCESS",
-                    "success": True,
-                    "status": "SUCCESS",
                     "message": message,
                     "packing_slip_id": ref_id,
                     "code": code
                 }
             else:
                 return {
-                    "success": False,
-                    "status": "API_FAILURE",
                     "success": False,
                     "status": "API_FAILURE",
                     "message": f"{status}: {message}",
@@ -239,8 +227,6 @@ def parse_soap_response(xml_text):
         return {
             "success": False,
             "status": "PARSE_ERROR",
-            "success": False,
-            "status": "PARSE_ERROR",
             "message": "Could not find Result or Action node in response",
             "packing_slip_id": None,
             "code": None
@@ -248,8 +234,6 @@ def parse_soap_response(xml_text):
 
     except Exception as e:
         return {
-            "success": False,
-            "status": "PARSE_ERROR",
             "success": False,
             "status": "PARSE_ERROR",
             "message": f"XML Parse Error: {str(e)}",

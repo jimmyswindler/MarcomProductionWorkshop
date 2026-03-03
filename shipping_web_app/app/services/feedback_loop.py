@@ -147,15 +147,15 @@ def process_pending_marcom_syncs(conn):
     try:
         cur = get_real_dict_cursor(conn)
         
-        # Find shipments needing sync (PENDING, failed, partial, OR PROCESSING)
+        # 1. Find shipments needing sync (PENDING, failed, partial).
+        # We explicitly EXCLUDE 'PROCESSING' here so a concurrent run doesn't even see it.
         cur.execute("""
             SELECT shipment_uid, tracking_number, order_number 
             FROM shipments 
             WHERE tracking_number IS NOT NULL 
               AND (marcom_sync_status IS NULL 
                    OR marcom_sync_status = 'PENDING' 
-                   OR marcom_sync_status = 'PARTIAL_FAIL'
-                   OR marcom_sync_status = 'PROCESSING')
+                   OR marcom_sync_status = 'PARTIAL_FAIL')
             ORDER BY created_at DESC
             LIMIT 10
         """)
@@ -166,6 +166,24 @@ def process_pending_marcom_syncs(conn):
             ship_uid = ship['shipment_uid']
             tracking = ship['tracking_number']
             order_num = ship['order_number']
+            
+            # 2. Attempt to explicitly lock/claim this shipment
+            cur.execute("""
+                UPDATE shipments 
+                SET marcom_sync_status = 'PROCESSING'
+                WHERE shipment_uid = %s 
+                  AND (marcom_sync_status IS NULL 
+                       OR marcom_sync_status = 'PENDING' 
+                       OR marcom_sync_status = 'PARTIAL_FAIL')
+            """, (ship_uid,))
+            
+            # If rowcount is 0, another process already claimed it between our SELECT and UPDATE.
+            if cur.rowcount == 0:
+                print(f"Skipping {ship_uid} - already claimed by another process.")
+                continue
+                
+            # Commit the lock immediately so other processes see 'PROCESSING'
+            conn.commit()
             
             print(f"Processing Pending Sync for {ship_uid}...")
             sync_shipment_to_marcom(cur, ship_uid, tracking, order_num)
@@ -242,7 +260,7 @@ def sync_shipment_to_marcom(cur, ship_uid, tracking, order_number=None):
             packing_slip_id = %s
         WHERE shipment_uid = %s
     """, (overall_status, final_msg, last_slip_id, ship_uid))
-    print(f"Marcom Sync Complete for {ship_uid}. Status: {overall_status}")
+    print(f"Marcom Sync Complete for {ship_uid}. Status: {overall_status}. Details: {final_msg}")
 
 
 def run_feedback_cycle():

@@ -78,7 +78,8 @@ async function fetchSystemStatus() {
             const data = await res.json();
             updateIndicator('status-db', data.db);
             updateIndicator('status-marcom', data.marcom);
-            updateIndicator('status-ups', data.ups);
+            updateIndicator('status-ups-folder', data.ups_folder);
+            updateIndicator('status-ups-auto', data.ups_auto_import);
         }
     } catch (e) {
         console.error("Status Check Failed", e);
@@ -110,6 +111,39 @@ function renderFeed(items) {
         let marcomDetail = item.marcom_response_message || 'Pending...';
         let marcomStatus = item.marcom_sync_status;
 
+        let formattedMarcomDetail = '';
+        if (marcomDetail === 'Pending...') {
+            formattedMarcomDetail = `<span style="color: ${statusColor};">${marcomDetail}</span>`;
+        } else {
+            let messages = marcomDetail.split('; ');
+            let formattedMessages = messages.map(msg => {
+                let match = msg.match(/^(Item\s+\d+:)\s+(.*)$/);
+                if (match) {
+                    let itemPrefix = match[1];
+                    let responseBody = match[2];
+
+                    let bodyColor = 'red'; // Default to red for unknown status/failures
+
+                    // SUCCESS (Green)
+                    if (responseBody.match(/Code: (1|3|5)\b/) ||
+                        responseBody.includes('OK (Slip')) {
+                        bodyColor = '#28a745';
+                    }
+                    // WARNING (Orange) - State conflicts
+                    else if (responseBody.match(/Code: (150|154|155|156)\b/)) {
+                        bodyColor = 'orange';
+                    }
+                    // CRITICAL (Red) is the fallback.
+
+                    return `<div><span style="color: black; font-weight: bold;">${itemPrefix}</span> <span style="color: ${bodyColor};">${responseBody}</span></div>`;
+                } else {
+                    // Non-standard message (might not have `Item X:` prefix)
+                    return `<div style="color: red; padding: 2px 0;">${msg}</div>`;
+                }
+            });
+            formattedMarcomDetail = formattedMessages.join('');
+        }
+
         let shipper = item.carrier || 'UPS';
 
         // Fix: Define contentsHtml before using it
@@ -138,9 +172,9 @@ function renderFeed(items) {
                 <div style="font-weight:bold; margin-bottom:2px; color:#666;">Jobs:</div>
                 ${contentsHtml}
             </div>
-            <div style="font-size: 0.8em; color: ${statusColor}; border-top:1px dashed #eee; padding-top:5px;">
-                ${marcomDetail}
-                ${marcomDetail.includes('Simulated') ? '<span style="color:#666; font-size:0.8em;">(Sim)</span>' : ''}
+            <div style="font-size: 0.8em; border-top:1px dashed #eee; padding-top:5px; margin-top:5px;">
+                ${formattedMarcomDetail}
+                ${marcomDetail.includes('Simulated') ? '<span style="color:#666; font-size:0.8em; margin-left:5px;">(Sim)</span>' : ''}
             </div>
         </li>`;
     }).join('');
@@ -201,6 +235,20 @@ window.addEventListener('keydown', (e) => {
         }, SCAN_TIMEOUT_MS);
     }
 });
+
+const updateCapsLockIndicator = (e) => {
+    if (e.getModifierState) {
+        const isCapsOn = e.getModifierState('CapsLock');
+        const el = document.getElementById('status-caps');
+        if (el) {
+            el.className = isCapsOn ? 'indicator err' : 'indicator ok';
+        }
+    }
+};
+
+window.addEventListener('keydown', updateCapsLockIndicator);
+window.addEventListener('keyup', updateCapsLockIndicator);
+window.addEventListener('mousedown', updateCapsLockIndicator);
 
 function initBarcodes() {
     const cmds = [
@@ -641,7 +689,7 @@ function setupStep2() {
 
     // Status Banner
     const statusEl = el('order-status-display');
-    if (currentShipment.status === 'COMPLETED') {
+    if (currentShipment.status === 'SHIPPED') {
         statusEl.textContent = '✅ ORDER SHIPPED';
         statusEl.style.background = '#d4edda';
         statusEl.style.color = '#155724';
@@ -649,6 +697,18 @@ function setupStep2() {
         statusEl.style.display = 'block';
     } else if (currentShipment.status === 'PARTIALLY SHIPPED') {
         statusEl.textContent = '⚠️ PARTIALLY SHIPPED';
+        statusEl.style.background = '#fff3cd';
+        statusEl.style.color = '#856404';
+        statusEl.style.border = '1px solid #ffeeba';
+        statusEl.style.display = 'block';
+    } else if (currentShipment.status === 'PACKED') {
+        statusEl.textContent = '📦 ORDER PACKED';
+        statusEl.style.background = '#e2e3e5';
+        statusEl.style.color = '#383d41';
+        statusEl.style.border = '1px solid #d6d8db';
+        statusEl.style.display = 'block';
+    } else if (currentShipment.status === 'PARTIALLY PACKED') {
+        statusEl.textContent = '⚠️ PARTIALLY PACKED';
         statusEl.style.background = '#fff3cd';
         statusEl.style.color = '#856404';
         statusEl.style.border = '1px solid #ffeeba';
@@ -694,14 +754,18 @@ function updateBarcodeList() {
 
         // Determine Job Status & Dates
         let allJobBoxesPacked = true;
+        let allJobBoxesShipped = true;
         let latestPackDate = "";
 
         groupItems.forEach(item => {
             item.barcodes.forEach(bc => {
                 const isScanned = currentShipment.scanned_barcodes.has(bc.value);
                 const isPacked = bc.status === 'packed';
+                const isShipped = bc.is_shipped === true;
+
                 // Effectively packed if either server says so OR local scan says so (though we use server date usually)
                 if (!isPacked && !isScanned) allJobBoxesPacked = false;
+                if (!isShipped) allJobBoxesShipped = false;
 
                 if (bc.packed_at && bc.packed_at > latestPackDate) latestPackDate = bc.packed_at;
             });
@@ -720,9 +784,9 @@ function updateBarcodeList() {
 
         // Job Header
         const jobHeader = document.createElement('div');
-        jobHeader.style.backgroundColor = allJobBoxesPacked ? "#d4edda" : "#e3f2fd";
+        jobHeader.style.backgroundColor = allJobBoxesShipped ? "#d4edda" : (allJobBoxesPacked ? "#e2e3e5" : "#e3f2fd");
         jobHeader.style.padding = "10px 15px";
-        jobHeader.style.borderBottom = `1px solid ${allJobBoxesPacked ? "#c3e6cb" : "#90caf9"}`;
+        jobHeader.style.borderBottom = `1px solid ${allJobBoxesShipped ? "#c3e6cb" : (allJobBoxesPacked ? "#d6d8db" : "#90caf9")}`;
         jobHeader.style.display = "flex";
         jobHeader.style.justifyContent = "space-between";
         jobHeader.style.alignItems = "center";
@@ -734,9 +798,17 @@ function updateBarcodeList() {
             return `${m}/${d}/${y}`;
         };
 
-        const shippedText = allJobBoxesPacked ? `<span style="color:#155724; font-weight:bold;">Shipped on ${formatDate(latestPackDate)}</span>` : "";
+        let statusText = "";
+        let headerColor = "#0d47a1";
+        if (allJobBoxesShipped) {
+            statusText = `<span style="color:#155724; font-weight:bold;">Shipped on ${formatDate(latestPackDate)}</span>`;
+            headerColor = "#155724";
+        } else if (allJobBoxesPacked) {
+            statusText = `<span style="color:#383d41; font-weight:bold;">Packed on ${formatDate(latestPackDate)}</span>`;
+            headerColor = "#383d41";
+        }
 
-        jobHeader.innerHTML = `<h2 style="margin:0; font-size:1.4em; color:${allJobBoxesPacked ? "#155724" : "#0d47a1"};">${jt} ${shippedText}</h2>
+        jobHeader.innerHTML = `<h2 style="margin:0; font-size:1.4em; color:${headerColor};">${jt} ${statusText}</h2>
                                <span style="font-size:0.9em; color:#555;">${groupItems.length} Line Item(s)</span>`;
 
         jobContainer.appendChild(jobHeader);
@@ -761,11 +833,15 @@ function updateBarcodeList() {
 
             // Check Item Status
             let allItemBoxesPacked = true;
+            let allItemBoxesShipped = true;
             let itemPackDate = null;
             item.barcodes.forEach(bc => {
                 const isScanned = currentShipment.scanned_barcodes.has(bc.value);
                 const isPacked = bc.status === 'packed';
+                const isShipped = bc.is_shipped === true;
+
                 if (!isPacked && !isScanned) allItemBoxesPacked = false;
+                if (!isShipped) allItemBoxesShipped = false;
                 if (bc.packed_at) itemPackDate = bc.packed_at;
             });
 
@@ -805,14 +881,21 @@ function updateBarcodeList() {
                 const code = bcObj.value;
                 const isScanned = currentShipment.scanned_barcodes.has(code);
                 const isPacked = bcObj.status === 'packed';
+                const isShipped = bcObj.is_shipped === true;
 
                 // Styles
                 let bg = '#fff';
                 let border = '#e0e0e0';
+                let badgeHtml = '';
 
-                if (isPacked) {
+                if (isShipped) {
+                    bg = '#d1ecf1';
+                    border = '#bee5eb';
+                    badgeHtml = '<div style="font-size:0.7em; color:#0c5460; font-weight:bold; margin-top:2px;">SHIPPED</div>';
+                } else if (isPacked) {
                     bg = '#e2e6ea';
                     border = '#adb5bd';
+                    badgeHtml = '<div style="font-size:0.7em; color:#6c757d; font-weight:bold; margin-top:2px;">PACKED</div>';
                 } else if (isScanned) {
                     bg = '#d4edda';
                     border = '#28a745';
@@ -825,9 +908,9 @@ function updateBarcodeList() {
                 let masterBadge = bcObj.is_master_scan ? `<div style="font-size:0.75em; color:#8e24aa; font-weight:bold; margin-top:4px;">SCANS ALL ${item.quantity_ordered}</div>` : '';
 
                 bcContainer.innerHTML += `
-                <div class="barcode-card" style="width:140px; padding:8px 10px; background:${bg}; border:2px solid ${border}; border-radius:8px; transition:0.2s; min-height:auto; opacity:${isPacked ? 0.8 : 1}; text-align:center;">
+                <div class="barcode-card" style="width:140px; padding:8px 10px; background:${bg}; border:2px solid ${border}; border-radius:8px; transition:0.2s; min-height:auto; opacity:${(isPacked || isShipped) ? 0.8 : 1}; text-align:center;">
                      <span class="barcode-label" style="font-size:1.0em; font-weight:bold; display:block; margin-bottom:2px;">${code}</span>
-                     ${isPacked ? '<div style="font-size:0.7em; color:#28a745; font-weight:bold; margin-top:2px;">PACKED</div>' : ''}
+                     ${badgeHtml}
                      ${masterBadge}
                 </div>`;
             });
@@ -840,8 +923,10 @@ function updateBarcodeList() {
             qtyDiv.style.textAlign = "right";
 
             let statusHtml = "";
-            if (allItemBoxesPacked) {
-                statusHtml = `<div style="color:#28a745; font-size:0.85em; margin-bottom:5px;">Packed on ${formatDate(itemPackDate) || 'Just Now'}</div>`;
+            if (allItemBoxesShipped) {
+                statusHtml = `<div style="color:#155724; font-size:0.85em; margin-bottom:5px;">Shipped on ${formatDate(itemPackDate) || 'Just Now'}</div>`;
+            } else if (allItemBoxesPacked) {
+                statusHtml = `<div style="color:#6c757d; font-size:0.85em; margin-bottom:5px;">Packed on ${formatDate(itemPackDate) || 'Just Now'}</div>`;
             }
 
             qtyDiv.innerHTML = `
@@ -904,7 +989,7 @@ function processBoxScan(code) {
     });
 
     if (isAlreadyPacked) {
-        return showStatus(el('box-scan-status'), `ALREADY SHIPPED: ${code}`, 'error'), boxInput.value = '';
+        return showStatus(el('box-scan-status'), `ALREADY PACKED: ${code}`, 'error'), boxInput.value = '';
     }
 
     currentShipment.scanned_barcodes.add(code);

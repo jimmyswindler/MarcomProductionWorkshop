@@ -211,35 +211,9 @@ def process_ingestion(input_dir, processed_dir, config, dry_run=False):
                     addr_args['state'] = d.get('state')
                     addr_args['zip'] = f"{d.get('zip')}-{d.get('zip_extension')}" if d.get('zip_extension') else d.get('zip')
             else:
-                # If UPS is not perfectly valid (AMBIGUOUS, INVALID, ERROR), check the Address Book
-                if store_number:
-                    # Normalize store number for lookup
-                    lookup_store = str(store_number).zfill(4) if str(store_number).isdigit() else store_number
-                    cur.execute("SELECT * FROM address_book WHERE store_number = %s", (lookup_store,))
-                    book_entry = cur.fetchone()
-                    
-                    if book_entry:
-                        is_validated = True
-                        val_status = 'AUTO_CORRECTED'
-                        # Use Address Book details instead
-                        addr_args['address1'] = book_entry[3] # address1
-                        addr_args['address2'] = book_entry[4] # address2
-                        addr_args['address3'] = book_entry[5] # address3
-                        addr_args['city'] = book_entry[6] # city
-                        addr_args['state'] = book_entry[7] # state
-                        addr_args['zip'] = book_entry[8] # zip
-                        
-                        val_details = {
-                            'msg': 'Corrected via local Address Book',
-                            'store_number': lookup_store,
-                            'ups_raw': res # Keep UPS data for reference if needed
-                        }
-                    else:
-                        is_validated = False
-                        val_status = 'EXCEPTION'
-                else:
-                    is_validated = False
-                    val_status = 'EXCEPTION'
+                is_validated = False
+                val_status = 'EXCEPTION'
+
 
         if dry_run:
             logging.info(f"[DRY RUN] Would insert Order {order_num} Ticket {job_ticket}")
