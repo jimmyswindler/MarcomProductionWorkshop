@@ -31,8 +31,14 @@
                     <span style="text-align: right; color: var(--text-secondary);">Address 2:</span>
                     <span>{{ order.address2 or '' }}</span>
 
+                    <span style="text-align: right; color: var(--text-secondary);">Address 3:</span>
+                    <span>{{ order.address3 or '' }}</span>
+
                     <span style="text-align: right; color: var(--text-secondary);">City, ST ZIP:</span>
                     <span>{{ order.city }}, {{ order.state }} {{ order.zip }}</span>
+
+                    <span style="text-align: right; color: var(--text-secondary);">Country:</span>
+                    <span>{{ order.country or 'US' }}</span>
                 </div>
             </div>
         </div>
@@ -109,6 +115,11 @@
                 <input type="text" name="address2" value="{{ order.address2 or '' }}">
             </div>
 
+            <div class="form-group">
+                <label class="form-label">Address 3</label>
+                <input type="text" name="address3" value="{{ order.address3 or '' }}">
+            </div>
+
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                 <div class="form-group">
                     <label class="form-label">City</label>
@@ -122,6 +133,12 @@
             <div class="form-group">
                 <label class="form-label">Zip</label>
                 <input type="text" name="zip" value="{{ order.zip or '' }}" required>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Country</label>
+                <input type="text" name="country" value="{{ order.country or 'US' }}" placeholder="e.g. US, CA"
+                    required>
             </div>
 
             <div style="margin-top: 1rem;">
@@ -166,7 +183,9 @@
                     if (data.attn) addrHTML += `<span style="text-align: right; color: var(--text-secondary);">Attention:</span><span>${data.attn}</span>`;
                     if (data.address1) addrHTML += `<span style="text-align: right; color: var(--text-secondary);">Address 1:</span><span>${data.address1}</span>`;
                     addrHTML += `<span style="text-align: right; color: var(--text-secondary);">Address 2:</span><span>${data.address2 || ''}</span>`;
+                    addrHTML += `<span style="text-align: right; color: var(--text-secondary);">Address 3:</span><span>${data.address3 || ''}</span>`;
                     addrHTML += `<span style="text-align: right; color: var(--text-secondary);">City, ST ZIP:</span><span>${data.city || ''}, ${data.state || ''} ${data.zip || ''}</span>`;
+                    addrHTML += `<span style="text-align: right; color: var(--text-secondary);">Country:</span><span>US</span>`;
                     addrHTML += '</div>';
 
                     previewDiv.innerHTML = addrHTML;

@@ -83,7 +83,7 @@ def parse_orders_xml(xml_path):
             order_date_str = find_tag_text(order_header_item, 'CreateDate')
             order_date = pd.NaT
             try:
-                if order_date_str: order_date = pd.to_datetime(order_date_str).normalize()
+                if order_date_str: order_date = pd.to_datetime(order_date_str)
             except: pass
 
             order_details_node = order_header_item.find('OrderDetails')

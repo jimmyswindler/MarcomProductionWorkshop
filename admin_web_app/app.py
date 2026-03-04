@@ -442,6 +442,7 @@ def edit_address(store_number):
 
 @app.route('/exceptions')
 def exceptions():
+    import json
     conn = get_db_connection()
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     
@@ -450,7 +451,55 @@ def exceptions():
         WHERE address_validation_status IN ('EXCEPTION', 'AMBIGUOUS', 'INVALID')
         ORDER BY order_date DESC
     """)
-    orders = cur.fetchall()
+    orders_raw = cur.fetchall()
+    
+    orders = []
+    for o in orders_raw:
+        order = dict(o) # make mutable
+        
+        # 1. Pad Store Number
+        if order.get('store_number') and str(order['store_number']).isdigit():
+            order['store_number'] = str(order['store_number']).zfill(4)
+            
+        # 2. Parse details for concise display
+        display_details = ""
+        details_val = order.get('address_validation_details')
+        if details_val:
+            try:
+                if isinstance(details_val, str):
+                    parsed_details = json.loads(details_val)
+                else:
+                    parsed_details = details_val
+                
+                # Handling UPS specific returns
+                if "raw_response" in parsed_details:
+                    xav_resp = parsed_details.get("raw_response", {}).get("XAVResponse", {})
+                    # If AMBIGUOUS, count candidates
+                    candidates = xav_resp.get("Candidate", [])
+                    if isinstance(candidates, list):
+                         cand_count = len(candidates)
+                    elif isinstance(candidates, dict):
+                         cand_count = 1
+                    else:
+                         cand_count = 0
+                    
+                    if order.get("address_validation_status") == "AMBIGUOUS":
+                        display_details = f"AMBIGUOUS - {cand_count} candidates found"
+                    elif order.get("address_validation_status") == "INVALID":
+                        display_details = parsed_details.get("status", "INVALID")
+                else:
+                    # Generic message capture
+                    display_details = parsed_details.get("msg", str(parsed_details))
+            except Exception:
+                display_details = str(details_val)
+                
+        # Fallback if too long
+        if len(display_details) > 50:
+             display_details = display_details[:47] + "..."
+             
+        order['display_details'] = display_details
+        orders.append(order)
+
     cur.close()
     conn.close()
     return render_template('exceptions.html', orders=orders)
@@ -467,7 +516,7 @@ def fix_exception(order_number):
             # Manual Edit
             sql = """
                 UPDATE orders SET
-                    address1 = %s, address2 = %s, city = %s, state = %s, zip = %s,
+                    address1 = %s, address2 = %s, address3 = %s, city = %s, state = %s, zip = %s, country = %s,
                     address_validated = TRUE,
                     address_validation_status = 'MANUALLY_CORRECTED',
                     address_validation_details = %s
@@ -476,8 +525,8 @@ def fix_exception(order_number):
             import json
             details = json.dumps({'msg': 'Manually corrected via Admin UI'})
             cur.execute(sql, (
-                request.form['address1'], request.form['address2'], 
-                request.form['city'], request.form['state'], request.form['zip'],
+                request.form['address1'], request.form['address2'], request.form.get('address3', ''),
+                request.form['city'], request.form['state'], request.form['zip'], request.form.get('country', 'US'),
                 details, order_number
             ))
             conn.commit()
@@ -497,7 +546,7 @@ def fix_exception(order_number):
                 sql = """
                     UPDATE orders SET
                         address1 = %s, address2 = %s, address3 = %s,
-                        city = %s, state = %s, zip = %s,
+                        city = %s, state = %s, zip = %s, country = 'US',
                         address_validated = TRUE,
                         address_validation_status = 'MANUALLY_CORRECTED',
                         address_validation_details = %s
