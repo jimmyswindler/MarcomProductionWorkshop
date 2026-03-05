@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!-- STEP 1: START / ORDER ENTRY -->
+<div id="step1-scan-order">
+    <div id="last-shipment-display" style="display:none;"></div>
+
+    <h1>Scan or Enter Order Number</h1>
+    <div class="input-group" style="position: relative;">
+        <label for="order-id-input">Order / Job Ticket Number:</label>
+        <input type="text" id="order-id-input" autofocus placeholder="Scan barcode..." autocomplete="off">
+        <ul id="autocomplete-list" class="autocomplete-items"></ul>
+    </div>
+    <div id="status-message" class="status"></div>
+</div>
+
+<!-- STEP 2: SCANNING ITEMS -->
+<div id="step2-scan-boxes" style="display:none;">
+    <h1 id="scanning-header">Scanning Items</h1>
+    <div id="order-status-display"
+        style="display:none; margin-bottom: 15px; font-size: 1.2em; padding: 10px; border-radius: 4px; text-align: center;">
+    </div>
+
+    <!-- Order Progress -->
+    <div class="progress-section">
+        <div class="progress-labels">
+            <h3>Order Progress</h3>
+            <span id="scan-progress-text">0 / 0</span>
+        </div>
+        <div class="progress-container">
+            <div id="scan-progress-bar" class="progress-fill">0%</div>
+        </div>
+    </div>
+
+    <div id="shipping-address" class="info-box"></div>
+
+    <div class="input-group">
+        <label for="box-barcode-input">Scan Item Barcode:</label>
+        <input type="text" id="box-barcode-input" placeholder="Scan item...">
+    </div>
+    <div id="box-scan-status" class="status"></div>
+
+    <!-- Commands -->
+    <div class="btn-stack">
+        <button id="process-shipment-btn" class="btn-composite" disabled>
+            <span class="btn-text">Process Shipment</span>
+            <div class="btn-barcode"><svg id="bc-process"></svg></div>
+        </button>
+
+        <button id="add-order-btn" class="btn-composite" disabled>
+            <span class="btn-text">Add Another Job</span>
+            <div class="btn-barcode"><svg id="bc-add"></svg></div>
+        </button>
+
+        <button id="cancel-btn" class="btn-composite active-danger">
+            <span class="btn-text">Cancel & Reset</span>
+            <div class="btn-barcode"><svg id="bc-cancel"></svg></div>
+        </button>
+    </div>
+
+    <div id="expected-barcodes"></div>
+</div>
+
+<!-- STEP 4: PACK SHIPMENT -->
+<div id="step4-scan-carton" style="display:none;">
+    <div style="display: flex; align-items: baseline; gap: 15px;">
+        <h1 style="margin-bottom: 5px;">Pack Shipment</h1>
+        <span class="instruction" style="font-size: 0.9em; color: #555;">Scan a carton to select it. Then scan "Finish
+            Shipment"</span>
+    </div>
+
+    <div id="unknown-weight-warning" style="display:none;"></div>
+
+    <div class="btn-stack" id="pack-screen-buttons">
+
+        <div id="packed-list-container" style="display:none;">
+            <h4>Packed Cartons:</h4>
+            <div id="packed-cartons-list"></div>
+            <button id="clear-cartons-btn" class="btn-warn-solid" style="margin-top:10px;">Clear List</button>
+        </div>
+
+        <div id="shipment-summary-display"></div>
+        <div id="carton-status" class="status"></div>
+
+        <div class="box-grid">
+            <button id="btn-box-105" data-box="#105" class="btn-composite box-btn">
+                <div class="btn-barcode"><svg class="bc-render" data-value="#105"></svg></div>
+                <span class="btn-text">Box #105</span>
+            </button>
+            <button id="btn-box-115" data-box="#115" class="btn-composite box-btn">
+                <div class="btn-barcode"><svg class="bc-render" data-value="#115"></svg></div>
+                <span class="btn-text">Box #115</span>
+            </button>
+            <button id="btn-box-116" data-box="#116" class="btn-composite box-btn">
+                <div class="btn-barcode"><svg class="bc-render" data-value="#116"></svg></div>
+                <span class="btn-text">Box #116</span>
+            </button>
+            <button id="btn-box-118" data-box="#118" class="btn-composite box-btn">
+                <div class="btn-barcode"><svg class="bc-render" data-value="#118"></svg></div>
+                <span class="btn-text">Box #118</span>
+            </button>
+            <button id="btn-box-123" data-box="#123" class="btn-composite box-btn">
+                <div class="btn-barcode"><svg class="bc-render" data-value="#123"></svg></div>
+                <span class="btn-text">Box #123</span>
+            </button>
+            <button id="btn-box-145" data-box="#145" class="btn-composite box-btn">
+                <div class="btn-barcode"><svg class="bc-render" data-value="#145"></svg></div>
+                <span class="btn-text">Box #145</span>
+            </button>
+            <button id="btn-box-160" data-box="#160" class="btn-composite box-btn">
+                <div class="btn-barcode"><svg class="bc-render" data-value="#160"></svg></div>
+                <span class="btn-text">Box #160</span>
+            </button>
+            <button id="btn-box-999" data-box="#999" class="btn-composite box-btn">
+                <div class="btn-barcode"><svg class="bc-render" data-value="#999"></svg></div>
+                <span class="btn-text">10½ X 2⅞ X 4¼</span>
+            </button>
+
+            <div class="manual-entry-cell">
+                <div class="input-group">
+                    <label>Or enter carton number manually:</label>
+                    <input type="text" id="carton-input" placeholder="Enter carton number (Box#XXX)">
+                </div>
+            </div>
+        </div>
+
+        <div id="inline-weight-section"
+            style="display:none; background: #f0f8ff; border: 1px solid #b3d4fc; padding: 15px; border-radius: 6px; margin-top: 15px;">
+            <h4 id="inline-weight-header" style="margin-top:0; color: #004085;">Enter Weight for Box #XXX</h4>
+            <p class="instruction" style="font-size: 0.9em; color: #555; margin-bottom: 10px;">
+                Please weigh this carton <strong>WITH</strong> its contents, and enter the total weight below.
+            </p>
+            <div class="input-group" style="display: flex; gap: 10px; align-items: center;">
+                <input type="number" id="inline-weight-input" placeholder="Weight in lbs" step="0.01"
+                    style="width: 150px; padding: 8px;">
+                <button id="inline-weight-confirm-btn" class="btn-success-solid">Confirm</button>
+                <button id="inline-weight-cancel-btn" class="btn-warn-solid" style="padding: 10px;">Cancel</button>
+            </div>
+        </div>
+        <hr class="spacer">
+        <button id="finish-shipment-btn" class="btn-composite btn-centered" disabled
+            style="width: 100%; margin-bottom: 0px;">
+            <div class="btn-barcode"><svg id="bc-finish"></svg></div>
+            <span class="btn-text">Finish Shipment</span>
+        </button>
+
+        <hr class="spacer">
+
+        <div class="button-row">
+            <button id="toggle-multi-btn" class="btn-composite btn-centered active-info">
+                <div class="btn-barcode"><svg id="bc-multi"></svg></div>
+                <span class="btn-text" id="multi-mode-text">Enable Multi-Carton Mode</span>
+            </button>
+
+            <button id="toggle-custom-btn" class="btn-composite btn-centered active-info">
+                <div class="btn-barcode"><svg id="bc-custom"></svg></div>
+                <span class="btn-text" id="custom-mode-text">Use Custom Box</span>
+            </button>
+        </div>
+
+        <div id="custom-box-section" class="custom-box-section" style="display:none;">
+            <h4>Custom Box Details</h4>
+            <p class="instruction" style="font-size: 0.9em; color: #555; margin-top: 5px; margin-bottom: 15px;">Please
+                weigh this custom carton <strong>WITH</strong> its contents, and enter the total weight below.</p>
+            <div class="dim-inputs">
+                <div><label>L</label><input type="number" id="custom-L"></div>
+                <div><label>W</label><input type="number" id="custom-W"></div>
+                <div><label>H</label><input type="number" id="custom-H"></div>
+                <div><label>Weight</label><input type="number" id="custom-Weight"></div>
+            </div>
+            <button id="add-custom-btn" class="btn-success-solid">Add Custom Package</button>
+        </div>
+
+        <hr class="spacer">
+
+        <button id="back-to-boxes-btn" style="display:none;">Back</button> <!-- Hidden helper -->
+        <input type="checkbox" id="multi-mode-checkbox" style="display:none;">
+
+        <div class="button-row">
+            <button id="back-to-scan-btn" class="btn-composite btn-centered active-info">
+                <div class="btn-barcode"><svg id="bc-back-step4"></svg></div>
+                <span class="btn-text">Back to Scanning</span>
+            </button>
+
+            <button id="cancel-step4-btn" class="btn-composite btn-centered active-danger">
+                <div class="btn-barcode"><svg id="bc-cancel-step4"></svg></div>
+                <span class="btn-text">Cancel & Reset</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Address Verification Modal -->
+<div id="address-verification-modal" class="modal-overlay" style="display:none;">
+    <div class="modal-content">
+        <h2>Address Mismatch!</h2>
+        <div class="address-comparison">
+            <div class="address-box">
+                <h4>Current</h4>
+                <pre id="current-address-display"></pre>
+            </div>
+            <div class="address-box">
+                <h4>New Order (<span id="new-order-id-modal"></span>)</h4>
+                <pre id="new-address-display"></pre>
+            </div>
+        </div>
+        <button id="modal-cancel-btn" class="btn-warn-solid" style="padding:10px 20px;">Acknowledge &amp; Close</button>
+    </div>
+</div>
+{% endblock %}

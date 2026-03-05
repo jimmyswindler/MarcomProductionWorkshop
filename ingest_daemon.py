@@ -30,15 +30,12 @@ def run_ingest(input_dir):
     
     try:
         logging.info("Triggering ingest_daily.py...")
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        # Stream output directly to console instead of capturing
+        result = subprocess.run(cmd, stdout=sys.stdout, stderr=sys.stderr)
         if result.returncode != 0:
             logging.error(f"Ingest script failed with code {result.returncode}")
-            if result.stderr:
-                logging.error(f"Error output:\n{result.stderr}")
         else:
             logging.info("Ingest script completed successfully.")
-            if result.stdout:
-                logging.debug(f"Output:\n{result.stdout}")
     except Exception as e:
         logging.error(f"Failed to execute ingest script: {e}")
 

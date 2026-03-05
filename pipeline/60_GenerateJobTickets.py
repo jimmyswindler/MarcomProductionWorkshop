@@ -19,10 +19,7 @@ try:
     import fitz  # PyMuPDF
     from pypdf import PdfReader, PdfWriter, PageObject, Transformation
     from pypdf.generic import DictionaryObject, NameObject
-    from reportlab.lib.pagesizes import letter, landscape
     from reportlab.lib.units import inch
-    from reportlab.lib.utils import ImageReader
-    from PIL import Image
     from reportlab.graphics.barcode import code128
     from reportlab.pdfgen import canvas as rl_canvas
 except ImportError:
@@ -148,10 +145,6 @@ def extract_cost_center_number(cost_center):
     match = re.match(r'^(\d{1,4})', str(cost_center))
     return match.group(1).zfill(4)[:4] if match else "0000"
 
-def adjust_for_weekend(date):
-    if date.weekday() >= 5: return date + timedelta(days=(7 - date.weekday()))
-    return date
-
 def format_zip_code(zip_code):
     if pd.isna(zip_code): return ""
     val = str(zip_code).strip()
@@ -170,7 +163,7 @@ def _create_barcode_pdf_in_memory(data_string, width, height):
     c.save(); buffer.seek(0)
     return buffer
 
-def generate_ticket_pymupdf(ticket_rows, base_job_number, gang_run_name=None, total_counts_map=None, sheet_name=None, watermark_path=None):
+def generate_ticket_pymupdf(ticket_rows, base_job_number, total_counts_map=None, sheet_name=None, watermark_path=None):
     main_row = ticket_rows[0]
     doc = fitz.open()
     PAGE_W, PAGE_H = fitz.paper_size("letter-l")
@@ -423,7 +416,7 @@ def process_dataframe(df, files_path, tickets_path, sheet_name, watermark_path=N
                 try:
                     base_name = sanitize_filename(str(base_job_num))
                     combined_path = os.path.join(tickets_path, f"{base_name}_TICKETwPROOFS.pdf")
-                    final_doc = generate_ticket_pymupdf(ticket_rows, base_job_num, gang_run_name=None, total_counts_map=total_counts_map, sheet_name=sheet_name, watermark_path=watermark_path)
+                    final_doc = generate_ticket_pymupdf(ticket_rows, base_job_num, total_counts_map=total_counts_map, sheet_name=sheet_name, watermark_path=watermark_path)
 
                     for row in ticket_rows:
                         # Logic to find the downloaded file

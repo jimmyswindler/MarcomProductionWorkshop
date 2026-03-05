@@ -81,22 +81,10 @@ def process_sheet_downloads(df, files_path, sheet_name):
         # But we only track 'tasks'. 
         return
 
-    # Prepare DB updates
-    db_updates = []
-    for t in download_tasks:
-        # Task is (idx, url, dest_path)
-        # We need order_item_id from df.
-        # t[0] is original index (if preserve index) or row index.
-        # In download_worker we pass t[0] = row['index']
-        # rows_with_index has 'index' column if we did reset_index().
-        
-        idx = t[0]
-        # Find row data
-        # Optimize: create a map?
-        # Just iterating is slow if large.
-        # But download_tasks is subset.
-        # Actually row is available in the loop above.
-        pass
+    # Just iterating is slow if large.
+    # But download_tasks is subset.
+    # Actually row is available in the loop above.
+    pass
 
     # Better approach: Collect updates in the main loop
 

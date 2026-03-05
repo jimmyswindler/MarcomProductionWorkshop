@@ -6,7 +6,6 @@ import re
 import yaml
 import sys
 import traceback
-import json
 import argparse
 import time
 import datetime
@@ -75,7 +74,6 @@ def organize_by_product_id(input_file, config):
     required_cols_in_file = [col_pid, col_job, col_qty, col_order, col_paper, col_ord_date, col_prod_desc, col_sku]
     actual_cols = set(df.columns); missing_cols_in_file = [col for col in required_cols_in_file if col not in actual_cols]
     if missing_cols_in_file:
-        missing_keys_for_user = [k for k, v in col_names.items() if v in missing_cols_in_file]
         utils_ui.print_error(f"Input file missing required columns: {missing_cols_in_file}")
         return None
 

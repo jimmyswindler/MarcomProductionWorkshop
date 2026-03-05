@@ -56,7 +56,6 @@ def get_job_details(lookup_id):
             
             if order_data:
                 # Case A: Exact Order Match
-                status_msg = "Exact Match found"
                 cur.execute("SELECT id FROM jobs WHERE order_id = %s", (order_data['id'],))
                 target_job_ids = [r['id'] for r in cur.fetchall()]
                 

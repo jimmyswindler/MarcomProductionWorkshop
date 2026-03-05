@@ -1,12 +1,9 @@
 import math
 import os
 import datetime
-import random
 from shared_lib.database import get_db_connection, get_real_dict_cursor
 from shared_lib.config import get_env_var
 from shared_lib.utils import get_store_number, get_product_category
-from . import marcom_service
-from . import marcom_service
 
 LIVE_XML_DIR = '/Volumes/XML Auto Import'
 def get_shipping_cartons():
@@ -304,20 +301,7 @@ def process_shipment_logic(orders, scanned_boxes, package_list_in):
             print(f"XML written to {target_folder}/{filename}")
         except OSError as e:
             print(f"Warning: Could not write XML to {target_folder}/{filename}: {e}")
-        marcom_results = []
-        # Iterate through items to close them
-        # Finding line_item_id is tricky if we only have order_number or package info.
-        # We need to query the DB for the line item IDs associated with this shipment's boxes.
-        
-        cur.execute("""
-            SELECT DISTINCT i.order_item_id, i.sku
-            FROM item_boxes b
-            JOIN items i ON b.order_item_id = i.order_item_id
-            WHERE b.barcode_value = ANY(%s)
-        """, (scanned_boxes,))
-        
-        line_items_to_close = cur.fetchall()
-        
+            
         # Assuming single tracking number for whole shipment (Worldship .out file provided it previously)
         # BUT here we are at generating the XML stage. We don't have tracking number yet?
         # Wait. The legacy app scanned Tracking Number *manually*.

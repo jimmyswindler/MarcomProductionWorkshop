@@ -8,8 +8,6 @@ from . import shipment_service
 
 
 # Directory paths
-# Directory paths
-XML_DIR = 'xml_output'
 
 def ensure_processed_dir(base_dir):
     """Ensures the 'processed' subdirectory exists."""
@@ -262,7 +260,4 @@ def sync_shipment_to_marcom(cur, ship_uid, tracking, order_number=None):
     """, (overall_status, final_msg, last_slip_id, ship_uid))
     print(f"Marcom Sync Complete for {ship_uid}. Status: {overall_status}. Details: {final_msg}")
 
-
-def run_feedback_cycle():
-    c1 = process_ups_output_files()
-    return c1, 0
+    print(f"Marcom Sync Complete for {ship_uid}. Status: {overall_status}. Details: {final_msg}")

@@ -212,7 +212,7 @@ def process_ingestion(input_dir, processed_dir, config, dry_run=False):
                     addr_args['zip'] = f"{d.get('zip')}-{d.get('zip_extension')}" if d.get('zip_extension') else d.get('zip')
             else:
                 is_validated = False
-                val_status = 'EXCEPTION'
+                val_status = ups_status if ups_status not in ('ERROR', 'VALID') else 'EXCEPTION'
 
 
         if dry_run:
@@ -230,8 +230,18 @@ def process_ingestion(input_dir, processed_dir, config, dry_run=False):
                     store_number, cost_center, production_status
                 ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'NEW')
                 ON CONFLICT (order_number) DO UPDATE SET
+                    order_date = EXCLUDED.order_date,
                     ship_date = EXCLUDED.ship_date,
-                    address_validation_status = EXCLUDED.address_validation_status
+                    address1 = EXCLUDED.address1,
+                    address2 = EXCLUDED.address2,
+                    address3 = EXCLUDED.address3,
+                    city = EXCLUDED.city,
+                    state = EXCLUDED.state,
+                    zip = EXCLUDED.zip,
+                    country = EXCLUDED.country,
+                    address_validated = EXCLUDED.address_validated,
+                    address_validation_status = EXCLUDED.address_validation_status,
+                    address_validation_details = EXCLUDED.address_validation_details
                 RETURNING id;
             """, (
                 order_num, row.get('order_date'), row.get('ship_date'),
@@ -300,6 +310,7 @@ def process_ingestion(input_dir, processed_dir, config, dry_run=False):
             count_new += 1
             if count_new % 10 == 0:
                 conn.commit()
+                logging.info(f"Progress: Processed {count_new} new or updated order lines...")
 
         except Exception as e:
             logging.error(f"Error processing row {job_ticket}: {e}")

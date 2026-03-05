@@ -282,7 +282,6 @@ def generate_pdf_run_list(excel_path, pdf_path, config, history, fragmentation_m
                 y_pos, page_qty_total_x, page_qty_total_y = draw_new_page_headers(page_num)
                 y_pos -= header_gap
                 row_line_start_x = margin + frame_padding + store_padding; row_line_end_x = width - margin - frame_padding - store_padding
-                store_start_y_on_page = y_pos
                 if is_continuing_store_box: store_start_y = y_pos; y_pos -= store_padding; is_continuing_store_box = False
                 
                 font_size_row = 10; page_has_ended = False

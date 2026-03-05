@@ -210,10 +210,8 @@ def dashboard():
     
     if chart_data:
         timeline_data = chart_data['timeline_data']
-        interval_description = chart_data['interval_description']
     else:
         timeline_data = [] # Handle error gracefully
-        interval_description = "Error"
         
     # Format for Chart.js
     chart_labels = [row['day_str'] for row in timeline_data]

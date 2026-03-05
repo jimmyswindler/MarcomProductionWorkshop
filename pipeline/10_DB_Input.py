@@ -2,7 +2,6 @@ import sys
 import os
 import pandas as pd
 import argparse
-import datetime
 import yaml
 
 # Setup path

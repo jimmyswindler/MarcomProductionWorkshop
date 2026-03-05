@@ -7,10 +7,9 @@ from typing import Optional
 # Attempt to import rich
 try:
     from rich.console import Console
-    from rich.panel import Panel
+    from rich.console import Console
     from rich.text import Text
-    from rich.logging import RichHandler
-    from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, TimeElapsedColumn, TimeRemainingColumn
+    from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, TimeElapsedColumn
     from rich.theme import Theme
     
     custom_theme = Theme({
@@ -109,9 +108,9 @@ def print_info(message: str):
 # --- PROGRESS BAR HELPER ---
 class DummyProgress:
     def __enter__(self): return self
-    def __exit__(self, exc_type, exc_val, exc_tb): pass
-    def add_task(self, *args, **kwargs): return 0
-    def update(self, *args, **kwargs): pass
+    def __exit__(self, *_args): pass
+    def add_task(self, *_args, **_kwargs): return 0
+    def update(self, *_args, **_kwargs): pass
 
 def create_progress():
     # Only return a real progress bar if we are in a TTY (interactive) 

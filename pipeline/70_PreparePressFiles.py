@@ -25,8 +25,6 @@ except ImportError:
 GANG_RUN_TRIGGER = "-GR-"
 
 # Configuration for Header Pages
-HEADER_FONT_SIZE = 18
-HEADER_TOP_MARGIN = 72
 HEADER_PAGE_WIDTH = 2.25 * 72
 HEADER_PAGE_HEIGHT = 3.75 * 72
 HEADER_TRIM_WIDTH = 2 * 72

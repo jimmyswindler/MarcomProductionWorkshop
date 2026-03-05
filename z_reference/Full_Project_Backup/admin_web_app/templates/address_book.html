@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+        <h1>Address Book</h1>
+        <form action="/address-book" method="get" style="display: flex; gap: 0.5rem;">
+            <input type="text" name="search" placeholder="Search Store # or Name..." value="{{ search }}">
+            <button type="submit" class="btn">Search</button>
+        </form>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Store #</th>
+                <th>Company</th>
+                <th>Address</th>
+                <th>City/State/Zip</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for addr in addresses %}
+            <tr>
+                <td style="font-weight: 600; color: var(--accent);">{{ addr.store_number }}</td>
+                <td>{{ addr.company_name }}<br><span style="font-size: 0.8em; color: var(--text-secondary);">{{
+                        addr.attn }}</span></td>
+                <td>{{ addr.address1 }}</td>
+                <td>{{ addr.city }}, {{ addr.state }} {{ addr.zip }}</td>
+                <td>
+                    <a href="/address-book/edit/{{ addr.store_number }}" class="btn btn-sm"
+                        style="background: transparent; border: 1px solid var(--border); color: var(--text-secondary);">Edit</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

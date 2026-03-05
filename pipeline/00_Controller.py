@@ -171,7 +171,6 @@ def main_workflow():
             utils_ui.print_warning("A Stage 1 directory path is missing in config.yaml.")
 
     consolidated_report_path = None; bundled_report_path = None; fragmentation_map = {}
-    original_source_files_staging_map = {} 
 
     try:
         # --- Stage 1: DB Input (Replaces Data Collection & Ingest) ---
@@ -352,7 +351,7 @@ def main_workflow():
         icon_file_paths = {}
         if s3b_config_subset['shipping_box_rules']:
             icon_keys_needed = set()
-            for material, quantities in s3b_config_subset['shipping_box_rules'].items():
+            for _, quantities in s3b_config_subset['shipping_box_rules'].items():
                 for qty, rules in quantities.items():
                     if 'icon_file' in rules:
                         icon_keys_needed.add(rules['icon_file'])

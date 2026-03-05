@@ -1,15 +1,10 @@
 # 30_DataBundler.py
 import pandas as pd
-import numpy as np
 import os
 import re
 import yaml
 import sys
-from itertools import combinations
-import time
 import traceback
-import json
-import argparse
 import utils_ui 
 
 # =========================================================
@@ -257,7 +252,7 @@ def _attempt_top_up_with_real_work(current_indices, current_qty, entity_pool, pr
 # STRATEGIES (Hierarchy Based)
 # =========================================================
 
-def _strategy_0_lockdown(fragment_df, entity_pool, df, col_qty, bundle_search_thresholds, preferred_bundle_qty, min_threshold):
+def _strategy_0_lockdown(fragment_df, entity_pool, df, col_qty, bundle_search_thresholds, preferred_bundle_qty):
     """
     PHASE 0: LOCKDOWN (Consecutive Consumption).
     If we have a fragment from the queue, we MUST use it as the seed.
@@ -415,13 +410,12 @@ def _strategy_combiner_no_fragmentation(entity_pool, bundle_search_thresholds):
 # =========================================================
 # ORCHESTRATOR LEVEL 1: PRIMARY ENTITY LOOP
 # =========================================================
-def bundle_primary_entity_sequential(df, start_bundle_num, base_bundle_name, config, category_name, bundle_rules, 
-                                     initial_stats, primary_entity_col, preferred_bundle_qty, bundle_search_thresholds, filler_map, master_tracking_list, disqualified_indices):
+def bundle_primary_entity_sequential(df, start_bundle_num, config, category_name, bundle_rules, 
+                                     initial_stats, primary_entity_col, preferred_bundle_qty, bundle_search_thresholds, filler_map, master_tracking_list):
     if df.empty: return {}, pd.DataFrame(), start_bundle_num, initial_stats.get(category_name, {})
     
     bundle_name_suffix = bundle_rules.get('bundle_name_suffix')
     leftover_destination = bundle_rules.get('leftover_sheet_name')
-    MIN_BUNDLE_THRESHOLD = min(bundle_search_thresholds) # Should be 5750
     
     col_names = config.get('column_names', {})
     col_qty = col_names.get('quantity_ordered')
@@ -483,7 +477,7 @@ def bundle_primary_entity_sequential(df, start_bundle_num, base_bundle_name, con
                 frag_df = fragment_lockdown_queue.pop(0)
                 # Ensure fragment indices are not in entity pool (they shouldn't be)
                 bundle_indices, target_hit, new_frag_df = _strategy_0_lockdown(
-                    frag_df, entity_pool, df, col_qty, bundle_search_thresholds, preferred_bundle_qty, MIN_BUNDLE_THRESHOLD
+                    frag_df, entity_pool, df, col_qty, bundle_search_thresholds, preferred_bundle_qty
                 )
             else:
                 # --- PHASE 1: GIANT SLAYER (Fragmentation Allowed) ---
@@ -734,12 +728,11 @@ def run_bundling_process(categorized_data_sheets, output_file, config):
                      utils_ui.print_info(f"Disqualified {len(dq_jobs)} jobs based on quantity threshold.")
 
             bundles, rem, bundle_ctr, _ = bundle_primary_entity_sequential(
-                df, bundle_ctr, base_name, config, cat, rules, {}, col_names['cost_center'],
+                df, bundle_ctr, config, cat, rules, {}, col_names['cost_center'],
                 bundling_rules.get('preferred_bundle_quantity', 6250),
                 bundling_rules.get('bundle_search_thresholds', [6250]),
                 {int(k): v for k,v in bundling_rules.get('filler_padding_map', {}).items()},
-                master_tracking_list,
-                set()
+                master_tracking_list
             )
             all_bundles.update(bundles)
             if not rem.empty: all_remainders.append(rem)
@@ -765,7 +758,7 @@ def run_bundling_process(categorized_data_sheets, output_file, config):
                  master_tracking_list.append(subset)
 
     if not validate_bundles(all_bundles, config): return None, None
-    is_valid_constit, violations = validate_constitution(all_bundles, output_sheets, config, immune_stores)
+    is_valid_constit, _ = validate_constitution(all_bundles, output_sheets, config, immune_stores)
     if not is_valid_constit: return None, None 
 
     utils_ui.print_section("Generating Fragmentation Map")
