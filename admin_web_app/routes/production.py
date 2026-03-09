@@ -14,7 +14,7 @@ def production_review():
     cur = get_real_dict_cursor(conn)
     
     page = request.args.get('page', 1, type=int)
-    per_page = 20
+    per_page = 250
     offset = (page - 1) * per_page
 
     where_clause = """
@@ -22,6 +22,7 @@ def production_review():
           AND o.address_validation_status IN ('VALID', 'AUTO_CORRECTED', 'MANUALLY_CORRECTED')
     """
     
+    # Metrics query (unchanged)
     cur.execute(f"""
         SELECT 
             COUNT(DISTINCT o.id) as total_orders,
@@ -39,26 +40,64 @@ def production_review():
         metrics = dict(metrics)
         if metrics['total_items'] is None: metrics['total_items'] = 0
 
+    # Step 1: Get paginated job IDs (1 query)
     cur.execute(f"""
-        SELECT 
-            j.id, j.job_ticket_number, j.production_status,
-            o.order_number, o.order_date, o.ship_to_company, o.city, o.state,
-            o.address_validation_status
+        SELECT j.id
         FROM jobs j
         JOIN orders o ON j.order_id = o.id
         {where_clause}
-        ORDER BY o.order_date ASC
+        ORDER BY o.order_date ASC, o.order_number ASC
         LIMIT %s OFFSET %s
     """, (per_page, offset))
-    jobs_raw = cur.fetchall()
-    
+    job_ids = [row['id'] for row in cur.fetchall()]
+
+    # Step 2: Fetch all jobs + items in ONE query (eliminates N+1)
     jobs = []
-    for j in jobs_raw:
-        job = dict(j)
-        cur.execute("SELECT quantity_ordered, product_name FROM items WHERE job_id = %s", (job['id'],))
-        job['line_items'] = cur.fetchall()
-        jobs.append(job)
-        
+    if job_ids:
+        cur.execute("""
+            SELECT 
+                j.id, j.job_ticket_number, j.production_status,
+                o.order_number, o.order_date, o.ship_to_company, o.city, o.state,
+                o.address_validation_status, o.store_number,
+                i.quantity_ordered, i.product_name, i.sku, i.job_ticket_display_id
+            FROM jobs j
+            JOIN orders o ON j.order_id = o.id
+            LEFT JOIN items i ON i.job_id = j.id
+            WHERE j.id = ANY(%s)
+            ORDER BY o.order_date ASC, o.order_number ASC, i.job_ticket_display_id ASC
+        """, (job_ids,))
+        rows = cur.fetchall()
+
+        # Group rows into jobs with nested line_items
+        from collections import OrderedDict
+        jobs_dict = OrderedDict()
+        for row in rows:
+            row = dict(row)
+            job_id = row['id']
+            if job_id not in jobs_dict:
+                jobs_dict[job_id] = {
+                    'id': row['id'],
+                    'job_ticket_number': row['job_ticket_number'],
+                    'production_status': row['production_status'],
+                    'order_number': row['order_number'],
+                    'order_date': row['order_date'],
+                    'ship_to_company': row['ship_to_company'],
+                    'city': row['city'],
+                    'state': row['state'],
+                    'address_validation_status': row['address_validation_status'],
+                    'store_number': row['store_number'],
+                    'line_items': []
+                }
+            if row['job_ticket_display_id'] is not None:
+                jobs_dict[job_id]['line_items'].append({
+                    'quantity_ordered': row['quantity_ordered'],
+                    'product_name': row['product_name'],
+                    'sku': row['sku'],
+                    'job_ticket_display_id': row['job_ticket_display_id']
+                })
+        jobs = list(jobs_dict.values())
+
+    # Total count for pagination
     cur.execute(f"""
         SELECT COUNT(*) as count 
         FROM jobs j

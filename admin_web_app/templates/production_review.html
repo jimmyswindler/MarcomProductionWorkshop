@@ -1,18 +1,18 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="row mb-4 page-header-controls" style="margin-left: 0; margin-right: 0;">
-    <div class="col-md-8" style="padding-left: 0;">
-        <h2 style="margin-bottom: 0;">Production Review &nbsp;|&nbsp;
+<div class="row mb-4 page-header-controls d-flex align-items-center justify-content-between mx-0">
+    <div class="col-md-8 px-0">
+        <h2 class="mb-0">Production Review &nbsp;|&nbsp;
             <span style="font-weight: 700; color: #38bdf8;">ORDERS {{ metrics.total_orders }}</span> &nbsp;|&nbsp;
             <span style="font-weight: 700; color: #eab308;">JOBS {{ metrics.total_jobs }}</span> &nbsp;|&nbsp;
-            <span style="font-weight: 700; color: #d946ef;">ITEMS {{ metrics.total_items }}</span> &nbsp;|
+            <span style="font-weight: 700; color: #d946ef;">ITEMS {{ metrics.total_items }}</span>
         </h2>
-        <p class="text-muted" style="margin-bottom: 0;">Review these valid orders before submitting to production.
+        <p class="text-muted mb-0">Review these valid orders before submitting to production.
             Orders with invalid addresses
             are not shown here (check Exceptions).</p>
     </div>
-    <div class="col-md-4 text-end" style="padding-right: 0; align-self: center;">
+    <div class="col-md-4 text-end px-0">
         <form action="{{ url_for('production.submit_production') }}" method="POST"
             onsubmit="return confirm('Are you sure you want to submit {{ jobs|length }} jobs to production? This will start the pipeline.');"
             style="margin-bottom: 0;">
@@ -29,40 +29,36 @@
     <table class="table table-hover align-middle">
         <thead class="table-light sticky-th">
             <tr>
-                <th>Date</th>
-                <th>Orders</th>
-                <th>Line items</th>
-                <th>Ship To</th>
-                <th>Items</th>
+                <th class="text-nowrap">Date</th>
+                <th class="text-nowrap">Store</th>
+                <th class="text-nowrap">Order</th>
+                <th class="text-nowrap">Line items</th>
+                <th class="text-nowrap">Quantity</th>
+                <th>SKU</th>
             </tr>
         </thead>
         <tbody>
             {% for job in jobs %}
-            <tr>
-                <td>{{ job.order_date|string|truncate(10, True, '') }}</td>
-                <td>
-                    <strong>{{ job.order_number }}</strong>
+            {% set outer_loop_index0 = loop.index0 %}
+            {% set row_span = job.line_items|length %}
+            {% for item in job.line_items %}
+            <tr {% if outer_loop_index0> 0 and loop.first %}class="order-start"{% endif %}>
+                {% if loop.first %}
+                <td class="py-2 text-nowrap align-top" rowspan="{{ row_span }}">{{ job.order_date|string|truncate(10,
+                    True, '') }}</td>
+                <td class="py-2 text-nowrap align-top" rowspan="{{ row_span }}">{{ job.store_number }}</td>
+                <td class="py-2 text-nowrap align-top" rowspan="{{ row_span }}"><strong>{{ job.order_number }}</strong>
                 </td>
-                <td>
-                    <span class="text-muted small">{{ job.job_ticket_number }}</span>
-                </td>
-                <td>
-                    <div>{{ job.ship_to_company }}</div>
-                    <div class="small text-muted">{{ job.city }}, {{ job.state }}</div>
-                </td>
-
-                <td>
-                    <ul class="list-unstyled mb-0 small">
-                        {% for item in job.line_items %}
-                        <li>{{ item.quantity_ordered }}x {{ item.product_name }}</li>
-                        {% endfor %}
-                    </ul>
-                </td>
-
+                {% endif %}
+                <td class="py-2 text-nowrap align-top {% if not loop.first %}reset-padding-left{% endif %}">{{
+                    item.job_ticket_display_id }}</td>
+                <td class="py-2 text-nowrap align-top">{{ item.quantity_ordered }}</td>
+                <td class="py-2 small text-muted align-top">{{ item.sku }}</td>
             </tr>
+            {% endfor %}
             {% else %}
             <tr>
-                <td colspan="5" class="text-center py-5 text-muted">
+                <td colspan="6" class="text-center py-5 text-muted">
                     <h4>No new orders ready for review.</h4>
                     <p>Check "Exceptions" for orders needing attention, or run Ingestion.</p>
                 </td>

@@ -281,9 +281,32 @@
             padding-left: 1.5rem;
         }
 
+        /* Fix for inherited first-child padding in spanned rows */
+        .table-container td.reset-padding-left {
+            padding-left: 0.75rem !important;
+        }
+
         .table-container th:last-child,
         .table-container td:last-child {
             padding-right: 1.5rem;
+        }
+
+        .table-container tr.order-start td {
+            border-top: 1.5pt solid var(--border);
+        }
+
+        /* Utility classes */
+        .text-nowrap {
+            white-space: nowrap !important;
+        }
+
+        .align-top {
+            vertical-align: top !important;
+        }
+
+        .py-2 {
+            padding-top: 0.5rem !important;
+            padding-bottom: 0.5rem !important;
         }
     </style>
 </head>
