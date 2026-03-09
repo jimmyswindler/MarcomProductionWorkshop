@@ -1,0 +1,7 @@
+import os
+import sys
+
+# Ensure project base is in the path
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if project_root not in sys.path:
+    sys.path.append(project_root)

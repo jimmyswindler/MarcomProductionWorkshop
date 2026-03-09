@@ -6,13 +6,6 @@
 <div class="card">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
         <h1>Production Dashboard</h1>
-
-        <!-- Status Lookup -->
-        <form action="{{ url_for('search') }}" method="GET" style="display: flex; gap: 0.5rem;">
-            <input type="text" name="q" placeholder="Status Lookup (Order, Job, Tracking #)" style="width: 300px;"
-                value="{{ request.args.get('q', '') }}">
-            <button type="submit" class="btn">Search</button>
-        </form>
     </div>
 
     <!-- Timeline Chart -->
@@ -44,66 +37,7 @@
 
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;">
 
-        <!-- Address Validation Report -->
-        <div style="background: rgba(255,255,255,0.03); padding: 1.5rem; border-radius: 8px;">
-            <h3>Address Validation Report</h3>
-            <div style="margin-top: 1rem; display: grid; gap: 0.5rem;">
-                <!-- Simple Bar visual for stats -->
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <span>Valid</span>
-                    <span class="badge badge-success">{{ val_stats.VALID }}</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <span>Auto-Corrected</span>
-                    <span class="badge badge-warning"
-                        style="background: rgba(56, 189, 248, 0.2); color: var(--accent);">{{ val_stats.AUTO_CORRECTED
-                        }}</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <span>Manually Corrected</span>
-                    <span class="badge badge-warning"
-                        style="background: rgba(56, 189, 248, 0.2); color: var(--accent);">{{
-                        val_stats.MANUALLY_CORRECTED }}</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <span>Exceptions</span>
-                    <span class="badge badge-danger">{{ val_stats.EXCEPTION }}</span>
-                </div>
-            </div>
-        </div>
 
-        <!-- Recent Corrections -->
-        <div style="background: rgba(255,255,255,0.03); padding: 1.5rem; border-radius: 8px;">
-            <h3>Recent Manual Corrections</h3>
-            <div style="margin-top: 1rem; max-height: 200px; overflow-y: auto;">
-                {% if recent_corrections %}
-                <table style="font-size: 0.85rem;">
-                    <thead>
-                        <tr>
-                            <th>Order</th>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for rc in recent_corrections %}
-                        <tr>
-                            <td>{{ rc.order_number }}</td>
-                            <td style="color: var(--text-secondary);">
-                                {% if rc.address_validation_details and rc.address_validation_details.msg %}
-                                {{ rc.address_validation_details.msg }}
-                                {% else %}
-                                Corrected
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-                {% else %}
-                <div style="color: var(--text-secondary); font-style: italic;">No recent corrections found.</div>
-                {% endif %}
-            </div>
-        </div>
 
         <!-- Key Metrics -->
         <div style="background: rgba(255,255,255,0.03); padding: 1.5rem; border-radius: 8px; text-align: center;">
@@ -127,15 +61,15 @@
             </div>
             <div style="color: var(--text-secondary);">Items Past Due</div>
             <div style="margin-top: 1rem;">
-                <a href="{{ url_for('open_orders') }}" class="btn btn-sm">View List</a>
+                <a href="{{ url_for('overdue.open_orders') }}" class="btn btn-sm">View List</a>
             </div>
         </div>
 
         <!-- Production Review Link -->
         <div style="background: rgba(255,255,255,0.03); padding: 1.5rem; border-radius: 8px; text-align: center;">
             <h3>Production Review</h3>
-            <div style="font-size: 2.5rem; font-weight: 700; color: var(--accent); margin: 1rem 0;">
-                <i class="bi bi-collection-play"></i>
+            <div style="font-size: 2.5rem; font-weight: 700; color: var(--success); margin: 1rem 0;">
+                {{ valid_orders_waiting }}
             </div>
             <div style="color: var(--text-secondary);">Valid orders waiting</div>
             <div style="margin-top: 1rem;">

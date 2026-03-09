@@ -148,18 +148,26 @@ def process_shipment_logic(orders, scanned_boxes, package_list_in):
         # 1a. Partial Check
         if scanned_boxes:
             cur.execute("""
-                SELECT i.sku, count(b.id) as total_boxes,
-                       count(CASE WHEN b.barcode_value = ANY(%s) THEN 1 END) as current_scan_count
-                FROM item_boxes b
-                JOIN items i ON b.order_item_id = i.order_item_id
-                WHERE b.barcode_value = ANY(%s)
-                GROUP BY i.sku, i.order_item_id
+                WITH matched_jobs AS (
+                    SELECT DISTINCT i.job_id
+                    FROM item_boxes b
+                    JOIN items i ON b.order_item_id = i.order_item_id
+                    WHERE b.barcode_value = ANY(%s)
+                )
+                SELECT j.job_ticket_number, 
+                       count(b.id) as total_boxes,
+                       count(CASE WHEN b.status = 'packed' OR b.barcode_value = ANY(%s) THEN 1 END) as current_scan_count
+                FROM jobs j
+                JOIN items i ON j.id = i.job_id
+                JOIN item_boxes b ON i.order_item_id = b.order_item_id
+                WHERE j.id IN (SELECT job_id FROM matched_jobs)
+                GROUP BY j.job_ticket_number
             """, (scanned_boxes, scanned_boxes))
             
             for row in cur.fetchall():
                 if row['current_scan_count'] != row['total_boxes']:
                     conn.close()
-                    return {"error": f"Partial Line Item detected for SKU {row['sku']}. Scan all boxes."}, 400
+                    return {"error": f"Partial Job detected for Job Ticket {row['job_ticket_number']}. Scan all boxes for this job."}, 400
 
         # 1. Update Box Status
         if scanned_boxes:

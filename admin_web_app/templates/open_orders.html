@@ -1,55 +1,151 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="card">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-        <div>
-            <h1>Open Items (Overdue) <span class="badge bg-danger">{{ items|length }}</span></h1>
-            <p class="text-secondary small">Items with no actual ship date where the scheduled ship date is in the
-                past.</p>
-        </div>
-        <div>
-            <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary">Back to Dashboard</a>
-        </div>
+<div class="page-header-controls"
+    style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+    <div>
+        <h1 style="margin-bottom: 0;">Open Items (Overdue) <span class="badge bg-danger"
+                style="font-size: inherit; font-weight: inherit;">{{
+                items|length }}</span>
+        </h1>
+        <p class="text-secondary small" style="margin-bottom: 0;">Items with no actual ship date where the scheduled
+            ship date is in the
+            past.</p>
     </div>
-
-    <div style="margin-top: 1rem;">
-        {% if items %}
-        <table class="table table-dark table-hover width-100">
-            <thead>
-                <tr>
-                    <th>Line Item #</th>
-                    <th>Order #</th>
-                    <th>Date Ordered</th>
-                    <th>Ship Date (Past)</th>
-                    <th>Company</th>
-                    <th>Location</th>
-                    <th>Action</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for item in items %}
-                <tr>
-                    <td><strong>{{ item.line_item_number }}</strong></td>
-                    <td>{{ item.order_number }}</td>
-                    <td>{{ item.order_date|string|truncate(10, True, '') }}</td>
-                    <td class="text-danger">{{ item.ship_date|string|truncate(10, True, '') }}</td>
-                    <td>{{ item.ship_to_company }}</td>
-                    <td>{{ item.city }}, {{ item.state }}</td>
-                    <td>
-                        <a href="{{ url_for('fix_exception', order_number=item.order_number) }}"
-                            class="btn btn-sm btn-outline-secondary">View Order</a>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        {% else %}
-        <div style="padding: 2rem; text-align: center; color: var(--text-secondary);">
-            <i class="bi bi-check-circle" style="font-size: 2rem; color: var(--success);"></i>
-            <p style="margin-top: 0.5rem;">No overdue open items found.</p>
-        </div>
-        {% endif %}
+    <div>
+        <a href="{{ url_for('dashboard.dashboard') }}" class="btn btn-outline-secondary">Back to Dashboard</a>
     </div>
 </div>
+
+<div class="table-container">
+    {% if items %}
+    <table class="table table-dark table-hover width-100">
+        <thead class="sticky-th">
+            <tr>
+                <th class="sortable" data-sort="line_item">Line Item</th>
+                <th class="sortable" data-sort="order">Order</th>
+                <th class="sortable" data-sort="store">Store</th>
+                <th class="sortable" data-sort="date">Date Ordered</th>
+                <th>Company</th>
+                <th>Location</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in items %}
+            <tr>
+                <td data-sort-val="{{ item.line_item_number }}"><strong>{{ item.line_item_number }}</strong></td>
+                <td data-sort-val="{{ item.order_number }}">{{ item.order_number }}</td>
+                <td data-sort-val="{{ item.store_number or '' }}">{{ item.store_number or '--' }}</td>
+                <td data-sort-val="{{ item.order_date }}">{{ item.order_date|string|truncate(10, True, '') }}</td>
+                <td>{{ item.ship_to_company }}</td>
+                <td>{{ item.city }}, {{ item.state }}</td>
+                <td>
+                    <a href="{{ url_for('address_issues.fix_exception', order_number=item.order_number) }}"
+                        class="btn btn-sm btn-outline-secondary">View Order</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div style="padding: 2rem; text-align: center; color: var(--text-secondary);">
+        <i class="bi bi-check-circle" style="font-size: 2rem; color: var(--success);"></i>
+        <p style="margin-top: 0.5rem;">No overdue open items found.</p>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+    th.sortable {
+        cursor: pointer;
+        user-select: none;
+    }
+
+    th.sortable:hover {
+        background-color: var(--bg-hover);
+    }
+
+    th.sort-asc,
+    th.sort-desc {
+        text-decoration: underline;
+        text-underline-offset: 4px;
+        text-decoration-thickness: 2px;
+        text-decoration-color: var(--primary-color);
+    }
+</style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const table = document.querySelector('.table-container table');
+        if (!table) return;
+
+        const headers = table.querySelectorAll('th.sortable');
+        const tbody = table.querySelector('tbody');
+
+        let currentSortColumn = null;
+        let currentSortAsc = true;
+
+        const sortTable = (column, asc) => {
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+
+            if (rows.length === 1 && rows[0].querySelector('td[colspan]')) return;
+
+            let colIndex = -1;
+            headers.forEach((h, index) => {
+                // Find all th elements in the tr to get the correct index
+                const allThs = Array.from(table.querySelectorAll('thead th'));
+                if (h.dataset.sort === column) {
+                    colIndex = allThs.indexOf(h);
+                }
+            });
+            if (colIndex === -1) return;
+
+            rows.sort((a, b) => {
+                const cellA = a.querySelectorAll('td')[colIndex];
+                const cellB = b.querySelectorAll('td')[colIndex];
+
+                let valA = cellA.dataset.sortVal !== undefined ? cellA.dataset.sortVal : cellA.textContent.trim();
+                let valB = cellB.dataset.sortVal !== undefined ? cellB.dataset.sortVal : cellB.textContent.trim();
+
+                if (!isNaN(Date.parse(valA)) && !isNaN(Date.parse(valB))) {
+                    valA = Date.parse(valA);
+                    valB = Date.parse(valB);
+                } else if (!isNaN(valA) && !isNaN(valB)) {
+                    valA = Number(valA);
+                    valB = Number(valB);
+                } else {
+                    valA = String(valA).toLowerCase();
+                    valB = String(valB).toLowerCase();
+                }
+
+                if (valA < valB) return asc ? -1 : 1;
+                if (valA > valB) return asc ? 1 : -1;
+                return 0;
+            });
+
+            rows.forEach(row => tbody.appendChild(row));
+        };
+
+        headers.forEach(header => {
+            header.addEventListener('click', () => {
+                const column = header.dataset.sort;
+
+                if (currentSortColumn === column) {
+                    currentSortAsc = !currentSortAsc;
+                } else {
+                    currentSortColumn = column;
+                    currentSortAsc = true;
+                }
+
+                headers.forEach(h => {
+                    h.classList.remove('sort-asc', 'sort-desc');
+                });
+                header.classList.add(currentSortAsc ? 'sort-asc' : 'sort-desc');
+
+                sortTable(currentSortColumn, currentSortAsc);
+            });
+        });
+    });
+</script>
 {% endblock %}

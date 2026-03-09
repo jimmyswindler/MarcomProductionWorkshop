@@ -17,6 +17,7 @@
             --success: #22c55e;
             --warning: #eab308;
             --danger: #ef4444;
+            --navbar-height: 73px;
         }
 
         body {
@@ -26,6 +27,11 @@
             margin: 0;
             padding: 0;
             line-height: 1.5;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            /* Prevent body scrolling */
         }
 
         .navbar {
@@ -35,6 +41,10 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            flex-shrink: 0;
+            z-index: 1000;
+            position: relative;
+            /* Restores context for dropdown menu */
         }
 
         .navbar-brand {
@@ -43,29 +53,86 @@
             color: var(--text-primary);
             text-decoration: none;
             letter-spacing: -0.5px;
+            flex: 1;
         }
 
         .navbar-brand span {
             color: var(--accent);
         }
 
-        .nav-links a {
-            color: var(--text-secondary);
-            text-decoration: none;
-            margin-left: 2rem;
-            font-size: 0.9rem;
-            transition: color 0.2s;
+        .navbar-center {
+            flex: 1;
+            display: flex;
+            justify-content: center;
         }
 
-        .nav-links a:hover,
-        .nav-links a.active {
+        .navbar-center input[type="text"] {
+            margin-right: 0.5rem;
+        }
+
+        .nav-right {
+            flex: 1;
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .hamburger {
+            background: none;
+            border: none;
             color: var(--text-primary);
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 0.5rem;
+        }
+
+        .dropdown-menu {
+            display: none;
+            position: absolute;
+            top: 100%;
+            right: 2rem;
+            background-color: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            z-index: 50;
+            min-width: 200px;
+            overflow: hidden;
+        }
+
+        .dropdown-menu.show {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .dropdown-menu a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            padding: 1rem 1.5rem;
+            font-size: 0.95rem;
+            transition: all 0.2s;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .dropdown-menu a:last-child {
+            border-bottom: none;
+        }
+
+        .dropdown-menu a:hover,
+        .dropdown-menu a.active {
+            color: var(--text-primary);
+            background-color: rgba(255, 255, 255, 0.05);
         }
 
         .container {
             max-width: 1200px;
             margin: 2rem auto;
             padding: 0 1rem;
+            width: 100%;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            /* Contains child scrolling */
         }
 
         .card {
@@ -176,16 +243,74 @@
             font-size: 0.9rem;
             color: var(--text-secondary);
         }
+
+        /* Standard Page Header Controls */
+        .page-header-controls {
+            flex-shrink: 0;
+            margin-bottom: 1rem;
+        }
+
+        /* Scrollable Table Container */
+        .table-container {
+            flex: 1;
+            overflow-y: auto;
+            background-color: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            position: relative;
+            /* For the sticky headers context */
+        }
+
+        /* Clean Sticky Table Headers */
+        .sticky-th th {
+            position: sticky;
+            top: 0;
+            background-color: var(--bg-card);
+            z-index: 10;
+            box-shadow: 0 1px 0 var(--border);
+            /* Better than border-bottom for sticky elements */
+        }
+
+        /* Specific tweaks to ensure table styling remains nice inside container */
+        .table-container table {
+            margin-bottom: 0;
+        }
+
+        .table-container th:first-child,
+        .table-container td:first-child {
+            padding-left: 1.5rem;
+        }
+
+        .table-container th:last-child,
+        .table-container td:last-child {
+            padding-right: 1.5rem;
+        }
     </style>
 </head>
 
 <body>
     <nav class="navbar">
         <a href="/" class="navbar-brand">Marcom <span>Production Workshop Administration</span></a>
-        <div class="nav-links">
-            <a href="/">Dashboard</a>
-            <a href="/address-book">Address Book</a>
-            <a href="/exceptions">Exceptions Queue</a>
+
+        <div class="navbar-center">
+            <form action="{{ url_for('dashboard.search') }}" method="GET" style="display: flex;">
+                <input type="text" name="q" placeholder="Status Lookup (Order, Job, Tracking #)" style="width: 300px;"
+                    value="{{ request.args.get('q', '') }}">
+                <button type="submit" class="btn">Search</button>
+            </form>
+        </div>
+
+        <div class="nav-right">
+            <button class="hamburger" id="hamburgerBtn" aria-label="Menu">
+                ☰
+            </button>
+            <div class="dropdown-menu" id="dropdownMenu">
+                <a href="/">Dashboard</a>
+                <a href="/address-book">Address Book</a>
+                <a href="/exceptions">Address Validation Issues</a>
+                <a href="/production-review">Production Review</a>
+                <a href="{{ url_for('overdue.open_orders') }}">Overdue Items</a>
+            </div>
         </div>
     </nav>
 
@@ -202,6 +327,26 @@
 
         {% block content %}{% endblock %}
     </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const hamburgerBtn = document.getElementById('hamburgerBtn');
+            const dropdownMenu = document.getElementById('dropdownMenu');
+
+            if (hamburgerBtn && dropdownMenu) {
+                hamburgerBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    dropdownMenu.classList.toggle('show');
+                });
+
+                document.addEventListener('click', (e) => {
+                    if (!dropdownMenu.contains(e.target) && !hamburgerBtn.contains(e.target)) {
+                        dropdownMenu.classList.remove('show');
+                    }
+                });
+            }
+        });
+    </script>
 </body>
 
 </html>

@@ -1003,26 +1003,36 @@ function processBoxScan(code) {
 }
 
 function checkProcessShipmentEligibility() {
-    let anyLineComplete = false;
-    let anyLinePartial = false;
+    let anyComplete = false;
+    let anyPartial = false;
 
     if (!currentShipment || !currentShipment.orders) return;
 
-    currentShipment.orders.forEach(o => (o.line_items || []).forEach(li => {
-        const totalBoxes = li.barcodes.length;
-        let scannedCount = 0;
-        li.barcodes.forEach(b => {
-            if (b.status === 'packed' || currentShipment.scanned_barcodes.has(b.value)) {
-                scannedCount++;
-            }
+    const jobs = {};
+    
+    currentShipment.orders.forEach(o => {
+        (o.line_items || []).forEach(li => {
+            const jt = li.job_ticket || 'Unknown';
+            if (!jobs[jt]) jobs[jt] = { total: 0, scannedOrPacked: 0 };
+            
+            jobs[jt].total += li.barcodes.length;
+            
+            li.barcodes.forEach(b => {
+                if (b.status === 'packed' || currentShipment.scanned_barcodes.has(b.value)) {
+                    jobs[jt].scannedOrPacked++;
+                }
+            });
         });
-        if (totalBoxes > 0) {
-            if (scannedCount === totalBoxes) anyLineComplete = true;
-            else if (scannedCount > 0) anyLinePartial = true;
-        }
-    }));
+    });
 
-    const canProcess = anyLineComplete && !anyLinePartial;
+    Object.values(jobs).forEach(job => {
+        if (job.total > 0) {
+            if (job.scannedOrPacked === job.total) anyComplete = true;
+            else if (job.scannedOrPacked > 0) anyPartial = true;
+        }
+    });
+
+    const canProcess = anyComplete && !anyPartial;
     updateButtonState(el('process-shipment-btn'), canProcess, 'active-blue');
 }
 

@@ -1,72 +1,71 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="card">
+<div class="page-header-controls">
     <h1>Address Validation Exceptions</h1>
-    <p style="color: var(--text-secondary);">Orders flagged as an EXCEPTION by UPS or the automated fallback sequence.
-    </p>
+    <p style="color: var(--text-secondary); margin-bottom: 0;">Orders flagged as an EXCEPTION by UPS or the
+        automated fallback sequence.</p>
+</div>
 
-    <div style="margin-top: 1rem;">
-        <table id="exceptionsTable">
-            <thead>
-                <tr>
-                    <th class="sortable" data-sort="order">Order</th>
-                    <th class="sortable" data-sort="store">Store</th>
-                    <th class="sortable" data-sort="date">Date</th>
-                    <th class="sortable" data-sort="issue">Issue</th>
-                    <th>Input Address</th>
-                    <th>Details</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for order in orders %}
-                <tr>
-                    <td data-sort-val="{{ order.order_number }}">{{ order.order_number }}</td>
-                    <td data-sort-val="{{ order.store_number or '' }}">{{ order.store_number or '--' }}</td>
-                    <td data-sort-val="{{ order.order_date }}">
-                        {% if order.order_date %}
-                        {% if order.order_date.strftime('%H:%M:%S') == '00:00:00' %}
-                        {{ order.order_date.strftime('%Y-%m-%d') }}
-                        {% else %}
-                        {{ order.order_date.strftime('%Y-%m-%d %H:%M') }}
-                        {% endif %}
-                        {% else %}
-                        --
-                        {% endif %}
-                    </td>
-                    <td data-sort-val="{{ order.address_validation_status }}">
-                        <span class="badge badge-danger">{{ order.address_validation_status }}</span>
-                    </td>
-                    <td>
-                        {{ order.address1 }}<br>
-                        {% if order.address2 %}{{ order.address2 }}<br>{% endif %}
-                        {{ order.city }}, {{ order.state }} {{ order.zip }}
-                    </td>
-                    <td style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 300px; font-size: 0.8rem; color: var(--text-secondary);"
-                        title="{{ order.display_details }}">
-                        {{ order.display_details }}
-                    </td>
-                    <td>
-                        <a href="/exceptions/fix/{{ order.order_number }}" class="btn btn-sm">Review / Fix</a>
-                    </td>
-                </tr>
-                {% else %}
-                <tr>
-                    <td colspan="7" style="text-align: center; padding: 2rem; color: var(--text-secondary);">No
-                        exceptions found. Great job!</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
+<div class="table-container">
+    <table id="exceptionsTable">
+        <thead class="sticky-th">
+            <tr>
+                <th class="sortable" data-sort="order">Order</th>
+                <th class="sortable" data-sort="store">Store</th>
+                <th class="sortable" data-sort="date">Date</th>
+                <th class="sortable" data-sort="issue">Issue</th>
+                <th>Input Address</th>
+                <th>Details</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for order in orders %}
+            <tr>
+                <td data-sort-val="{{ order.order_number }}">{{ order.order_number }}</td>
+                <td data-sort-val="{{ order.store_number or '' }}">{{ order.store_number or '--' }}</td>
+                <td data-sort-val="{{ order.order_date }}">
+                    {% if order.order_date %}
+                    {% if order.order_date.strftime('%H:%M:%S') == '00:00:00' %}
+                    {{ order.order_date.strftime('%Y-%m-%d') }}
+                    {% else %}
+                    {{ order.order_date.strftime('%Y-%m-%d %H:%M') }}
+                    {% endif %}
+                    {% else %}
+                    --
+                    {% endif %}
+                </td>
+                <td data-sort-val="{{ order.address_validation_status }}">
+                    <span class="badge badge-danger">{{ order.address_validation_status }}</span>
+                </td>
+                <td>
+                    {{ order.address1 }}<br>
+                    {% if order.address2 %}{{ order.address2 }}<br>{% endif %}
+                    {{ order.city }}, {{ order.state }} {{ order.zip }}
+                </td>
+                <td style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 300px; font-size: 0.8rem; color: var(--text-secondary);"
+                    title="{{ order.display_details }}">
+                    {{ order.display_details }}
+                </td>
+                <td>
+                    <a href="/exceptions/fix/{{ order.order_number }}" class="btn btn-sm">Review / Fix</a>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="7" style="text-align: center; padding: 2rem; color: var(--text-secondary);">No
+                    exceptions found. Great job!</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
 </div>
 
 <style>
     th.sortable {
         cursor: pointer;
         user-select: none;
-        position: relative;
     }
 
     th.sortable:hover {

@@ -1,19 +1,27 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="card">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-        <h1>Address Book</h1>
-        <form action="/address-book" method="get" style="display: flex; gap: 0.5rem;">
-            <input type="text" name="search" placeholder="Search Store # or Name..." value="{{ search }}">
-            <button type="submit" class="btn">Search</button>
-        </form>
-    </div>
+<style>
+    /* Decrease row height by reducing vertical padding */
+    .table-container td {
+        padding-top: 0.35rem;
+        padding-bottom: 0.35rem;
+    }
+</style>
+<div class="page-header-controls"
+    style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+    <h1 style="margin-bottom: 0;">Address Book ({{ addresses|length }})</h1>
+    <form action="/address-book" method="get" style="display: flex; gap: 0.5rem; margin-bottom: 0;">
+        <input type="text" name="search" placeholder="Search Store or Name..." value="{{ search }}">
+        <button type="submit" class="btn">Search</button>
+    </form>
+</div>
 
+<div class="table-container">
     <table>
-        <thead>
+        <thead class="sticky-th">
             <tr>
-                <th>Store #</th>
+                <th>Store</th>
                 <th>Company</th>
                 <th>Address</th>
                 <th>City/State/Zip</th>
@@ -24,8 +32,7 @@
             {% for addr in addresses %}
             <tr>
                 <td style="font-weight: 600; color: var(--accent);">{{ addr.store_number }}</td>
-                <td>{{ addr.company_name }}<br><span style="font-size: 0.8em; color: var(--text-secondary);">{{
-                        addr.attn }}</span></td>
+                <td>{{ addr.company_name }}</td>
                 <td>{{ addr.address1 }}</td>
                 <td>{{ addr.city }}, {{ addr.state }} {{ addr.zip }}</td>
                 <td>
