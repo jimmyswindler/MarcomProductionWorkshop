@@ -83,45 +83,12 @@
         <div id="carton-status" class="status"></div>
 
         <div class="box-grid">
-            <button id="btn-box-105" data-box="#105" class="btn-composite box-btn">
-                <div class="btn-barcode"><svg class="bc-render" data-value="#105"></svg></div>
-                <span class="btn-text">Box #105</span>
+            {% for carton in cartons %}
+            <button id="btn-box-{{ carton.code }}" data-box="{{ carton.code }}" class="btn-composite box-btn">
+                <div class="btn-barcode"><svg class="bc-render" data-value="{{ carton.code }}"></svg></div>
+                <span class="btn-text">{{ carton.name }}</span>
             </button>
-            <button id="btn-box-115" data-box="#115" class="btn-composite box-btn">
-                <div class="btn-barcode"><svg class="bc-render" data-value="#115"></svg></div>
-                <span class="btn-text">Box #115</span>
-            </button>
-            <button id="btn-box-116" data-box="#116" class="btn-composite box-btn">
-                <div class="btn-barcode"><svg class="bc-render" data-value="#116"></svg></div>
-                <span class="btn-text">Box #116</span>
-            </button>
-            <button id="btn-box-118" data-box="#118" class="btn-composite box-btn">
-                <div class="btn-barcode"><svg class="bc-render" data-value="#118"></svg></div>
-                <span class="btn-text">Box #118</span>
-            </button>
-            <button id="btn-box-123" data-box="#123" class="btn-composite box-btn">
-                <div class="btn-barcode"><svg class="bc-render" data-value="#123"></svg></div>
-                <span class="btn-text">Box #123</span>
-            </button>
-            <button id="btn-box-145" data-box="#145" class="btn-composite box-btn">
-                <div class="btn-barcode"><svg class="bc-render" data-value="#145"></svg></div>
-                <span class="btn-text">Box #145</span>
-            </button>
-            <button id="btn-box-160" data-box="#160" class="btn-composite box-btn">
-                <div class="btn-barcode"><svg class="bc-render" data-value="#160"></svg></div>
-                <span class="btn-text">Box #160</span>
-            </button>
-            <button id="btn-box-999" data-box="#999" class="btn-composite box-btn">
-                <div class="btn-barcode"><svg class="bc-render" data-value="#999"></svg></div>
-                <span class="btn-text">10½ X 2⅞ X 4¼</span>
-            </button>
-
-            <div class="manual-entry-cell">
-                <div class="input-group">
-                    <label>Or enter carton number manually:</label>
-                    <input type="text" id="carton-input" placeholder="Enter carton number (Box#XXX)">
-                </div>
-            </div>
+            {% endfor %}
         </div>
 
         <div id="inline-weight-section"

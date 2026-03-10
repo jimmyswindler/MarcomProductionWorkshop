@@ -16,6 +16,7 @@ from routes.address_issues import address_issues_bp
 from routes.file_downloads import file_downloads_bp
 from routes.file_errors import file_errors_bp
 from routes.production import production_bp
+from routes.cartons import cartons_bp
 
 app.register_blueprint(dashboard_bp)
 app.register_blueprint(api_bp)
@@ -25,6 +26,7 @@ app.register_blueprint(address_issues_bp)
 app.register_blueprint(file_downloads_bp)
 app.register_blueprint(file_errors_bp)
 app.register_blueprint(production_bp)
+app.register_blueprint(cartons_bp)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', debug=False, port=5002)

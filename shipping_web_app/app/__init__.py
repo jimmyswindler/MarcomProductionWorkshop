@@ -11,6 +11,16 @@ def create_app():
     
     @app.route('/')
     def index():
-        return render_template('shipping_station.html')
+        from shared_lib.database import get_db_connection
+        conn = get_db_connection()
+        cartons = []
+        if conn:
+            cur = conn.cursor()
+            cur.execute("SELECT code, name FROM shipping_cartons ORDER BY code;")
+            for row in cur.fetchall():
+                cartons.append({'code': row[0], 'name': row[1]})
+            cur.close()
+            conn.close()
+        return render_template('shipping_station.html', cartons=cartons)
     
     return app

@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header-controls" style="display: flex; justify-content: space-between; align-items: center;">
+    <h1>Shipping Cartons Management</h1>
+    <button class="btn btn-success" onclick="document.getElementById('add-carton-modal').style.display='flex'">+ Add New
+        Carton</button>
+</div>
+
+<div class="card" style="padding: 0;">
+    <div class="table-container">
+        <table>
+            <thead class="sticky-th">
+                <tr>
+                    <th>Code (3-Letter)</th>
+                    <th>Name / Label</th>
+                    <th>Weight (lbs)</th>
+                    <th>Length (in)</th>
+                    <th>Width (in)</th>
+                    <th>Height (in)</th>
+                    <th style="text-align: right;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for carton in cartons %}
+                <tr>
+                    <td><span class="badge badge-warning">{{ carton.code }}</span></td>
+                    <td><strong>{{ carton.name }}</strong></td>
+                    <td>{{ carton.weight }}</td>
+                    <td>{{ carton.length }}</td>
+                    <td>{{ carton.width }}</td>
+                    <td>{{ carton.height }}</td>
+                    <td style="text-align: right;">
+                        <button class="btn btn-sm btn-info"
+                            onclick="editCarton('{{ carton.code }}', '{{ carton.name | escape }}', '{{ carton.weight }}', '{{ carton.length }}', '{{ carton.width }}', '{{ carton.height }}')">Edit</button>
+                        <form action="{{ url_for('cartons.delete_carton', code=carton.code) }}" method="POST"
+                            style="display:inline;" onsubmit="return confirm('Delete carton {{ carton.code }}?');">
+                            <button type="submit" class="btn btn-sm"
+                                style="background-color: var(--danger); color: white;">Delete</button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="7" style="text-align: center; color: var(--text-secondary);">No cartons found. Add one
+                        above.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Add Modal -->
+<div id="add-carton-modal" class="modal-overlay"
+    style="display:none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1050; align-items: center; justify-content: center;">
+    <div class="card" style="width: 100%; max-width: 500px; margin: 0;">
+        <h2>Add Shipping Carton</h2>
+        <form action="{{ url_for('cartons.add_carton') }}" method="POST">
+            <div class="form-group">
+                <label class="form-label">Code (3-Letter Unique ID):</label>
+                <input type="text" name="code" required maxlength="5" placeholder="e.g. C05">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Name / Label:</label>
+                <input type="text" name="name" required placeholder="e.g. Box #105">
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <div class="form-group">
+                    <label class="form-label">Weight (lbs):</label>
+                    <input type="number" step="0.01" name="weight" value="0.0">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Length (in):</label>
+                    <input type="number" step="0.1" name="length" value="0">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Width (in):</label>
+                    <input type="number" step="0.1" name="width" value="0">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Height (in):</label>
+                    <input type="number" step="0.1" name="height" value="0">
+                </div>
+            </div>
+            <div style="margin-top: 1rem; text-align: right;">
+                <button type="button" class="btn"
+                    style="background: transparent; border: 1px solid var(--border); color: var(--text-primary);"
+                    onclick="document.getElementById('add-carton-modal').style.display='none'">Cancel</button>
+                <button type="submit" class="btn btn-success">Save Carton</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Edit Modal -->
+<div id="edit-carton-modal" class="modal-overlay"
+    style="display:none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1050; align-items: center; justify-content: center;">
+    <div class="card" style="width: 100%; max-width: 500px; margin: 0;">
+        <h2>Edit Shipping Carton</h2>
+        <form id="edit-form" method="POST">
+            <div class="form-group">
+                <label class="form-label">Code (3-Letter Unique ID):</label>
+                <input type="text" id="edit-code" name="code" required maxlength="5">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Name / Label:</label>
+                <input type="text" id="edit-name" name="name" required>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <div class="form-group">
+                    <label class="form-label">Weight (lbs):</label>
+                    <input type="number" step="0.01" id="edit-weight" name="weight">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Length (in):</label>
+                    <input type="number" step="0.1" id="edit-length" name="length">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Width (in):</label>
+                    <input type="number" step="0.1" id="edit-width" name="width">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Height (in):</label>
+                    <input type="number" step="0.1" id="edit-height" name="height">
+                </div>
+            </div>
+            <div style="margin-top: 1rem; text-align: right;">
+                <button type="button" class="btn"
+                    style="background: transparent; border: 1px solid var(--border); color: var(--text-primary);"
+                    onclick="document.getElementById('edit-carton-modal').style.display='none'">Cancel</button>
+                <button type="submit" class="btn btn-info">Update Carton</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    function editCarton(code, name, weight, length, width, height) {
+        document.getElementById('edit-code').value = code;
+        document.getElementById('edit-name').value = name;
+        document.getElementById('edit-weight').value = weight;
+        document.getElementById('edit-length').value = length;
+        document.getElementById('edit-width').value = width;
+        document.getElementById('edit-height').value = height;
+
+        // Set form action dynamic path
+        document.getElementById('edit-form').action = "/shipping-cartons/edit/" + code;
+
+        document.getElementById('edit-carton-modal').style.display = 'flex';
+    }
+</script>
+{% endblock %}

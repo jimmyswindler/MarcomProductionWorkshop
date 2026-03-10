@@ -12,7 +12,6 @@ const step2 = el('step2-scan-boxes');
 const step4 = el('step4-scan-carton');
 const orderInput = el('order-id-input');
 const boxInput = el('box-barcode-input');
-const cartonInput = el('carton-input');
 const cartonStatus = el('carton-status');
 const multiModeCheckbox = el('multi-mode-checkbox');
 
@@ -61,7 +60,6 @@ function resetAll() {
     // Reset Inputs
     orderInput.value = '';
     boxInput.value = '';
-    cartonInput.value = '';
 
     // Reset Buttons
     updateButtonState(el('process-shipment-btn'), false);
@@ -467,7 +465,7 @@ function handleGlobalScan(code) {
 
     // Helper to clear command text from inputs
     const clearInputs = () => {
-        [orderInput, boxInput, cartonInput].forEach(inp => {
+        [orderInput, boxInput].forEach(inp => {
             if (inp && inp.value.toUpperCase().includes('CMD-')) inp.value = '';
         });
     };
@@ -477,8 +475,12 @@ function handleGlobalScan(code) {
         return resetAll();
     }
 
-    // Box Selection (Pattern: #123)
-    if (code.startsWith('#') || code === 'CUSTOM') {
+    // Stop early if the code is a UI Command
+    if (code.startsWith('CMD-')) {
+        // Let it fall through to the specific step command handlers below
+    }
+    // Box Selection (Pattern: #123, C05, etc.)
+    else if (code.startsWith('#') || code.startsWith('C') || code === 'CUSTOM') {
         // Only valid if we are in Step 4? 
         // Logic: if step4 is visible, we allow it.
         if (step4.style.display !== 'none') {
@@ -1009,14 +1011,14 @@ function checkProcessShipmentEligibility() {
     if (!currentShipment || !currentShipment.orders) return;
 
     const jobs = {};
-    
+
     currentShipment.orders.forEach(o => {
         (o.line_items || []).forEach(li => {
             const jt = li.job_ticket || 'Unknown';
             if (!jobs[jt]) jobs[jt] = { total: 0, scannedOrPacked: 0 };
-            
+
             jobs[jt].total += li.barcodes.length;
-            
+
             li.barcodes.forEach(b => {
                 if (b.status === 'packed' || currentShipment.scanned_barcodes.has(b.value)) {
                     jobs[jt].scannedOrPacked++;
@@ -1044,7 +1046,7 @@ function goToPackStep() {
     document.querySelectorAll('.box-btn').forEach(btn => btn.classList.remove('selected'));
 
     // Clear custom / manual inputs
-    if (cartonInput) cartonInput.value = '';
+
 
     // Reset Inline Weight UI
     if (inlineWeightSection) inlineWeightSection.style.display = 'none';
@@ -1111,13 +1113,10 @@ function backToScanning() {
 
 // Packing Logic Helpers
 function handleCartonInput(id) {
-    const validBoxes = ['#105', '#115', '#116', '#118', '#123', '#145', '#160', '#999'];
     let cleanId = id.toUpperCase().trim();
-    if (!cleanId.startsWith('#') && cleanId !== 'CUSTOM') {
-        if (validBoxes.includes('#' + cleanId)) cleanId = '#' + cleanId;
-    }
 
-    if (!validBoxes.includes(cleanId) && cleanId !== 'CUSTOM') {
+    // Check if the code exists in our dynamically loaded cartonWeights or is custom
+    if (!(cleanId in cartonWeights) && cleanId !== 'CUSTOM') {
         showStatus(cartonStatus, `INVALID BOX CODE: ${id}`, 'error');
         return;
     }
