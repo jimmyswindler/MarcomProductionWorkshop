@@ -68,19 +68,19 @@
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                 <div class="form-group">
                     <label class="form-label">Weight (lbs):</label>
-                    <input type="number" step="0.01" name="weight" value="0.0">
+                    <input type="number" step="0.01" min="0.01" name="weight" required placeholder="e.g. 0.5">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Length (in):</label>
-                    <input type="number" step="0.1" name="length" value="0">
+                    <input type="number" step="0.1" name="length" placeholder="Optional">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Width (in):</label>
-                    <input type="number" step="0.1" name="width" value="0">
+                    <input type="number" step="0.1" name="width" placeholder="Optional">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Height (in):</label>
-                    <input type="number" step="0.1" name="height" value="0">
+                    <input type="number" step="0.1" name="height" placeholder="Optional">
                 </div>
             </div>
             <div style="margin-top: 1rem; text-align: right;">
@@ -110,19 +110,19 @@
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                 <div class="form-group">
                     <label class="form-label">Weight (lbs):</label>
-                    <input type="number" step="0.01" id="edit-weight" name="weight">
+                    <input type="number" step="0.01" min="0.01" id="edit-weight" name="weight" required>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Length (in):</label>
-                    <input type="number" step="0.1" id="edit-length" name="length">
+                    <input type="number" step="0.1" id="edit-length" name="length" placeholder="Optional">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Width (in):</label>
-                    <input type="number" step="0.1" id="edit-width" name="width">
+                    <input type="number" step="0.1" id="edit-width" name="width" placeholder="Optional">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Height (in):</label>
-                    <input type="number" step="0.1" id="edit-height" name="height">
+                    <input type="number" step="0.1" id="edit-height" name="height" placeholder="Optional">
                 </div>
             </div>
             <div style="margin-top: 1rem; text-align: right;">

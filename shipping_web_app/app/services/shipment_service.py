@@ -99,9 +99,14 @@ def generate_worldship_xml(shipment_data, packages, store_number_arg=None):
         weight_raw = float(pkg.get('weight', 1.0))
         weight_str = f"{weight_raw:.2f}"
         
-        l_int = int(float(pkg.get('L', 0)))
-        w_int = int(float(pkg.get('W', 0)))
-        h_int = int(float(pkg.get('H', 0)))
+        # Handle blank/None dimensions
+        l_val = pkg.get('L')
+        w_val = pkg.get('W')
+        h_val = pkg.get('H')
+        
+        l_str = str(int(float(l_val))) if l_val is not None and l_val != '' else ""
+        w_str = str(int(float(w_val))) if w_val is not None and w_val != '' else ""
+        h_str = str(int(float(h_val))) if h_val is not None and h_val != '' else ""
 
         xml_parts.append(f"""
         <Package>
@@ -109,9 +114,9 @@ def generate_worldship_xml(shipment_data, packages, store_number_arg=None):
             <Weight>{weight_str}</Weight>
             <Reference1>{store_number_str}</Reference1>
             <Reference2>{ref2}</Reference2>
-            <Length>{l_int}</Length>
-            <Width>{w_int}</Width>
-            <Height>{h_int}</Height>
+            <Length>{l_str}</Length>
+            <Width>{w_str}</Width>
+            <Height>{h_str}</Height>
             <MerchandiseDescription>PRINTED MATERIAL</MerchandiseDescription>
         </Package>""")
 

@@ -22,17 +22,32 @@ def index():
     conn.close()
     return render_template('cartons.html', cartons=cartons)
 
+def safe_float(val):
+    if not val:
+        return None
+    try:
+        return float(val)
+    except ValueError:
+        return None
+
 @cartons_bp.route('/add', methods=['POST'])
 def add_carton():
     code = request.form.get('code', '').strip().upper()
     name = request.form.get('name', '').strip()
-    weight = request.form.get('weight', 0.0)
-    length = request.form.get('length', 0)
-    width = request.form.get('width', 0)
-    height = request.form.get('height', 0)
+    
+    weight_str = request.form.get('weight', '').strip()
+    weight = safe_float(weight_str)
+
+    length = safe_float(request.form.get('length', '').strip())
+    width = safe_float(request.form.get('width', '').strip())
+    height = safe_float(request.form.get('height', '').strip())
 
     if not code or not name:
         flash("Code and Name are required.", "error")
+        return redirect(url_for('cartons.index'))
+        
+    if weight is None or weight <= 0:
+        flash("A positive non-zero weight is required.", "error")
         return redirect(url_for('cartons.index'))
 
     conn = get_db_connection()
@@ -58,13 +73,20 @@ def add_carton():
 def edit_carton(code):
     new_code = request.form.get('code', '').strip().upper()
     name = request.form.get('name', '').strip()
-    weight = request.form.get('weight', 0.0)
-    length = request.form.get('length', 0)
-    width = request.form.get('width', 0)
-    height = request.form.get('height', 0)
+    
+    weight_str = request.form.get('weight', '').strip()
+    weight = safe_float(weight_str)
+    
+    length = safe_float(request.form.get('length', '').strip())
+    width = safe_float(request.form.get('width', '').strip())
+    height = safe_float(request.form.get('height', '').strip())
 
     if not new_code or not name:
         flash("Code and Name are required.", "error")
+        return redirect(url_for('cartons.index'))
+        
+    if weight is None or weight <= 0:
+        flash("A positive non-zero weight is required.", "error")
         return redirect(url_for('cartons.index'))
 
     conn = get_db_connection()

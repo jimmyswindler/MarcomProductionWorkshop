@@ -16,7 +16,15 @@
 
 <!-- STEP 2: SCANNING ITEMS -->
 <div id="step2-scan-boxes" style="display:none;">
-    <h1 id="scanning-header">Scanning Items</h1>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h1 id="scanning-header" style="margin: 0;">Scanning Items</h1>
+        <button id="process-shipment-btn" class="btn-composite btn-centered" disabled
+            style="width: 25%; min-height: 70px;">
+            <div class="btn-barcode"><svg id="bc-process"></svg></div>
+            <span class="btn-text">Process Shipment</span>
+        </button>
+    </div>
+
     <div id="order-status-display"
         style="display:none; margin-bottom: 15px; font-size: 1.2em; padding: 10px; border-radius: 4px; text-align: center;">
     </div>
@@ -42,16 +50,6 @@
 
     <!-- Commands -->
     <div class="btn-stack">
-        <button id="process-shipment-btn" class="btn-composite" disabled>
-            <span class="btn-text">Process Shipment</span>
-            <div class="btn-barcode"><svg id="bc-process"></svg></div>
-        </button>
-
-        <button id="add-order-btn" class="btn-composite" disabled>
-            <span class="btn-text">Add Another Job</span>
-            <div class="btn-barcode"><svg id="bc-add"></svg></div>
-        </button>
-
         <button id="cancel-btn" class="btn-composite active-danger">
             <span class="btn-text">Cancel & Reset</span>
             <div class="btn-barcode"><svg id="bc-cancel"></svg></div>
@@ -63,10 +61,18 @@
 
 <!-- STEP 4: PACK SHIPMENT -->
 <div id="step4-scan-carton" style="display:none;">
-    <div style="display: flex; align-items: baseline; gap: 15px;">
-        <h1 style="margin-bottom: 5px;">Pack Shipment</h1>
-        <span class="instruction" style="font-size: 0.9em; color: #555;">Scan a carton to select it. Then scan "Finish
-            Shipment"</span>
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
+        <div style="display: flex; flex-direction: column; gap: 5px;">
+            <h1 style="margin: 0;">Pack Shipment</h1>
+            <span class="instruction" style="font-size: 0.9em; color: #555;">Scan a carton to select it. Then scan
+                "Finish
+                Shipment"</span>
+        </div>
+        <button id="finish-shipment-btn" class="btn-composite btn-centered" disabled
+            style="width: 25%; min-height: 70px; margin: 0;">
+            <div class="btn-barcode"><svg id="bc-finish"></svg></div>
+            <span class="btn-text">Finish Shipment</span>
+        </button>
     </div>
 
     <div id="unknown-weight-warning" style="display:none;"></div>
@@ -104,13 +110,6 @@
                 <button id="inline-weight-cancel-btn" class="btn-warn-solid" style="padding: 10px;">Cancel</button>
             </div>
         </div>
-        <hr class="spacer">
-        <button id="finish-shipment-btn" class="btn-composite btn-centered" disabled
-            style="width: 100%; margin-bottom: 0px;">
-            <div class="btn-barcode"><svg id="bc-finish"></svg></div>
-            <span class="btn-text">Finish Shipment</span>
-        </button>
-
         <hr class="spacer">
 
         <div class="button-row">

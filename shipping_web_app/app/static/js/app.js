@@ -64,6 +64,14 @@ function resetAll() {
     // Reset Buttons
     updateButtonState(el('process-shipment-btn'), false);
 
+    // Reset Pack Modes
+    if (multiModeCheckbox) multiModeCheckbox.checked = false;
+    if (el('multi-mode-text')) el('multi-mode-text').textContent = "Enable Multi-Carton Mode";
+    if (el('toggle-multi-btn')) el('toggle-multi-btn').classList.remove('active-info');
+
+    if (el('custom-box-section')) el('custom-box-section').style.display = 'none';
+    if (el('custom-mode-text')) el('custom-mode-text').textContent = "Use Custom Box";
+
     // Focus
     orderInput.focus();
 }
@@ -250,14 +258,13 @@ window.addEventListener('mousedown', updateCapsLockIndicator);
 
 function initBarcodes() {
     const cmds = [
-        { id: "#bc-process", val: "CMD-PROCESS" },
-        { id: "#bc-add", val: "CMD-ADD-CL" },
-        { id: "#bc-cancel", val: "CMD-CANCEL-ORDER" },
-        { id: "#bc-finish", val: "CMD-FINISH-SHIP" },
-        { id: "#bc-multi", val: "CMD-TOGGLE-MULTI" },
-        { id: "#bc-custom", val: "CMD-TOGGLE-CUSTOM" },
-        { id: "#bc-back-step4", val: "CMD-BACK-SCAN" },
-        { id: "#bc-cancel-step4", val: "CMD-CANCEL-ORDER" }
+        { id: "#bc-process", val: "#PROC" },
+        { id: "#bc-cancel", val: "#CANC" },
+        { id: "#bc-finish", val: "#FIN" },
+        { id: "#bc-multi", val: "#MULT" },
+        { id: "#bc-custom", val: "#CUST" },
+        { id: "#bc-back-step4", val: "#BACK" },
+        { id: "#bc-cancel-step4", val: "#CANC" }
     ];
     cmds.forEach(c => {
         try { JsBarcode(c.id, c.val.toUpperCase(), { format: "CODE128", width: 2.2, height: 40, displayValue: false, margin: 0 }); }
@@ -343,14 +350,18 @@ function initListeners() {
                 showStatus(el('box-scan-status'), 'Tracking number ignored.', 'warn');
                 boxInput.value = ''; return;
             }
-            if (val.toUpperCase().includes('CMD-')) {
+            if (val.toUpperCase().startsWith('#')) {
                 // Let global handler pick it up, just clear input
                 boxInput.value = '';
                 return;
             }
 
-            if (appMode === 'SCANNING_BOXES') processBoxScan(val);
-            else fetchAndCompareOrder(val);
+            // Check if it's an expected barcode
+            if (currentShipment && currentShipment.all_expected_barcodes.includes(val)) {
+                processBoxScan(val);
+            } else {
+                fetchAndCompareOrder(val);
+            }
         }
     });
 
@@ -359,31 +370,9 @@ function initListeners() {
         if (!el('process-shipment-btn').disabled) goToPackStep();
     });
     el('cancel-btn').addEventListener('click', resetAll);
-    el('add-order-btn').addEventListener('click', () => {
-        if (appMode === 'SCANNING_BOXES') {
-            appMode = 'SCANNING_ORDER';
-            el('add-order-btn').querySelector('.btn-text').textContent = 'Cancel Adding Job';
-            el('add-order-btn').classList.replace('active-blue', 'active-danger');
-            boxInput.placeholder = 'Scan another Job Ticket to combine...';
-            showStatus(el('box-scan-status'), 'Ready to scan new Order/Job Ticket', 'info');
-            boxInput.value = '';
-            boxInput.focus();
-        } else {
-            // Cancel adding order
-            appMode = 'SCANNING_BOXES';
-            el('add-order-btn').querySelector('.btn-text').textContent = 'Add Another Job';
-            el('add-order-btn').classList.replace('active-danger', 'active-blue');
-            boxInput.placeholder = 'Scan item...';
-            showStatus(el('box-scan-status'), 'Cancelled adding job', 'info');
-            boxInput.value = '';
-            boxInput.focus();
-        }
-    });
-
-    // 5. Buttons - Step 4
     el('finish-shipment-btn').addEventListener('click', finalizeShipment);
-    el('toggle-multi-btn').addEventListener('click', () => handleGlobalScan('CMD-TOGGLE-MULTI'));
-    el('toggle-custom-btn').addEventListener('click', () => handleGlobalScan('CMD-TOGGLE-CUSTOM'));
+    el('toggle-multi-btn').addEventListener('click', () => handleGlobalScan('#MULT'));
+    el('toggle-custom-btn').addEventListener('click', () => handleGlobalScan('#CUST'));
 
     // New Step 4 Navigation Buttons
     if (el('back-to-scan-btn')) {
@@ -450,8 +439,6 @@ function initListeners() {
 
             // Reset state
             appMode = 'SCANNING_BOXES';
-            el('add-order-btn').querySelector('.btn-text').textContent = 'Add Another Job';
-            el('add-order-btn').classList.replace('active-danger', 'active-blue');
             boxInput.placeholder = 'Scan item...';
 
             boxInput.value = ''; boxInput.focus();
@@ -466,17 +453,17 @@ function handleGlobalScan(code) {
     // Helper to clear command text from inputs
     const clearInputs = () => {
         [orderInput, boxInput].forEach(inp => {
-            if (inp && inp.value.toUpperCase().includes('CMD-')) inp.value = '';
+            if (inp && inp.value.toUpperCase().startsWith('#')) inp.value = '';
         });
     };
 
-    if (code === 'CMD-CANCEL-ORDER') {
+    if (code === '#CANC') {
         clearInputs();
         return resetAll();
     }
 
     // Stop early if the code is a UI Command
-    if (code.startsWith('CMD-')) {
+    if (code.startsWith('#PROC') || code.startsWith('#FIN') || code.startsWith('#MULT') || code.startsWith('#CUST') || code.startsWith('#BACK')) {
         // Let it fall through to the specific step command handlers below
     }
     // Box Selection (Pattern: #123, C05, etc.)
@@ -491,7 +478,7 @@ function handleGlobalScan(code) {
 
     // Step 2 Commands
     if (step2.style.display !== 'none') {
-        if (code === 'CMD-PROCESS') {
+        if (code === '#PROC') {
             clearInputs();
             if (!el('process-shipment-btn').disabled) goToPackStep();
             return;
@@ -500,12 +487,12 @@ function handleGlobalScan(code) {
 
     // Step 4 Commands
     if (step4.style.display !== 'none') {
-        if (code === 'CMD-FINISH-SHIP') {
+        if (code === '#FIN') {
             clearInputs();
             if (!el('finish-shipment-btn').disabled) finalizeShipment();
             return;
         }
-        if (code === 'CMD-TOGGLE-MULTI') {
+        if (code === '#MULT') {
             clearInputs();
             multiModeCheckbox.click();
             el('multi-mode-text').textContent = multiModeCheckbox.checked ? "Disable Multi-Carton Mode" : "Enable Multi-Carton Mode";
@@ -519,7 +506,7 @@ function handleGlobalScan(code) {
             showStatus(el('carton-status'), "Selection cleared due to mode switch.", 'info');
             return;
         }
-        if (code === 'CMD-TOGGLE-CUSTOM') {
+        if (code === '#CUST') {
             clearInputs();
             const customSec = el('custom-box-section');
             const isVisible = customSec.style.display !== 'none';
@@ -538,7 +525,7 @@ function handleGlobalScan(code) {
             }
             return;
         }
-        if (code === 'CMD-BACK-SCAN') {
+        if (code === '#BACK') {
             clearInputs();
             backToScanning();
             return;
@@ -566,18 +553,7 @@ async function fetchOrderData(id) {
         };
 
         // Populate weights map
-        if (data.line_items) {
-            data.line_items.forEach(li => {
-                li.barcodes.forEach(bc => {
-                    if (bc.unknown_weight || bc.estimated_weight === null || bc.estimated_weight === undefined || bc.estimated_weight === 0) {
-                        currentShipment.unknownWeights.add(bc.value);
-                        currentShipment.boxWeights[bc.value] = 0; // Explicitly 0 for unknown
-                    } else {
-                        currentShipment.boxWeights[bc.value] = bc.estimated_weight;
-                    }
-                });
-            });
-        }
+        populateOrderWeights(data);
 
         setupStep2();
 
@@ -629,8 +605,6 @@ async function fetchAndCompareOrder(newId) {
 
             // Reset state back to scanning boxes
             appMode = 'SCANNING_BOXES';
-            el('add-order-btn').querySelector('.btn-text').textContent = 'Add Another Job';
-            el('add-order-btn').classList.replace('active-danger', 'active-blue');
             boxInput.placeholder = 'Scan item...';
         }
 
@@ -657,6 +631,9 @@ function mergeNewOrder(newOrder) {
     // Add to currentShipment
     currentShipment.orders.push(newOrder);
 
+    // Ensure weights are populated for the newly merged order
+    populateOrderWeights(newOrder);
+
     // Add expected barcodes
     // (Make sure to avoid duplicates if re-scanning same order)
     newOrder.expected_barcodes.forEach(bc => {
@@ -670,6 +647,21 @@ function mergeNewOrder(newOrder) {
     showStatus(el('box-scan-status'), `Order ${newOrder.order_number} added!`, 'success');
     boxInput.value = ''; boxInput.focus();
     tempNewOrderData = null;
+}
+
+function populateOrderWeights(orderData) {
+    if (orderData.line_items) {
+        orderData.line_items.forEach(li => {
+            li.barcodes.forEach(bc => {
+                if (bc.unknown_weight || bc.estimated_weight === null || bc.estimated_weight === undefined || bc.estimated_weight === 0) {
+                    currentShipment.unknownWeights.add(bc.value);
+                    currentShipment.boxWeights[bc.value] = 0; // Explicitly 0 for unknown
+                } else {
+                    currentShipment.boxWeights[bc.value] = bc.estimated_weight;
+                }
+            });
+        });
+    }
 }
 
 function setupStep2() {
@@ -1035,7 +1027,7 @@ function checkProcessShipmentEligibility() {
     });
 
     const canProcess = anyComplete && !anyPartial;
-    updateButtonState(el('process-shipment-btn'), canProcess, 'active-blue');
+    updateButtonState(el('process-shipment-btn'), canProcess, 'active-success');
 }
 
 function goToPackStep() {
@@ -1058,6 +1050,14 @@ function goToPackStep() {
     if (el('custom-W')) el('custom-W').value = '';
     if (el('custom-H')) el('custom-H').value = '';
     if (el('custom-Weight')) el('custom-Weight').value = '';
+
+    // Reset Pack Modes
+    if (multiModeCheckbox) multiModeCheckbox.checked = false;
+    if (el('multi-mode-text')) el('multi-mode-text').textContent = "Enable Multi-Carton Mode";
+    if (el('toggle-multi-btn')) el('toggle-multi-btn').classList.remove('active-info');
+
+    if (el('custom-box-section')) el('custom-box-section').style.display = 'none';
+    if (el('custom-mode-text')) el('custom-mode-text').textContent = "Use Custom Box";
 
     // Calculate Weight
     let totalW = 0.0;
@@ -1112,6 +1112,11 @@ function backToScanning() {
 }
 
 // Packing Logic Helpers
+function getReadableCartonName(code) {
+    if (code === 'CUSTOM') return 'Custom Box';
+    const btn = document.getElementById(`btn-box-${code}`);
+    return btn ? btn.querySelector('.btn-text').innerText : code;
+}
 function handleCartonInput(id) {
     let cleanId = id.toUpperCase().trim();
 
@@ -1140,14 +1145,14 @@ function handleCartonInput(id) {
     if (multiModeCheckbox.checked || hasUnknownWeights) {
         // Show inline weight entry
         pendingInlineCartonId = cleanId;
-        inlineWeightHeader.innerText = `Enter Weight for Box ${cleanId}`;
+        inlineWeightHeader.innerText = `Enter Weight for ${getReadableCartonName(cleanId)}`;
         inlineWeightSection.style.display = 'block';
         inlineWeightInput.value = '';
         inlineWeightInput.focus();
     } else {
         // Single Mode with known weights
         const cartonDbWeight = cartonWeights[cleanId] || 0;
-        packageList = [{ id: cleanId, weight: finalW + cartonDbWeight, cartonWeight: cartonDbWeight }];
+        packageList = [{ id: cleanId, name: getReadableCartonName(cleanId), weight: finalW + cartonDbWeight, cartonWeight: cartonDbWeight }];
         renderPackedList();
     }
 }
@@ -1157,10 +1162,11 @@ function handleInlineWeightConfirm() {
 
     const w = inlineWeightInput.value;
     if (w && !isNaN(w) && parseFloat(w) > 0) {
+        const readableName = getReadableCartonName(pendingInlineCartonId);
         if (multiModeCheckbox.checked) {
-            packageList.push({ id: pendingInlineCartonId, weight: parseFloat(w) });
+            packageList.push({ id: pendingInlineCartonId, name: readableName, weight: parseFloat(w) });
         } else {
-            packageList = [{ id: pendingInlineCartonId, weight: parseFloat(w) }]; // Replace in single-carton mode
+            packageList = [{ id: pendingInlineCartonId, name: readableName, weight: parseFloat(w) }]; // Replace in single-carton mode
         }
 
         // Hide and reset inline section
@@ -1187,7 +1193,7 @@ function addCustomCarton() {
     const Weight = parseFloat(el('custom-Weight').value);
 
     if (L && W && H && Weight) {
-        const pkg = { id: 'CUSTOM', L, W, H, weight: Weight };
+        const pkg = { id: 'CUSTOM', name: 'Custom Box', L, W, H, weight: Weight };
         if (multiModeCheckbox.checked) packageList.push(pkg);
         else packageList = [pkg]; // Replace
         renderPackedList();
@@ -1204,7 +1210,7 @@ function renderPackedList() {
     const summaryDisplay = el('shipment-summary-display');
 
     if (multiModeCheckbox.checked) {
-        div.innerHTML = packageList.map(p => `<span>${p.id} (${p.weight.toFixed(2)}lbs)</span>`).join(', ');
+        div.innerHTML = packageList.map(p => `<span>${p.name || p.id} (${p.weight.toFixed(2)}lbs)</span>`).join(', ');
 
         let totalCartonWeights = 0;
         packageList.forEach(p => totalCartonWeights += p.weight);
@@ -1231,7 +1237,7 @@ function renderPackedList() {
             let cWeight = p.cartonWeight !== undefined ? p.cartonWeight : (p.weight - itemSum);
             if (cWeight < 0) cWeight = 0;
             cartonSum += cWeight;
-            breakdownHtml += `<li>Carton ${p.id} ${(cWeight).toFixed(2)} lbs</li>`;
+            breakdownHtml += `<li>Carton ${p.name || p.id} ${(cWeight).toFixed(2)} lbs</li>`;
         });
 
         breakdownHtml += '</ul>';
