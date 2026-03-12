@@ -8,9 +8,22 @@
 </div>
 
 <div class="table-container">
-    <table id="exceptionsTable">
+    <form id="bulkForm" action="/exceptions/bulk_fix" method="POST">
+        <!-- Bulk Actions Bar -->
+        <div id="bulkActionBar" style="display: none; background: var(--bg-card); border: 1px solid var(--border); padding: 1rem; margin-bottom: 1rem; border-radius: 6px; align-items: center; justify-content: space-between;">
+            <div>
+                <span id="selectedCount" style="font-weight: bold; color: var(--accent);">0</span> orders selected
+            </div>
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                <input type="text" name="store_number" placeholder="Enter Store # (e.g. 0237)" style="padding: 0.4rem; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-main); color: var(--text-primary);">
+                <button type="submit" class="btn btn-sm" style="background-color: var(--success); color: white;">Apply Address Book to Selected</button>
+            </div>
+        </div>
+
+    <table id="exceptionsTable" data-default-sort="order" data-default-sort-dir="asc">
         <thead class="sticky-th">
             <tr>
+                <th style="width: 40px; text-align: center;"><input type="checkbox" id="selectAll"></th>
                 <th class="sortable" data-sort="order">Order</th>
                 <th class="sortable" data-sort="store">Store</th>
                 <th class="sortable" data-sort="date">Date</th>
@@ -23,6 +36,7 @@
         <tbody>
             {% for order in orders %}
             <tr>
+                <td style="text-align: center;"><input type="checkbox" name="order_numbers" value="{{ order.order_number }}" class="row-checkbox"></td>
                 <td data-sort-val="{{ order.order_number }}">{{ order.order_number }}</td>
                 <td data-sort-val="{{ order.store_number or '' }}">{{ order.store_number or '--' }}</td>
                 <td data-sort-val="{{ order.order_date }}">
@@ -54,120 +68,42 @@
             </tr>
             {% else %}
             <tr>
-                <td colspan="7" style="text-align: center; padding: 2rem; color: var(--text-secondary);">No
+                <td colspan="8" style="text-align: center; padding: 2rem; color: var(--text-secondary);">No
                     exceptions found. Great job!</td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
+    </form>
 </div>
-
-<style>
-    th.sortable {
-        cursor: pointer;
-        user-select: none;
-    }
-
-    th.sortable:hover {
-        background-color: var(--bg-hover);
-    }
-
-    th.sort-asc,
-    th.sort-desc {
-        text-decoration: underline;
-        text-underline-offset: 4px;
-        text-decoration-thickness: 2px;
-        text-decoration-color: var(--primary-color);
-    }
-</style>
 
 <script>
     document.addEventListener('DOMContentLoaded', () => {
-        const table = document.getElementById('exceptionsTable');
-        if (!table) return;
+        // Bulk Actions Logic
+        const selectAllCheckbox = document.getElementById('selectAll');
+        const rowCheckboxes = document.querySelectorAll('.row-checkbox');
+        const bulkActionBar = document.getElementById('bulkActionBar');
+        const selectedCountSpan = document.getElementById('selectedCount');
 
-        const headers = table.querySelectorAll('th.sortable');
-        const tbody = table.querySelector('tbody');
-
-        // Default to Order column ascending
-        let currentSortColumn = 'order';
-        let currentSortAsc = true;
-
-        // Initial UI Setup for default sort
-        headers.forEach(h => {
-            if (h.dataset.sort === currentSortColumn) {
-                h.classList.add('sort-asc');
-            }
-        });
-
-        const sortTable = (column, asc) => {
-            const rows = Array.from(tbody.querySelectorAll('tr'));
-
-            // Don't sort if it's the "No exceptions" empty row
-            if (rows.length === 1 && rows[0].querySelector('td[colspan]')) return;
-
-            // Get index of the column we are sorting
-            let colIndex = -1;
-            headers.forEach((h, index) => {
-                if (h.dataset.sort === column) colIndex = index;
-            });
-            if (colIndex === -1) return;
-
-            rows.sort((a, b) => {
-                const cellA = a.querySelectorAll('td')[colIndex];
-                const cellB = b.querySelectorAll('td')[colIndex];
-
-                // Try to get data attribute first, fallback to text content
-                let valA = cellA.dataset.sortVal !== undefined ? cellA.dataset.sortVal : cellA.textContent.trim();
-                let valB = cellB.dataset.sortVal !== undefined ? cellB.dataset.sortVal : cellB.textContent.trim();
-
-                // Special handling if they look like numbers or dates
-                if (!isNaN(Date.parse(valA)) && !isNaN(Date.parse(valB))) {
-                    valA = Date.parse(valA);
-                    valB = Date.parse(valB);
-                } else if (!isNaN(valA) && !isNaN(valB)) {
-                    valA = Number(valA);
-                    valB = Number(valB);
-                } else {
-                    valA = String(valA).toLowerCase();
-                    valB = String(valB).toLowerCase();
-                }
-
-                if (valA < valB) return asc ? -1 : 1;
-                if (valA > valB) return asc ? 1 : -1;
-                return 0;
-            });
-
-            // Re-append sorted rows
-            rows.forEach(row => tbody.appendChild(row));
+        const updateBulkBar = () => {
+             const selectedCount = document.querySelectorAll('.row-checkbox:checked').length;
+             selectedCountSpan.textContent = selectedCount;
+             if (selectedCount > 0) {
+                 bulkActionBar.style.display = 'flex';
+             } else {
+                 bulkActionBar.style.display = 'none';
+             }
         };
 
-        // Sort default on load
-        sortTable(currentSortColumn, currentSortAsc);
-
-        // Event listeners
-        headers.forEach(header => {
-            header.addEventListener('click', () => {
-                const column = header.dataset.sort;
-
-                if (currentSortColumn === column) {
-                    // Toggle direction
-                    currentSortAsc = !currentSortAsc;
-                } else {
-                    // New column, default to ascending
-                    currentSortColumn = column;
-                    currentSortAsc = true;
-                }
-
-                // Update classes
-                headers.forEach(h => {
-                    h.classList.remove('sort-asc', 'sort-desc');
-                });
-                header.classList.add(currentSortAsc ? 'sort-asc' : 'sort-desc');
-
-                // Perform sort
-                sortTable(currentSortColumn, currentSortAsc);
+        if (selectAllCheckbox) {
+            selectAllCheckbox.addEventListener('change', (e) => {
+                rowCheckboxes.forEach(cb => cb.checked = e.target.checked);
+                updateBulkBar();
             });
+        }
+
+        rowCheckboxes.forEach(cb => {
+            cb.addEventListener('change', updateBulkBar);
         });
     });
 </script>

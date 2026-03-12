@@ -127,21 +127,27 @@ def process_sheet_downloads(df, files_path, sheet_name):
                 file_base = sanitize_filename(job_num)
                 filename = f"{file_base}.pdf"
                 
-                order_item_id = row.get('order_item_id')
-                if order_item_id:
-                    # Update Item
-                    cur.execute("UPDATE items SET print_filename = %s WHERE order_item_id = %s", (filename, order_item_id))
+                order_item_id_raw = row.get('order_item_id')
+                if pd.notna(order_item_id_raw) and order_item_id_raw:
+                    # Clean up order_item_id which might have '.0' due to pandas floats
+                    order_item_id = str(order_item_id_raw).replace('.0', '')
                     
-                    # Also Update Job? 
-                    # If multiple items map to same job (e.g. suffixes), last one wins? 
-                    # Or jobs table 'print_filename' is for single-job. 
-                    # We will update items primarily.
-                    updates_count += 1
-            
-            conn.commit()
+                    if not getattr(sys.modules['__main__'].args, 'dry_run', False):
+                        # Update Item with explicit text cast for safety
+                        cur.execute("UPDATE items SET print_filename = %s WHERE order_item_id::text = %s", (filename, order_item_id))
+                        updates_count += 1
+                    else:
+                        updates_count += 1 # Count it for logging purposes in dry run
+
+            if not getattr(sys.modules['__main__'].args, 'dry_run', False):
+                conn.commit()
+                utils_ui.print_success(f"Updated DB with filenames for {updates_count} items.")
+            else:
+                conn.rollback()
+                utils_ui.print_info(f"[DRY RUN] Would have updated DB filenames for {updates_count} items.")
+                
             cur.close()
             conn.close()
-            utils_ui.print_success(f"Updated DB with filenames for {updates_count} items.")
     except Exception as db_e:
         utils_ui.print_error(f"Failed to update DB filenames: {db_e}")
 
@@ -177,6 +183,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="40a - Acquire Job Assets")
     parser.add_argument("input_excel_path", help="Input Excel")
     parser.add_argument("files_base_folder", help="Files Output Base")
+    parser.add_argument("--dry_run", action="store_true", help="Skip DB commits")
     args = parser.parse_args()
 
     main(args.input_excel_path, args.files_base_folder)

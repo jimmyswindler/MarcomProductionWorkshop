@@ -14,13 +14,15 @@ def load_config():
     with open(os.path.join(project_root, 'config', 'config.yaml'), 'r') as f:
         return yaml.safe_load(f)
 
-def fetch_ready_jobs(conn):
+def fetch_ready_jobs(conn, dry_run=False, start_date=None, end_date=None):
     cur = get_real_dict_cursor(conn)
     
     # Query: Join Jobs, Orders, Items to get a flat list per Item
-    # We filter by production_status = 'READY'
+    # We filter by production_status = 'READY' (or 'NEW' for dry run testing)
     
-    query = """
+    where_status = "'READY'" if not dry_run else "'NEW' AND o.address_validation_status IN ('VALID', 'AUTO_CORRECTED', 'MANUALLY_CORRECTED', 'ADDRESS_BOOK_VERIFIED')"
+    
+    query = f"""
         SELECT 
             j.id as job_id_db,
             j.job_ticket_number,
@@ -55,9 +57,19 @@ def fetch_ready_jobs(conn):
         FROM jobs j
         JOIN orders o ON j.order_id = o.id
         JOIN items i ON i.job_id = j.id
-        WHERE j.production_status = 'READY'
+        WHERE j.production_status = {where_status}
     """
-    cur.execute(query)
+    
+    query_params = []
+    if dry_run:
+        if start_date:
+            query += " AND DATE(o.order_date) >= %s"
+            query_params.append(start_date)
+        if end_date:
+            query += " AND DATE(o.order_date) <= %s"
+            query_params.append(end_date)
+            
+    cur.execute(query, tuple(query_params) if query_params else None)
     rows = cur.fetchall()
     cur.close()
     return rows
@@ -82,6 +94,10 @@ def fetch_boxes_for_item(conn, order_item_id):
 def main():
     parser = argparse.ArgumentParser(description="DB Input Adapter for Pipeline")
     parser.add_argument("--output", required=True, help="Path to output Excel file")
+    parser.add_argument("--dry_run", action="store_true", help="Run without changing DB status")
+    parser.add_argument("--start_date", type=str, help="Start date for filtering in dry run", default=None)
+    parser.add_argument("--end_date", type=str, help="End date for filtering in dry run", default=None)
+    
     args = parser.parse_args()
     
     conn = get_db_connection()
@@ -89,11 +105,11 @@ def main():
         print("DB Connection Failed")
         sys.exit(1)
         
-    print("Fetching READY jobs...")
-    rows = fetch_ready_jobs(conn)
+    print(f"Fetching {'NEW' if args.dry_run else 'READY'} jobs...")
+    rows = fetch_ready_jobs(conn, dry_run=args.dry_run, start_date=args.start_date, end_date=args.end_date)
     
     if not rows:
-        print("No READY jobs found.")
+        print(f"No {'NEW' if args.dry_run else 'READY'} jobs found.")
         # Create empty DF with expected columns to prevent pipeline crash?
         # Or just exit status 0 but empty file?
         # Pipeline controller checks if file exists usually.
@@ -122,14 +138,17 @@ def main():
         # Update Status to IN_PROCESS
         job_ids = list(set([r['job_id_db'] for r in rows]))
         if job_ids:
-            cur = conn.cursor()
-            cur.execute("""
-                UPDATE jobs 
-                SET production_status = 'IN_PROCESS' 
-                WHERE id IN %s
-            """, (tuple(job_ids),))
-            conn.commit()
-            print(f"Updated {len(job_ids)} jobs to IN_PROCESS.")
+            if not args.dry_run:
+                cur = conn.cursor()
+                cur.execute("""
+                    UPDATE jobs 
+                    SET production_status = 'IN_PROCESS' 
+                    WHERE id IN %s
+                """, (tuple(job_ids),))
+                conn.commit()
+                print(f"Updated {len(job_ids)} jobs to IN_PROCESS.")
+            else:
+                print(f"[DRY RUN] Would have updated {len(job_ids)} jobs to IN_PROCESS.")
 
     # Save to Excel
     print(f"Saving to {args.output}")

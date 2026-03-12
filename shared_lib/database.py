@@ -135,6 +135,18 @@ def init_db(conn):
             );
         """)
 
+        # Address Aliases Table (Address Correction Memory)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS address_aliases (
+                id SERIAL PRIMARY KEY,
+                original_address1 TEXT,
+                original_zip TEXT,
+                store_number TEXT REFERENCES address_book(store_number),
+                created_at TIMESTAMP DEFAULT NOW(),
+                UNIQUE(original_address1, original_zip)
+            );
+        """)
+
 
         # --- 2. MIGRATIONS (Add Columns if Missing) ---
         

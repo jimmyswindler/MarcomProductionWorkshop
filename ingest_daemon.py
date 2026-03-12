@@ -36,8 +36,20 @@ def run_ingest(input_dir):
             logging.error(f"Ingest script failed with code {result.returncode}")
         else:
             logging.info("Ingest script completed successfully.")
+            
+            # Trigger Background Validation Queue
+            validator_path = os.path.join(project_root, 'process_address_validation.py')
+            if os.path.exists(validator_path):
+                logging.info("Triggering process_address_validation.py...")
+                v_cmd = [sys.executable, validator_path]
+                v_result = subprocess.run(v_cmd, stdout=sys.stdout, stderr=sys.stderr)
+                if v_result.returncode != 0:
+                    logging.error(f"Validator script failed with code {v_result.returncode}")
+                else:
+                    logging.info("Validator script completed successfully.")
+                    
     except Exception as e:
-        logging.error(f"Failed to execute ingest script: {e}")
+        logging.error(f"Failed to execute scripts: {e}")
 
 def has_xml_files(input_dir):
     try:

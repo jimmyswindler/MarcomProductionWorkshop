@@ -111,6 +111,20 @@ def fix_exception(order_number):
                     book_entry['city'], book_entry['state'], book_entry['zip'],
                     details, order_number
                 ))
+                
+                # Insert into address_aliases for future memory
+                cur.execute("SELECT address1, zip FROM orders WHERE order_number = %s", (order_number,))
+                orig_order = cur.fetchone()
+                if orig_order and orig_order['address1'] and orig_order['zip']:
+                    orig_zip_5 = orig_order['zip'][:5]
+                    try:
+                        cur.execute("""
+                            INSERT INTO address_aliases (original_address1, original_zip, store_number)
+                            VALUES (%s, %s, %s) ON CONFLICT DO NOTHING
+                        """, (orig_order['address1'], orig_zip_5, store_key))
+                    except Exception as e:
+                        print(f"Failed to insert alias: {e}")
+
                 conn.commit()
                 flash(f'Order {order_number} corrected using Store #{store_key}.', 'success')
             else:
@@ -129,14 +143,75 @@ def fix_exception(order_number):
          order['store_number'] = str(order['store_number']).zfill(4)
 
     guessed_store = order.get('store_number')
-    if not guessed_store:
-        match = re.search(r'#(\d+)', order.get('ship_to_company', ''))
-        if match: 
-            guessed_store = match.group(1)
-    
     if guessed_store and str(guessed_store).isdigit():
         guessed_store = str(guessed_store).zfill(4)
 
     cur.close()
     conn.close()
     return render_template('fix_exception.html', order=order, guessed_store=guessed_store)
+
+@address_issues_bp.route('/exceptions/bulk_fix', methods=['POST'])
+def bulk_fix_exception():
+    conn = get_db()
+    cur = get_real_dict_cursor(conn)
+    
+    order_numbers = request.form.getlist('order_numbers')
+    store_key = request.form.get('store_number', '').strip()
+    
+    if store_key.isdigit(): 
+        store_key = store_key.zfill(4)
+        
+    if not order_numbers or not store_key:
+        flash('Must select orders and provide a store number.', 'danger')
+        return redirect(url_for('address_issues.exceptions'))
+
+    cur.execute("SELECT * FROM address_book WHERE store_number = %s", (store_key,))
+    book_entry = cur.fetchone()
+    
+    if not book_entry:
+        flash(f'Store #{store_key} not found in Address Book.', 'danger')
+        return redirect(url_for('address_issues.exceptions'))
+
+    success_count = 0
+    for order_number in order_numbers:
+        # Get original order address
+        cur.execute("SELECT address1, zip FROM orders WHERE order_number = %s", (order_number,))
+        orig_order = cur.fetchone()
+        
+        sql = """
+            UPDATE orders SET
+                address1 = %s, address2 = %s, address3 = %s,
+                city = %s, state = %s, zip = %s, country = 'US',
+                address_validated = TRUE,
+                address_validation_status = 'MANUALLY_CORRECTED',
+                address_validation_details = %s,
+                store_number = %s
+            WHERE order_number = %s
+        """
+        details = json.dumps({'msg': 'Bulk Applied from Address Book via Admin UI', 'store_number': store_key})
+        cur.execute(sql, (
+            book_entry['address1'], book_entry['address2'], book_entry['address3'],
+            book_entry['city'], book_entry['state'], book_entry['zip'],
+            details, store_key, order_number
+        ))
+        
+        # Save Alias
+        if orig_order and orig_order['address1'] and orig_order['zip']:
+            orig_zip_5 = orig_order['zip'][:5]
+            try:
+                cur.execute("""
+                    INSERT INTO address_aliases (original_address1, original_zip, store_number)
+                    VALUES (%s, %s, %s) ON CONFLICT DO NOTHING
+                """, (orig_order['address1'], orig_zip_5, store_key))
+            except Exception:
+                pass
+                
+        success_count += 1
+
+    conn.commit()
+    cur.close()
+    conn.close()
+    
+    flash(f'Successfully fixed {success_count} orders using Store #{store_key}.', 'success')
+    return redirect(url_for('address_issues.exceptions'))
+

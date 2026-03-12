@@ -13,34 +13,67 @@ def production_review():
     conn = get_db()
     cur = get_real_dict_cursor(conn)
     
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+
     page = request.args.get('page', 1, type=int)
-    per_page = 250
+    # If a date filter is applied, show all results on one page for easy submission
+    per_page = 10000 if (start_date or end_date) else 250
     offset = (page - 1) * per_page
+    
+
 
     where_clause = """
         WHERE j.production_status = 'NEW'
-          AND o.address_validation_status IN ('VALID', 'AUTO_CORRECTED', 'MANUALLY_CORRECTED')
+          AND o.address_validation_status IN ('VALID', 'AUTO_CORRECTED', 'MANUALLY_CORRECTED', 'ADDRESS_BOOK_VERIFIED')
     """
+    
+    query_params = []
+    date_where = ""
+    date_params = []
+    
+    if start_date:
+        where_clause += " AND DATE(o.order_date) >= %s"
+        query_params.append(start_date)
+        date_where += " AND DATE(order_date) >= %s"
+        date_params.append(start_date)
+    if end_date:
+        where_clause += " AND DATE(o.order_date) <= %s"
+        query_params.append(end_date)
+        date_where += " AND DATE(order_date) <= %s"
+        date_params.append(end_date)
     
     # Metrics query (unchanged)
     cur.execute(f"""
         SELECT 
             COUNT(DISTINCT o.id) as total_orders,
-            COUNT(j.id) as total_jobs,
-            SUM(i.quantity_ordered) as total_items
+            COUNT(DISTINCT j.id) as total_jobs,
+            COUNT(i.id) as total_line_items
         FROM jobs j
         JOIN orders o ON j.order_id = o.id
         LEFT JOIN items i ON i.job_id = j.id
         {where_clause}
-    """)
+    """, tuple(query_params))
     metrics = cur.fetchone()
     if not metrics:
-        metrics = {'total_orders': 0, 'total_jobs': 0, 'total_items': 0}
+        metrics = {'total_orders': 0, 'total_jobs': 0, 'total_line_items': 0}
     else:
         metrics = dict(metrics)
-        if metrics['total_items'] is None: metrics['total_items'] = 0
+
+    # Fetch extra stats for the dynamic UI
+    # 1. Pending Address Validation
+    cur.execute(f"SELECT COUNT(*) as count FROM orders WHERE address_validation_status = 'PENDING'{date_where}", tuple(date_params))
+    pending_count = cur.fetchone()['count']
+    
+    # 2. Address Exceptions (INVALID, AMBIGUOUS, EXCEPTION)
+    cur.execute(f"SELECT COUNT(*) as count FROM orders WHERE address_validation_status IN ('EXCEPTION', 'AMBIGUOUS', 'INVALID'){date_where}", tuple(date_params))
+    exception_count = cur.fetchone()['count']
+    
+    metrics['pending_count'] = pending_count
+    metrics['exception_count'] = exception_count
 
     # Step 1: Get paginated job IDs (1 query)
+    id_query_params = query_params + [per_page, offset]
     cur.execute(f"""
         SELECT j.id
         FROM jobs j
@@ -48,7 +81,7 @@ def production_review():
         {where_clause}
         ORDER BY o.order_date ASC, o.order_number ASC
         LIMIT %s OFFSET %s
-    """, (per_page, offset))
+    """, tuple(id_query_params))
     job_ids = [row['id'] for row in cur.fetchall()]
 
     # Step 2: Fetch all jobs + items in ONE query (eliminates N+1)
@@ -103,7 +136,7 @@ def production_review():
         FROM jobs j
         JOIN orders o ON j.order_id = o.id
         {where_clause}
-    """)
+    """, tuple(query_params))
     total_jobs_count = cur.fetchone()['count']
     total_pages = math.ceil(total_jobs_count / per_page)
     
@@ -120,7 +153,9 @@ def production_review():
     return render_template('production_review.html', 
                             jobs=jobs, 
                             metrics=metrics, 
-                            pagination=pagination)
+                            pagination=pagination,
+                            start_date=start_date,
+                            end_date=end_date)
 
 @production_bp.route('/production/submit', methods=['POST'])
 def submit_production():
@@ -130,32 +165,84 @@ def submit_production():
     conn = get_db()
     cur = conn.cursor()
     
-    batch_id = f"BATCH_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    start_date = request.values.get('start_date')
+    end_date = request.values.get('end_date')
+    
+    if start_date and end_date:
+        if start_date == end_date:
+            timestamp = start_date
+        else:
+            timestamp = f"{start_date}_to_{end_date}"
+    elif start_date:
+        timestamp = start_date
+    elif end_date:
+        timestamp = end_date
+    else:
+        timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+        
+    batch_id = f"BATCH_{timestamp}"
+    dry_run = request.values.get('dry_run') == 'true'
+    
+    where_clause = "WHERE j.production_status = 'NEW' AND o.address_validation_status IN ('VALID', 'AUTO_CORRECTED', 'MANUALLY_CORRECTED', 'ADDRESS_BOOK_VERIFIED')"
+    query_params = []
+    
+    if start_date:
+        where_clause += " AND DATE(o.order_date) >= %s"
+        query_params.append(start_date)
+    if end_date:
+        where_clause += " AND DATE(o.order_date) <= %s"
+        query_params.append(end_date)
+        
+    # %s for SET comes first, then the subquery %s values.
+    # So param list is [batch_id, start_date (optional), end_date (optional)]
+    final_params = [batch_id] + query_params
+    
+    print(f"DEBUG flask submit: start_date={start_date}, end_date={end_date}, dry_run={dry_run}")
     
     try:
-        cur.execute("""
-            UPDATE jobs
-            SET production_status = 'READY',
-                production_batch_id = %s
-            WHERE id IN (
-                SELECT j.id FROM jobs j
+        if dry_run:
+            cur.execute(f"""
+                SELECT COUNT(*) FROM jobs j
                 JOIN orders o ON j.order_id = o.id
-                WHERE j.production_status = 'NEW'
-                AND o.address_validation_status IN ('VALID', 'AUTO_CORRECTED', 'MANUALLY_CORRECTED')
-            )
-        """, (batch_id,))
-        
-        count = cur.rowcount
-        conn.commit()
+                {where_clause}
+            """, tuple(query_params))
+            count = cur.fetchone()[0]
+        else:
+            cur.execute(f"""
+                UPDATE jobs
+                SET production_status = 'READY',
+                    production_batch_id = %s
+                WHERE id IN (
+                    SELECT j.id FROM jobs j
+                    JOIN orders o ON j.order_id = o.id
+                    {where_clause}
+                )
+            """, tuple(final_params))
+            count = cur.rowcount
+            conn.commit()
         
         if count > 0:
-            flash(f"Submitted {count} jobs to production. Batch: {batch_id}", "success")
+            if dry_run:
+                flash(f"[DRY RUN] Simulating pipeline for {count} jobs. Batch: {batch_id}", "info")
+            else:
+                flash(f"Submitted {count} jobs to production. Batch: {batch_id}", "success")
             
             pipeline_script = os.path.join(project_root, 'pipeline', '00_Controller.py')
             python_exe = sys.executable 
             
-            subprocess.Popen([python_exe, pipeline_script])
-            flash("Production Pipeline triggered in background!", "info")
+            cmd = [python_exe, pipeline_script]
+            if start_date:
+                cmd.extend(['--start_date', str(start_date)])
+            if end_date:
+                cmd.extend(['--end_date', str(end_date)])
+            if dry_run:
+                cmd.append('--dry_run')
+            
+            subprocess.Popen(cmd, cwd=project_root)
+            if dry_run:
+                flash("Production Pipeline triggered in DRY RUN mode!", "warning")
+            else:
+                flash("Production Pipeline triggered in background!", "info")
             
         else:
             flash("No valid jobs found to submit.", "warning")

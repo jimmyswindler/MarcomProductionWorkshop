@@ -308,6 +308,29 @@
             padding-top: 0.5rem !important;
             padding-bottom: 0.5rem !important;
         }
+
+        /* Sortable Table Headers */
+        th.sortable {
+            cursor: pointer;
+            user-select: none;
+        }
+
+        th.sortable:hover {
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+
+        th.sort-asc,
+        th.sort-desc {
+            text-decoration: underline;
+            text-underline-offset: 4px;
+            text-decoration-thickness: 2px;
+            text-decoration-color: var(--accent);
+        }
+
+        .sort-caret {
+            font-size: 0.65rem;
+            opacity: 0.8;
+        }
     </style>
 </head>
 
@@ -371,6 +394,7 @@
             }
         });
     </script>
+    <script src="{{ url_for('static', filename='sort_table.js') }}"></script>
 </body>
 
 </html>

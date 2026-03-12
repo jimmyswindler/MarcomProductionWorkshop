@@ -20,7 +20,6 @@ from shared_lib.ingest_helpers import (
     calculate_ship_date, 
     calculate_box_requirements
 )
-from shared_lib.ups_api import UPSAddressValidator
 from shared_lib.config import get_env_var
 
 # Setup Logging
@@ -54,14 +53,6 @@ def process_ingestion(input_dir, processed_dir, config, dry_run=False):
         logging.error("Failed to connect to Database. Exiting.")
         return
     cur = conn.cursor()
-
-    ups_client_id = get_env_var("UPS_CLIENT_ID")
-    ups_client_secret = get_env_var("UPS_CLIENT_SECRET")
-    ups_validator = None
-    if ups_client_id and ups_client_secret:
-        ups_validator = UPSAddressValidator(ups_client_id, ups_client_secret)
-    else:
-        logging.warning("UPS Credentials missing. Skipping Address Validation.")
 
     # 2. Scan Files
     try:
@@ -169,9 +160,9 @@ def process_ingestion(input_dir, processed_dir, config, dry_run=False):
                 count_exists += 1
                 continue # Skip existing job
 
-        # --- B. Address Validation (If new Order OR forcing update?) ---
-        # Only validate if we are inserting a NEW Order or updating address
-        # For simplicity, validate if we are about to insert/update order info
+        # --- B. Address Validation ---
+        # With the new architecture, we ingest all addresses as PENDING
+        # and allow process_address_validation.py to validate them asynchronously.
         
         is_validated = False
         val_status = "PENDING"
@@ -188,32 +179,8 @@ def process_ingestion(input_dir, processed_dir, config, dry_run=False):
             'country': get_db_string(row.get('country')) or 'US'
         }
         
-        # We need a store number for the address book fallback
-        store_number = get_db_string(row.get('cost_center')) # Used as store number fallback in DB insertion
-        
-        if ups_validator:
-            lines = [addr_args['address1'], addr_args['address2'], addr_args['address3']]
-            res = ups_validator.validate_address(lines, addr_args['city'], addr_args['state'], addr_args['zip'], addr_args['country'])
-            
-            ups_status = res.get('status', 'ERROR')
-            val_details = res
-            
-            if ups_status == 'VALID':
-                is_validated = True
-                val_status = 'VALID'
-                d = res.get('data')
-                if d:
-                    # Update addr_args with UPS standardized data
-                    addr_args['address1'] = d.get('address1')
-                    addr_args['address2'] = d.get('address2')
-                    addr_args['address3'] = d.get('address3')
-                    addr_args['city'] = d.get('city')
-                    addr_args['state'] = d.get('state')
-                    addr_args['zip'] = f"{d.get('zip')}-{d.get('zip_extension')}" if d.get('zip_extension') else d.get('zip')
-            else:
-                is_validated = False
-                val_status = ups_status if ups_status not in ('ERROR', 'VALID') else 'EXCEPTION'
-
+        # We process store_number via cost_center, no regex guessing here
+        store_number = get_db_string(row.get('cost_center'))
 
         if dry_run:
             logging.info(f"[DRY RUN] Would insert Order {order_num} Ticket {job_ticket}")

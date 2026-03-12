@@ -173,11 +173,32 @@ def main_workflow():
     consolidated_report_path = None; bundled_report_path = None; fragmentation_map = {}
 
     try:
-        # --- Stage 1: DB Input (Replaces Data Collection & Ingest) ---
+    # --- Stage 1: DB Input (Replaces Data Collection & Ingest) ---
         utils_ui.print_section("Stage 1: DB Input")
         
-        # Generate dynamic filename for the report
-        timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+        import argparse
+        parser = argparse.ArgumentParser(description="Marcom Production Pipeline")
+        parser.add_argument('--start_date', type=str, help="Start date for filtering", default=None)
+        parser.add_argument('--end_date', type=str, help="End date for filtering", default=None)
+        parser.add_argument('--dry_run', action='store_true', help="Run without changing DB status")
+        # We use parse_known_args in case other args are passed later without breaking
+        args, _ = parser.parse_known_args()
+        
+        utils_ui.print_info(f"Received start_date: {args.start_date}, end_date: {args.end_date}, dry_run: {args.dry_run}")
+        
+        # Generate dynamic filename for the report based on dates
+        if args.start_date and args.end_date:
+            if args.start_date == args.end_date:
+                timestamp = args.start_date
+            else:
+                timestamp = f"{args.start_date}_to_{args.end_date}"
+        elif args.start_date:
+            timestamp = args.start_date
+        elif args.end_date:
+            timestamp = args.end_date
+        else:
+            timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+            
         consolidated_report_name = f"MarcomOrderDate_{timestamp}.xlsx" 
         # Note: 20_DataSorter expects file to start with "MarcomOrderDate" if we rely on its regex or pattern matching, but passing path explicitly is safer.
         # Actually 00_Controller handles the path passing.
@@ -189,6 +210,13 @@ def main_workflow():
              raise ValueError("Script 'db_input' not defined in config.")
              
         s1_args = ['--output', consolidated_report_path]
+        if args.dry_run:
+            s1_args.append('--dry_run')
+        if args.start_date:
+            s1_args.extend(['--start_date', args.start_date])
+        if args.end_date:
+            s1_args.extend(['--end_date', args.end_date])
+            
         run_script(script_paths['db_input'], s1_args)
         
         if not os.path.exists(consolidated_report_path):
@@ -394,23 +422,26 @@ def main_workflow():
 
         # --- Stage 5: Send Email Notification ---
         utils_ui.print_section("Stage 5: Email Notification")
-        try:
-            email_script_path = script_paths.get('email')
-            if not email_script_path:
-                utils_ui.print_warning("Email script path not defined. Skipping.")
-            else:
-                original_dynamic_base_name = os.path.splitext(os.path.basename(bundled_report_path))[0]
-                pdf_runlist_path = os.path.join(dynamic_job_folder, f"{original_dynamic_base_name}_RunLists.pdf")
-                # config_file_path already defined 
-                s5_args = [
-                    original_dynamic_base_name, bundled_report_path, pdf_runlist_path,
-                    oneup_files_dir, job_tickets_dir, config_file_path
-                ]
-                run_script(email_script_path, s5_args)
+        if getattr(args, 'dry_run', False):
+            utils_ui.print_info("[DRY RUN] Skipping Email Notification.")
+        else:
+            try:
+                email_script_path = script_paths.get('email')
+                if not email_script_path:
+                    utils_ui.print_warning("Email script path not defined. Skipping.")
+                else:
+                    original_dynamic_base_name = os.path.splitext(os.path.basename(bundled_report_path))[0]
+                    pdf_runlist_path = os.path.join(dynamic_job_folder, f"{original_dynamic_base_name}_RunLists.pdf")
+                    # config_file_path already defined 
+                    s5_args = [
+                        original_dynamic_base_name, bundled_report_path, pdf_runlist_path,
+                        oneup_files_dir, job_tickets_dir, config_file_path
+                    ]
+                    run_script(email_script_path, s5_args)
 
-        except Exception as email_err:
-            utils_ui.print_error(f"Email notification FAILED: {email_err}")
-            logging.error(traceback.format_exc())
+            except Exception as email_err:
+                utils_ui.print_error(f"Email notification FAILED: {email_err}")
+                logging.error(traceback.format_exc())
         
         # --- Workflow Complete ---
         utils_ui.print_banner("Workflow Complete", f"All files in: {dynamic_job_folder}")
