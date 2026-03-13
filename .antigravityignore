@@ -1,0 +1,26 @@
+# Antigravity Settings: Exclusions
+# These files and directories are ignored by default to prevent Context Bloat and excessive token usage.
+
+# Priority 1: Massive Context Killers
+venv/
+**/venv/
+**/.venv/
+Python Launcher.app/
+
+# Priority 2: Dynamic Data & Binaries
+LOGS/
+**/*.log
+**/*.db
+**/*.sqlite
+**/*.sqlite3
+data/
+**/resources/*.pdf
+**/resources/*.png
+**/*.xlsx
+
+# Priority 3: Caches & System Files
+**/__pycache__/
+**/.ruff_cache/
+**/.DS_Store
+ruff_report.txt
+vulture_report.txt
