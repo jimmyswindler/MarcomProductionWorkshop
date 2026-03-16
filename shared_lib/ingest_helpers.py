@@ -220,8 +220,6 @@ def calculate_box_requirements(df, config):
 
     product_ids_map = config.get('product_ids', {})
     rules_map = config.get('shipping_box_rules', {})
-    remapping_map = config.get('product_id_remapping', {})
-    
     pid_to_cat = {}
     for cat, pids in product_ids_map.items():
         if isinstance(pids, list):
@@ -233,10 +231,7 @@ def calculate_box_requirements(df, config):
         raw_pid = str(row.get('product_id', '')).split('.')[0].strip()
         qty = str(int(row.get('quantity_ordered', 0)))
         
-        # Apply remapping first to handle legacy string IDs like T_TY_FA_BBK
-        remapped_pid = str(remapping_map.get(raw_pid, raw_pid))
-        
-        category = pid_to_cat.get(remapped_pid)
+        category = pid_to_cat.get(raw_pid)
         if not category:
              paper_desc = str(row.get('paper_description', ''))
              if '16pt' in paper_desc.lower() or '16 pt' in paper_desc.lower():

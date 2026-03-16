@@ -112,19 +112,6 @@ def fix_exception(order_number):
                     details, order_number
                 ))
                 
-                # Insert into address_aliases for future memory
-                cur.execute("SELECT address1, zip FROM orders WHERE order_number = %s", (order_number,))
-                orig_order = cur.fetchone()
-                if orig_order and orig_order['address1'] and orig_order['zip']:
-                    orig_zip_5 = orig_order['zip'][:5]
-                    try:
-                        cur.execute("""
-                            INSERT INTO address_aliases (original_address1, original_zip, store_number)
-                            VALUES (%s, %s, %s) ON CONFLICT DO NOTHING
-                        """, (orig_order['address1'], orig_zip_5, store_key))
-                    except Exception as e:
-                        print(f"Failed to insert alias: {e}")
-
                 conn.commit()
                 flash(f'Order {order_number} corrected using Store #{store_key}.', 'success')
             else:
@@ -195,17 +182,6 @@ def bulk_fix_exception():
             details, store_key, order_number
         ))
         
-        # Save Alias
-        if orig_order and orig_order['address1'] and orig_order['zip']:
-            orig_zip_5 = orig_order['zip'][:5]
-            try:
-                cur.execute("""
-                    INSERT INTO address_aliases (original_address1, original_zip, store_number)
-                    VALUES (%s, %s, %s) ON CONFLICT DO NOTHING
-                """, (orig_order['address1'], orig_zip_5, store_key))
-            except Exception:
-                pass
-                
         success_count += 1
 
     conn.commit()

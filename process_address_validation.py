@@ -47,42 +47,6 @@ def process_order(order, ups_validator):
         orig_addr1 = _get_db_string(order.get('address1'))
         orig_zip = _get_db_string(order.get('zip'))
         
-        # Step A: Alias Check
-        alias_sql = """
-            SELECT store_number FROM address_aliases 
-            WHERE lower(original_address1) = lower(%s) 
-            AND lower(original_zip) = lower(%s)
-        """
-        cur.execute(alias_sql, (orig_addr1, orig_zip))
-        alias_row = cur.fetchone()
-        
-        if alias_row and alias_row.get('store_number'):
-            store_number = alias_row['store_number']
-            book_sql = "SELECT * FROM address_book WHERE store_number = %s"
-            cur.execute(book_sql, (store_number,))
-            book_entry = cur.fetchone()
-            
-            if book_entry:
-                msg = {'msg': f'Auto-corrected using Alias Memory for Store #{store_number}'}
-                update_sql = """
-                    UPDATE orders SET
-                        address1 = %s, address2 = %s, address3 = %s,
-                        city = %s, state = %s, zip = %s, country = 'US',
-                        address_validated = TRUE,
-                        address_validation_status = 'ADDRESS_BOOK_VERIFIED',
-                        address_validation_details = %s,
-                        store_number = %s
-                    WHERE order_number = %s
-                """
-                cur.execute(update_sql, (
-                    book_entry.get('address1'), book_entry.get('address2'), book_entry.get('address3'),
-                    book_entry.get('city'), book_entry.get('state'), book_entry.get('zip'),
-                    json.dumps(msg), store_number, order_number
-                ))
-                conn.commit()
-                logging.info(f"Order {order_number} resolved via Alias Memory (Store {store_number}).")
-                return order_number, True, None
-
         # Step B: UPS API
         lines = [orig_addr1, _get_db_string(order.get('address2')), _get_db_string(order.get('address3'))]
         city = _get_db_string(order.get('city'))
