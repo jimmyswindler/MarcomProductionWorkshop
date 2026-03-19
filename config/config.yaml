@@ -10,6 +10,7 @@ paths:
     generate_tickets: './pipeline/60_GenerateJobTickets.py'
     pressprep: './pipeline/70_PreparePressFiles.py'
     impose: './pipeline/80_GR_Imposition_5x5_BB_BC.py'
+    impose_single: './pipeline/85_ImposeSingleJobs_24up.py'
     # email: './90_email.py'
 
   stage1_collect:
@@ -25,6 +26,8 @@ paths:
   full_box_icon_path: './resources/full box.pdf'
   imposition_profile_path: './resources/TXRH BB 25up GangRun.json'
   marks_template_path: './resources/25up_marks_template_13x19.pdf'
+  marks_template_24up_path: './resources/24up_marks_template_19x13.pdf'
+  imposition_profile_24up_path: './resources/TXRH_SingleJob_24up.json'
   calibri_light_font_path: './resources/font/Calibri-Light.ttf'
   calibri_bold_font_path: './resources/font/Calibri-Bold.ttf'
   
@@ -236,6 +239,7 @@ product_ids:
     - "189"
     - "301"
     - "302"
+    - "359"
     - "1376"
     - "2690"
     - "2728"
@@ -251,7 +255,12 @@ product_ids:
 
   LargeFormat:
     - "T_ED_CLG"
-    - "4"
+    - "T_2005_FN_CHK"
+    - "T_2005_MEAT_DISPLAY_CLG_FRESHBAKED_FINAL"
+    - "T_2005_MEAT_DISPLAY_CLG_HANDCUT_FINAL"
+    - "T_ED_PST"
+    - "T_NEW_STORE_BAN_12X4_F"
+    - "POD_T_1911_COMM_BAN_FINAL"
     - "5"
     - "6"
     - "22"
@@ -259,6 +268,7 @@ product_ids:
     - "80"
     - "89"
     - "141"
+    - "142"
     - "143"
     - "157"
     - "160"
@@ -272,14 +282,17 @@ product_ids:
     - "237"
     - "288"
     - "291"
+    - "294"
     - "315"
     - "316"
+    - "330"
     - "339"
     - "340"
     - "350"
     - "364"
     - "963"
     - "985"
+    - "986"
     - "1375"
     - "1380"
     - "1806"
@@ -401,6 +414,12 @@ product_ids:
     - "4817"
     - "4836"
     - "4837"
+    - "4838"
+    - "4839"
+    - "4840"
+    - "4841"
+    - "4842"
+    - "4843"
     - "4846"
 
   16ptBusinessCard:
@@ -412,6 +431,7 @@ product_ids:
     - "1372"
     - "1381"
     - "1382"
+    - "1397"
     - "1398"
     - "3556"
     - "4486"
@@ -425,6 +445,7 @@ product_ids:
     - "T_TY_FA_BBK"
     - "T_TY_FE_BBK"
     - "M_2304_LSM_COM_BSC"
+    - "M_2304_LSM_LN_BSC"
     - "4"
     - "27"
     - "166"
@@ -491,7 +512,6 @@ product_ids:
     - "3229"
     - "3232"
     - "3977"
-    - "4109"
     - "4122"
     - "4599"
     - "4657"
@@ -503,7 +523,7 @@ product_ids:
     - "4087"
 
   Easter:
-    - "4087"
+    - "4109"
   
 categorization_rules:
   business_card_identifiers: ['16pt', '16 pt']
@@ -562,6 +582,7 @@ bundling_rules:
     - "CBO"
     - "ValentinesDay"
     - "Easter"
+    - "FAILED"
   
 sheet_output_order:
   - "BUNDLES"
@@ -573,6 +594,7 @@ sheet_output_order:
   - "PrintOnDemand"
   - "ValentinesDay"
   - "Easter"
+  - "FAILED"
 
 pdf_settings:
   generate_pdf_run_lists: true

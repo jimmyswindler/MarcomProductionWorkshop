@@ -406,9 +406,9 @@ def main_workflow():
         
         # --- Stage 4: Imposition (Loop) ---
         if not gang_run_folders:
-            utils_ui.print_info("No Gang Run folders found. Skipping Imposition.")
+            utils_ui.print_info("No Gang Run folders found. Skipping Gang Run Imposition.")
         else:
-            utils_ui.print_section("Stage 4: Imposition")
+            utils_ui.print_section("Stage 4: Gang Run Imposition")
             s4_config_subset = {
                  'imposition_profile': paths.get('imposition_profile_path'),
                  'marks_template': paths.get('marks_template_path')
@@ -419,6 +419,14 @@ def main_workflow():
                 utils_ui.print_info(f"Imposing batch: {os.path.basename(batch_folder)}")
                 s4_args = [batch_folder, s4_output_dir, json.dumps(s4_config_subset)]
                 run_script(script_paths['impose'], s4_args)
+
+        # --- Stage 4.1: Imposition Single Jobs ---
+        utils_ui.print_section("Stage 4.1: Single Job Imposition")
+        if 'impose_single' in script_paths:
+            s4_1_args = [bundled_report_path, oneup_files_dir, production_imposed_dir, json.dumps(config)]
+            run_script(script_paths['impose_single'], s4_1_args)
+        else:
+            utils_ui.print_warning("No 'impose_single' script found in config.yaml under paths.scripts.")
 
         # --- Stage 5: Send Email Notification ---
         utils_ui.print_section("Stage 5: Email Notification")

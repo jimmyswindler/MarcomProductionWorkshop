@@ -102,13 +102,38 @@ def process_ups_output_files():
                     cur.execute("""
                         UPDATE shipments 
                         SET tracking_number = %s,
-                            marcom_sync_status = 'PENDING'
+                            marcom_sync_status = 'PENDING',
+                            ship_date = COALESCE(ship_date, NOW())
                         WHERE shipment_uid = %s AND tracking_number IS NULL
+                        RETURNING order_number, ship_date
                     """, (tracking, ship_uid_from_file))
                     
                     if cur.rowcount > 0:
                         count += 1
                         print(f"Updated tracking for {ship_uid_from_file}: {tracking}")
+                        
+                        row = cur.fetchone()
+                        if row:
+                            order_num = row['order_number']
+                            ship_date = row['ship_date']
+                            
+                            if order_num:
+                                cur.execute("""
+                                    UPDATE orders
+                                    SET actual_ship_date = %s
+                                    WHERE order_number = %s AND actual_ship_date IS NULL
+                                """, (ship_date, order_num))
+                            
+                            cur.execute("""
+                                UPDATE jobs
+                                SET production_status = 'SHIPPED'
+                                WHERE id IN (
+                                    SELECT i.job_id
+                                    FROM item_boxes b
+                                    JOIN items i ON b.order_item_id = i.order_item_id
+                                    WHERE b.shipment_uid = %s
+                                ) AND production_status != 'SHIPPED'
+                            """, (ship_uid_from_file,))
                 else:
                     print(f"Could not extract tracking number from {fpath}")
                     # Update DB to show error in UI

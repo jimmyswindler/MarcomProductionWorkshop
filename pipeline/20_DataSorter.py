@@ -176,6 +176,15 @@ def organize_by_product_id(input_file, config):
     
     col_url = config.get('column_names', {}).get('one_up_output_file_url')
     if col_url and col_url in df.columns:
+        # Check for FAILED jobs (missing assets from customer side)
+        failed_url_mask = df[col_url].astype(str).str.contains('The output file(s) failed', case=False, regex=False, na=False)
+        if failed_url_mask.any():
+            jobs_to_fail = df.loc[failed_url_mask, col_base_job].unique()
+            if len(jobs_to_fail) > 0:
+                utils_ui.print_warning(f"Quarantined {len(jobs_to_fail)} jobs to 'FAILED' due to failed output file URLs.")
+                df.loc[df[col_base_job].isin(jobs_to_fail), 'Category'] = 'FAILED'
+
+        # Existing 'PrintOnDemand' fallback for genuinely empty URLs
         has_no_url_content = df[col_url].isnull() | (df[col_url].astype(str).str.strip() == '')
         eligible_url_mask = df['Category'].isin(['12ptBounceBack', '16ptBusinessCard']) & has_no_url_content
         if eligible_url_mask.sum() > 0:

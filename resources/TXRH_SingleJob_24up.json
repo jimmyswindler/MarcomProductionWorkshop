@@ -1,0 +1,56 @@
+{
+  "kind" : "PDF Snake Exported Steps.json",
+  "xtools" : [
+    {
+      "kind" : "steps",
+      "name" : "24up SingleJob",
+      "packedSteps" : [
+        {
+          "units" : "inches",
+          "paperWidth" : "19",
+          "paperHeight" : "13",
+          "leftMargin" : "0.625",
+          "topMargin" : "1.0",
+          "verticalGutterWidth" : "0.25",
+          "horizontalGutterWidth" : "0.25",
+          "center" : false,
+          "pageOrder" : "stack",
+          "doubleSided" : true,
+          "repeat" : "1",
+          "newStackOrder" : true,
+          "cropMarks" : true,
+          "marksInGutters" : false,
+          "centerMarks" : false,
+          "lineLength" : "0.1",
+          "lineThickness" : "0.01",
+          "lineDistance" : "0.125",
+          "fourColorBlack" : false,
+          "whiteBorder" : false,
+          "bleeds" : "fixed",
+          "fixedBleedLeft" : "0.125",
+          "fixedBleedTop" : "0.125",
+          "direction" : "leftToRight",
+          "columns" : "8",
+          "rows" : "3",
+          "preserveAspectRatio" : true,
+          "kind" : "Grid",
+          "scale" : false
+        },
+        {
+          "units" : "inches",
+          "kind" : "HeaderFooter",
+          "text" : "[file-name]  *  Sheet [page-number] of [page-count]",
+          "fontName" : "Helvetica-Bold",
+          "fontSizeInPoints" : "20",
+          "row" : "top",
+          "column" : "center",
+          "alternateSides" : false,
+          "margins" : "0.5",
+          "pageRange" : "all"
+        }
+      ],
+      "modTimestamp" : "2026-03-16T00:00:00.000Z",
+      "pushed" : false
+    }
+  ]
+}
