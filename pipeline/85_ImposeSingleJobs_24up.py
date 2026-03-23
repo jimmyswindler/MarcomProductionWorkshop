@@ -42,7 +42,7 @@ def get_db_connection():
         return None
 
 def fetch_item_boxes_for_job(conn, job_ticket_number):
-    """Fetches up to 8 barcodes for the given job."""
+    """Fetches all barcodes for the given job to construct full header cards."""
     if not conn: return []
     try:
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -53,8 +53,7 @@ def fetch_item_boxes_for_job(conn, job_ticket_number):
             JOIN items i ON j.id = i.job_id
             JOIN item_boxes b ON i.order_item_id = b.order_item_id
             WHERE i.job_ticket_display_id = %s OR j.job_ticket_number = %s
-            ORDER BY i.order_item_id, b.box_sequence
-            LIMIT 8;
+            ORDER BY i.order_item_id, b.box_sequence;
         """, (job_ticket_number, job_ticket_number))
         rows = cur.fetchall()
         cur.close()
@@ -124,14 +123,119 @@ def standardize_pages(file_path, profile):
         return None
 
 # ==============================================================================
+# HEADER CARD GENERATION
+# ==============================================================================
+def generate_header_card(barcode_val, row_data, profile, qty_ordered, std_pages, target_icon_path=None):
+    packet = io.BytesIO()
+    card_w = profile['card_width_pts']
+    card_h = profile['card_height_pts']
+    c = canvas.Canvas(packet, pagesize=(card_w, card_h))
+    
+    # We want text visually centered
+    trim_width = 2 * 72
+    safe_margin = 6
+    trim_x = (card_w - trim_width) / 2
+    trim_y = (card_h - (3.5 * 72)) / 2 
+    
+    current_y = card_h - trim_y - safe_margin - 9 # Baseline 246 pt (cap height hits top safe edge at 255)
+    
+    fn_text = str(row_data.get("job_ticket_number", ""))
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString((card_w - pdfmetrics.stringWidth(fn_text, "Helvetica-Bold", 12))/2, current_y, fn_text)
+    current_y -= 12
+    
+    qty_text = f"Total Qty: {qty_ordered}"
+    c.setFont("Helvetica", 7)
+    c.drawString((card_w - pdfmetrics.stringWidth(qty_text, "Helvetica", 7))/2, current_y, qty_text)
+    current_y -= 22
+    
+    store = str(row_data.get("cost_center", "")).split('-')[0].strip()
+    st_text = f"Store: {store}"
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString((card_w - pdfmetrics.stringWidth(st_text, "Helvetica-Bold", 12))/2, current_y, st_text)
+    current_y -= 12
+    
+    order = str(row_data.get("order_number", ""))
+    ord_text = f"Order: {order}"
+    c.setFont("Helvetica", 7)
+    c.drawString((card_w - pdfmetrics.stringWidth(ord_text, "Helvetica", 7))/2, current_y, ord_text)
+    current_y -= 28
+    
+    if barcode_val:
+        try:
+            bc = code128.Code128(str(barcode_val), barHeight=18, barWidth=1.4)
+            target_w = 1.75 * 72
+            scale_x = target_w / bc.width if bc.width > 0 else 1.0
+            
+            c.saveState()
+            bc_x = (card_w - target_w) / 2
+            c.translate(bc_x, current_y)
+            c.scale(scale_x, 1.0)
+            bc.drawOn(c, 0, 0)
+            c.restoreState()
+            
+            current_y -= 8
+            c.setFont("Helvetica", 6)
+            c.drawString((card_w - pdfmetrics.stringWidth(str(barcode_val), "Helvetica", 6))/2, current_y, str(barcode_val))
+        except Exception:
+            pass
+
+    scale_factor = 63.0 / card_w
+    preview_w = card_w * scale_factor
+    preview_h = card_h * scale_factor
+    preview_gap = 6.0
+    left_tx = trim_x + safe_margin
+    right_tx = left_tx + preview_w + preview_gap
+    bottom_ty = trim_y + safe_margin
+    
+    c.setLineWidth(0.5)
+    c.setStrokeColorRGB(0,0,0)
+    c.rect(left_tx, bottom_ty, preview_w, preview_h)
+    c.rect(right_tx, bottom_ty, preview_w, preview_h)
+            
+    c.save()
+    packet.seek(0)
+    page = PdfReader(packet).pages[0]
+    
+    if target_icon_path:
+        if os.path.exists(target_icon_path):
+            try:
+                icon_reader = PdfReader(target_icon_path)
+                if len(icon_reader.pages) > 0:
+                    icon_page = icon_reader.pages[0]
+                    icon_w = float(icon_page.mediabox.width)
+                    icon_h = float(icon_page.mediabox.height)
+                    icon_target_h = 18.0
+                    
+                    if icon_w > 0 and icon_h > 0:
+                        icon_scale = icon_target_h / icon_h
+                        icon_target_w = icon_w * icon_scale
+                        icon_tx = (card_w - icon_target_w) / 2
+                        icon_ty = 133.0 # Centered perfectly between barcode and previews
+                        
+                        utils_ui.print_info(f"    - Embedding Icon: {os.path.basename(target_icon_path)} | Scale: {icon_scale:.4f} | Size: {icon_target_w:.1f}x{icon_target_h:.1f}")
+                        
+                        page.merge_transformed_page(icon_page, Transformation().scale(sx=icon_scale, sy=icon_scale).translate(tx=icon_tx, ty=icon_ty))
+            except Exception as e:
+                utils_ui.print_warning(f"Failed to place icon {target_icon_path}: {e}")
+        else:
+            utils_ui.print_warning(f"Icon path not found on disk: {target_icon_path}")
+            
+    if std_pages and len(std_pages) > 0:
+        front_art = std_pages[0]
+        back_art = std_pages[1] if len(std_pages) > 1 else front_art
+        page.merge_transformed_page(front_art, Transformation().scale(sx=scale_factor, sy=scale_factor).translate(tx=left_tx, ty=bottom_ty))
+        page.merge_transformed_page(back_art, Transformation().scale(sx=scale_factor, sy=scale_factor).translate(tx=right_tx, ty=bottom_ty))
+        
+    return page
+
+# ==============================================================================
 # STAGE 3: CORE IMPOSITION ENGINE
 # ==============================================================================
-def impose_content(standardized_pages, profile, qty_ordered):
+def impose_content(standardized_pages, profile, qty_ordered, row_data, barcodes, target_icon_path=None):
     total_pages = len(standardized_pages)
     cards_per_sheet = profile['columns'] * profile['rows']
     
-    # Notice total_pages includes fronts and backs. 
-    # Fronts go on odd sheets, Backs go on even sheets.
     fronts = [standardized_pages[i] for i in range(0, total_pages, 2)]
     backs  = [standardized_pages[i] for i in range(1, total_pages, 2)]
     
@@ -139,53 +243,71 @@ def impose_content(standardized_pages, profile, qty_ordered):
     if unique_cards == 0:
         return PdfWriter()
         
-    # Calculate how many copies of each card we need
-    # (e.g. 500 qty / 1 unique card = 500 copies per card)
-    # (e.g. 2500 qty / 2500 unique cards = 1 copy per card)
     copies_per_card = math.ceil(qty_ordered / unique_cards)
-    total_cards_to_place = unique_cards * copies_per_card
+    total_production_cards = unique_cards * copies_per_card
     
-    # How many front sheets?
-    num_front_sheets = math.ceil(total_cards_to_place / cards_per_sheet)
+    # 1. GENERATE HEADER CARDS AND BLANKS
+    header_fronts = []
+    header_backs = []
+    blank_front = PageObject.create_blank_page(width=profile['card_width_pts'], height=profile['card_height_pts'])
+    blank_back = PageObject.create_blank_page(width=profile['card_width_pts'], height=profile['card_height_pts'])
+    
+    for bc in barcodes:
+        hf = generate_header_card(bc, row_data, profile, qty_ordered, standardized_pages, target_icon_path)
+        header_fronts.append(hf)
+        header_backs.append(blank_back)
+        
+    num_headers = len(header_fronts)
+    
+    # Calculate sheets needed for all items combined
+    total_slots_needed = num_headers + total_production_cards
+    num_front_sheets = math.ceil(total_slots_needed / cards_per_sheet)
     num_sheets = num_front_sheets * 2
     
+    pad_blanks_needed = (num_front_sheets * cards_per_sheet) - total_slots_needed
+    
+    # 2. BUILD THE FLAT SEQUENCES
+    front_sequence = []
+    back_sequence = []
+    
+    front_sequence.extend(header_fronts)
+    back_sequence.extend(header_backs)
+    
+    for _ in range(pad_blanks_needed):
+        front_sequence.append(blank_front)
+        back_sequence.append(blank_back)
+        
+    for i in range(unique_cards):
+        for _ in range(copies_per_card):
+            front_sequence.append(fronts[i])
+            back_sequence.append(backs[i])
+            
     writer = PdfWriter()
     
-    trim_w = profile['card_width_pts'] - (2 * profile['bleed_left'])
-    trim_h = profile['card_height_pts'] - (2 * profile['bleed_top'])
-    
-    for sheet_idx in range(num_sheets):
-        press_sheet = PageObject.create_blank_page(width=profile['paper_width'], height=profile['paper_height'])
-        is_back = (sheet_idx % 2) != 0
-        front_sheet_idx = sheet_idx // 2
+    for sheet_idx in range(num_front_sheets):
+        press_sheet_f = PageObject.create_blank_page(width=profile['paper_width'], height=profile['paper_height'])
+        press_sheet_b = PageObject.create_blank_page(width=profile['paper_width'], height=profile['paper_height'])
         
-        src_pile = backs if is_back else fronts
-        
-        for row in range(profile['rows']):
-            for col in range(profile['columns']):
-                slot = (row * profile['columns']) + col
-                global_card_index = (front_sheet_idx * cards_per_sheet) + slot
+        # New sequence map: column-by-column, bottom-to-top
+        for col in range(profile['columns']):
+            for row in range(profile['rows']):
+                slot = (col * profile['rows']) + row
+                global_idx = (sheet_idx * cards_per_sheet) + slot
                 
-                # Stop placing if we fulfilled the quantity exactly
-                if global_card_index >= total_cards_to_place: continue
+                c_front = front_sequence[global_idx]
+                c_back = back_sequence[global_idx]
                 
-                # Map the global_card_index back to the source PDF's page pool
-                pdf_page_index = global_card_index // copies_per_card
-                if pdf_page_index >= len(src_pile): continue
-                
-                card = src_pile[pdf_page_index]
-                curr_col = (profile['columns'] - 1) - col if is_back else col
-                
-                # We start layout from top or bottom? The 25up started from bottom.
-                # Let's place explicitly.
-                # Left Margin is actual bleed edge
-                x = profile['start_x'] + (curr_col * (profile['card_width_pts'] + profile['h_gutter']))
-                # Y is inverted (from bottom up)
+                x_f = profile['start_x'] + (col * (profile['card_width_pts'] + profile['h_gutter']))
                 y = profile['start_y'] + (row * (profile['card_height_pts'] + profile['v_gutter']))
                 
-                press_sheet.merge_transformed_page(card, Transformation().translate(tx=x, ty=y))
+                curr_col_b = (profile['columns'] - 1) - col
+                x_b = profile['start_x'] + (curr_col_b * (profile['card_width_pts'] + profile['h_gutter']))
                 
-        writer.add_page(press_sheet)
+                press_sheet_f.merge_transformed_page(c_front, Transformation().translate(tx=x_f, ty=y))
+                press_sheet_b.merge_transformed_page(c_back, Transformation().translate(tx=x_b, ty=y))
+                
+        writer.add_page(press_sheet_f)
+        writer.add_page(press_sheet_b)
 
     return writer
 
@@ -196,70 +318,37 @@ def create_overlays(profile, imposed_filename, sheet_num, total_sheets, row_data
     packet = io.BytesIO()
     c = canvas.Canvas(packet, pagesize=(profile['paper_width'], profile['paper_height']))
     
-    # --- Top Slug ---
-    text = f"{imposed_filename}  *  Sheet {sheet_num} of {total_sheets}"
-    c.saveState()
-    c.setFont("Helvetica-Bold", 30) # Hardcoded for reliability
-    tw = pdfmetrics.stringWidth(text, "Helvetica-Bold", 14)
-    cx = (profile['paper_width'] / 2) - (tw / 2)
-    # Place text 0.5 inches from top
-    c.drawString(cx, profile['paper_height'] - 0.5 * inch, text)
-    c.restoreState()
-    
-    # --- Bottom Mini-Slugs ---
-    c.saveState()
-    zone_width = 2.25 * 72 # 2.25 inches
-    y_baseline = 0.5 * 72   # Half inch from bottom 
-    
-    # MECHANISM EXPLANATION:
-    # -------------------------------------------------------------
-    # The `create_overlays` function loops through the `barcodes` array.
-    # Each barcode gets a predefined 2.375-inch "zone" horizontally along the bottom of the 19" sheet.
-    # If the `barcodes` array is empty (often happening for multi-line items because the query failed to find boxes),
-    # the loop never executes, which means the text (Store, Order, Job) also skips printing.
-    # By ensuring at least one dummy iteration when barcodes are missing, the text will always print.
-    # -------------------------------------------------------------
-    
+    qty_ordered = int(pd.to_numeric(row_data.get("quantity_ordered"), errors='coerce') or 1)
     store = str(row_data.get('cost_center', '')).split('-')[0].strip()
-    order = str(row_data.get('order_number', ''))
-    job   = str(row_data.get('job_ticket_number', ''))
-
-    base_x = 0.5 * 72 # Mini slugs span the entire width of the sheet from 0 to 19
-
-    # Force at least one iteration if no barcodes exist to guarantee subtext prints
-    iterable_barcodes = barcodes if barcodes else [""]
-
-    for i, barcode_val in enumerate(iterable_barcodes):
-        x_center = base_x + (i * zone_width) + (0.5 * zone_width) # Center of the 2.25" column
-        
-        # 1. Barcode (Skip if dummy barcode_val)
-        bh = 0.25 * 72
-        if barcode_val:
-            try:
-                bc = code128.Code128(str(barcode_val), barHeight=bh, barWidth=1.0)
-                bc_x = x_center - (bc.width / 2) # Use computed exact width
-                bc_y = y_baseline + 8
-                bc.drawOn(c, bc_x, bc_y)
-            except Exception as e:
-                 bc_y = y_baseline + 8
-                 pass
-        else:
-            bc_y = y_baseline + 8
-        
-        c.setFont("Helvetica", 6)
-        
-        # 2. Text under barcode
-        if barcode_val:
-            txt_w = pdfmetrics.stringWidth(str(barcode_val), "Helvetica", 6)
-            c.drawString(x_center - (txt_w / 2), bc_y - 6, str(barcode_val))
-        
-        # 3. Store, Order, Job Text
-        subtext = f"ST: {store} | ORD: {order} | JOB: {job}"
-        st_w = pdfmetrics.stringWidth(subtext, "Helvetica", 6)
-        # Avoid overlapping barcode text
-        c.drawString(x_center - (st_w / 2), bc_y - 14, subtext)
-        
+    
+    parts = [
+        (imposed_filename, "Helvetica-Bold"),
+        ("  •  ", "Helvetica-Bold"),
+        ("Quantity: ", "Helvetica"),
+        (str(qty_ordered), "Helvetica-Bold"),
+        ("  •  ", "Helvetica-Bold"),
+        ("Store: ", "Helvetica"),
+        (store, "Helvetica-Bold"),
+        ("  •  ", "Helvetica-Bold"),
+        ("Sheet ", "Helvetica"),
+        (str(sheet_num), "Helvetica-Bold"),
+        (" of ", "Helvetica"),
+        (str(total_sheets), "Helvetica-Bold")
+    ]
+    
+    total_w = sum(pdfmetrics.stringWidth(txt, font, 30) for txt, font in parts)
+    
+    c.saveState()
+    start_x = (profile['paper_width'] - total_w) / 2
+    y = profile['paper_height'] - 0.5 * inch
+    
+    tx = c.beginText(start_x, y)
+    for txt, font in parts:
+        tx.setFont(font, 30)
+        tx.textOut(txt)
+    c.drawText(tx)
     c.restoreState()
+    
     c.save()
     packet.seek(0)
     return PdfReader(packet).pages[0]
@@ -273,7 +362,9 @@ def main(input_excel_path, one_up_files_folder, output_dir, central_config_json)
     
     try: 
         config = json.loads(central_config_json)
-        tmpl_path = config.get('paths', {}).get('marks_template_24up_path')
+        paths = config.get('paths', {})
+        tmpl_path = paths.get('marks_template_24up_path')
+        shipping_box_rules = config.get('shipping_box_rules', {})
     except Exception as e: 
         utils_ui.print_error(f"Config Error: {e}"); return
         
@@ -312,6 +403,10 @@ def main(input_excel_path, one_up_files_folder, output_dir, central_config_json)
             # The category folder name matches sheet name, e.g., '16ptBusinessCard'
             cat_input_folder = os.path.join(one_up_files_folder, sheet_name)
             
+            category = None
+            if "12ptBounceBack" in sheet_name or "12ptBB" in sheet_name: category = "12ptBounceBack"
+            elif "16ptBusinessCard" in sheet_name or "16ptBC" in sheet_name: category = "16ptBusinessCard"
+            
             with utils_ui.create_progress() as progress:
                 task = progress.add_task(f"Imposing {sheet_name}", total=len(df))
                 
@@ -332,10 +427,21 @@ def main(input_excel_path, one_up_files_folder, output_dir, central_config_json)
                         progress.update(task, advance=1)
                         continue
                         
-                    imp_writer = impose_content(std_pages, profile, qty_ordered)
-                    
-                    # Fetch barcodes
+                    # Fetch barcodes before composing
                     barcodes = fetch_item_boxes_for_job(conn, job_ticket) if conn else []
+                    
+                    target_icon_path = None
+                    if category and str(qty_ordered) in shipping_box_rules.get(category, {}):
+                        rule = shipping_box_rules[category][str(qty_ordered)]
+                        icon_filename = rule.get('icon_file')
+                        if icon_filename:
+                            path_key = icon_filename.replace('.pdf', '_path')
+                            target_icon_path = paths.get(path_key)
+                            utils_ui.print_info(f"  > Matched Icon Rule: Qty {qty_ordered} -> {target_icon_path}")
+                    else:
+                        utils_ui.print_warning(f"  > No Box Icon Rule for: Cat='{category}', Qty='{qty_ordered}'")
+                            
+                    imp_writer = impose_content(std_pages, profile, qty_ordered, row, barcodes, target_icon_path)
                     
                     # Apply finishing
                     final_writer = PdfWriter()

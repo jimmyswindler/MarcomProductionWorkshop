@@ -525,6 +525,9 @@ product_ids:
   Easter:
     - "4109"
   
+standing_files:
+  "3007": "./standing_files/3007_print_file.pdf"
+  
 categorization_rules:
   business_card_identifiers: ['16pt', '16 pt']
   high_quantity_threshold: 4000 # This is used by 20a_DataSorter.py

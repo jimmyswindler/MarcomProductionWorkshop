@@ -167,19 +167,36 @@ def generate_ticket_pymupdf(ticket_rows, base_job_number, total_counts_map=None,
     main_row = ticket_rows[0]
     doc = fitz.open()
     PAGE_W, PAGE_H = fitz.paper_size("letter-l")
-    LEFT_INDENT, RIGHT_INDENT = 0.25*72, 0.25*72
-    FIELD_VALUE_X = LEFT_INDENT + 2.0*72
-    MAX_LINE_WIDTH = PAGE_W - RIGHT_INDENT - FIELD_VALUE_X
+    LEFT_INDENT, RIGHT_INDENT = 0.375*72, 0.375*72
+    
+    LEFT_COL_START = LEFT_INDENT
+    LEFT_LABEL_RIGHT_EDGE = LEFT_COL_START + 1.4*72
+    LEFT_VALUE_X = LEFT_LABEL_RIGHT_EDGE + 0.1*72
+    LEFT_MAX_LINE_WIDTH = (PAGE_W / 3.0) - 0.25*72 - LEFT_VALUE_X
+    
+    RIGHT_COL_START = PAGE_W / 3.0 + 0.25*72
+    RIGHT_LABEL_RIGHT_EDGE = RIGHT_COL_START + 1.4*72
+    RIGHT_VALUE_X = RIGHT_LABEL_RIGHT_EDGE + 0.1*72
+    RIGHT_MAX_LINE_WIDTH = PAGE_W - RIGHT_INDENT - RIGHT_VALUE_X
+
     title_style, sec_style = ("helvetica-bold", 14), ("helvetica-bold", 14)
     fname_style, fval_style, line_style = ("helvetica-bold", 11), ("helvetica", 11), ("helvetica", 11)
     sheet_name_style = ("helvetica", 10)
     
     ticket_number = str(base_job_number)
+    
     due_date = ""
     try:
         date_str = main_row.get("ship_date", "")
         if pd.notna(date_str) and str(date_str).strip():
             due_date = pd.to_datetime(date_str).strftime('%m/%d/%Y')
+    except Exception: pass
+
+    order_date = ""
+    try:
+        odate_str = main_row.get("order_date", "")
+        if pd.notna(odate_str) and str(odate_str).strip():
+            order_date = pd.to_datetime(odate_str).strftime('%m/%d/%Y')
     except Exception: pass
         
     order_number_raw = clean_text(main_row.get("order_number", ""))
@@ -187,101 +204,160 @@ def generate_ticket_pymupdf(ticket_rows, base_job_number, total_counts_map=None,
     cost_center = extract_cost_center_number(main_row.get("cost_center", ""))
 
     def draw_header(page, is_first_page=True):
-        y_top_line = 0.5 * 72
-        page.insert_text(fitz.Point(LEFT_INDENT, y_top_line), f"JOB NUMBER: {ticket_number}", fontname=title_style[0], fontsize=title_style[1])
-        if order_number_raw:
-            order_text = f"ORDER: {order_number_raw}"
-            order_text_len = fitz.get_text_length(order_text, fontname=title_style[0], fontsize=title_style[1])
-            page.insert_text(fitz.Point((PAGE_W - order_text_len) / 2, y_top_line), order_text, fontname=title_style[0], fontsize=title_style[1])
-
-        ship_text = f"SHIP DATE: {due_date}" if due_date else "SHIP DATE: TBD"
-        ship_text_len = fitz.get_text_length(ship_text, fontname=title_style[0], fontsize=title_style[1])
-        page.insert_text(fitz.Point(PAGE_W - RIGHT_INDENT - ship_text_len, y_top_line), ship_text, fontname=title_style[0], fontsize=title_style[1])
+        y_top_line = 0.375 * 72
         
         if sheet_name:
-            page.insert_text(fitz.Point(LEFT_INDENT, 0.75*72), str(sheet_name), fontname=sheet_name_style[0], fontsize=sheet_name_style[1])
+            page.insert_text(fitz.Point(LEFT_INDENT, y_top_line), str(sheet_name), fontname=sheet_name_style[0], fontsize=sheet_name_style[1])
+        
+        ord_date_text = f"ORDER DATE: {order_date}" if order_date else "ORDER DATE: TBD"
+        ord_date_len = fitz.get_text_length(ord_date_text, fontname=sheet_name_style[0], fontsize=sheet_name_style[1])
+        page.insert_text(fitz.Point((PAGE_W - ord_date_len) / 2, y_top_line), ord_date_text, fontname=sheet_name_style[0], fontsize=sheet_name_style[1])
+        
+        ship_text = f"SHIP DATE: {due_date}" if due_date else "SHIP DATE: TBD"
+        ship_text_len = fitz.get_text_length(ship_text, fontname=sheet_name_style[0], fontsize=sheet_name_style[1])
+        page.insert_text(fitz.Point(PAGE_W - RIGHT_INDENT - ship_text_len, y_top_line), ship_text, fontname=sheet_name_style[0], fontsize=sheet_name_style[1])
+        
+        y_line2 = y_top_line + 0.35 * 72
+        col_w = PAGE_W / 3.0
+        
+        job_text = f"JOB: {ticket_number}"
+        job_len = fitz.get_text_length(job_text, fontname=title_style[0], fontsize=title_style[1])
+        page.insert_text(fitz.Point((col_w - job_len) / 2, y_line2), job_text, fontname=title_style[0], fontsize=title_style[1])
+        
+        order_text = f"ORDER: {order_number_raw}"
+        order_len = fitz.get_text_length(order_text, fontname=title_style[0], fontsize=title_style[1])
+        page.insert_text(fitz.Point(col_w + (col_w - order_len) / 2, y_line2), order_text, fontname=title_style[0], fontsize=title_style[1])
+        
+        store_text = f"STORE: {cost_center}"
+        store_len = fitz.get_text_length(store_text, fontname=title_style[0], fontsize=title_style[1])
+        page.insert_text(fitz.Point(2 * col_w + (col_w - store_len) / 2, y_line2), store_text, fontname=title_style[0], fontsize=title_style[1])
         
         if is_first_page:
-            center_x = PAGE_W - RIGHT_INDENT - (ship_text_len / 2)
-            y = y_top_line + 20 
+            y_bc = y_line2 + 5
             barcode_w, barcode_h = 2.0*72, 0.375*72
             
-            if order_number: 
+            try:
+                bc_x = (col_w - barcode_w) / 2
+                rect = fitz.Rect(bc_x, y_bc, bc_x + barcode_w, y_bc + barcode_h)
+                with fitz.open("pdf", _create_barcode_pdf_in_memory(ticket_number, barcode_w, barcode_h)) as barcode_doc: page.show_pdf_page(rect, barcode_doc, 0)
+            except Exception: pass
+            
+            if order_number:
                 try:
-                    barcode_x0 = center_x - (barcode_w / 2)
-                    rect = fitz.Rect(barcode_x0, y, barcode_x0 + barcode_w, y + barcode_h)
+                    bc_x = col_w + (col_w - barcode_w) / 2
+                    rect = fitz.Rect(bc_x, y_bc, bc_x + barcode_w, y_bc + barcode_h)
                     with fitz.open("pdf", _create_barcode_pdf_in_memory(order_number, barcode_w, barcode_h)) as barcode_doc: page.show_pdf_page(rect, barcode_doc, 0)
-                    text_y = rect.y1 + 4
-                    text = f"Order Number: {order_number_raw}"; text_len = fitz.get_text_length(text, fontname='helvetica', fontsize=11)
-                    page.insert_text(fitz.Point(center_x - (text_len / 2), text_y + 10), text, fontname='helvetica', fontsize=11)
-                    y = text_y + 12 + 24
-                except Exception: pass
-            if cost_center:
-                try:
-                    barcode_x0 = center_x - (barcode_w / 2)
-                    rect = fitz.Rect(barcode_x0, y, barcode_x0 + barcode_w, y + barcode_h)
-                    with fitz.open("pdf", _create_barcode_pdf_in_memory(cost_center, barcode_w, barcode_h)) as barcode_doc: page.show_pdf_page(rect, barcode_doc, 0)
-                    text_y = rect.y1 + 4
-                    text = f"Store Number: {cost_center}"; text_len = fitz.get_text_length(text, fontname='helvetica', fontsize=11)
-                    page.insert_text(fitz.Point(center_x - (text_len / 2), text_y + 10), text, fontname='helvetica', fontsize=11)
-                    y = text_y + 12 + 10
                 except Exception: pass
             
-            if watermark_path and os.path.exists(watermark_path):
+            if cost_center:
                 try:
-                    watermark_w, watermark_h = 1.0*72, 1.0*72
-                    watermark_x0 = center_x - (watermark_w / 2)
-                    rect = fitz.Rect(watermark_x0, y, watermark_x0 + watermark_w, y + watermark_h)
-                    page.insert_image(rect, filename=watermark_path)
+                    bc_x = 2 * col_w + (col_w - barcode_w) / 2
+                    rect = fitz.Rect(bc_x, y_bc, bc_x + barcode_w, y_bc + barcode_h)
+                    with fitz.open("pdf", _create_barcode_pdf_in_memory(cost_center, barcode_w, barcode_h)) as barcode_doc: page.show_pdf_page(rect, barcode_doc, 0)
                 except Exception: pass
 
-    def draw_right_aligned(page, text, y, font, size):
-        FIELD_NAME_RIGHT_EDGE = LEFT_INDENT + 1.875*72
+    def draw_right_aligned(page, text, y, font, size, right_edge):
         text_len = fitz.get_text_length(text, fontname=font, fontsize=size)
-        page.insert_text(fitz.Point(FIELD_NAME_RIGHT_EDGE - text_len, y), text, fontname=font, fontsize=size)
+        page.insert_text(fitz.Point(right_edge - text_len, y), text, fontname=font, fontsize=size)
 
     page = doc.new_page(width=PAGE_W, height=PAGE_H)
     draw_header(page, is_first_page=True)
-    y = 1.25*72
+    
+    y_start_body = 1.6 * 72
     def new_page_check(y_pos, min_y_from_bottom=1.0*72):
         nonlocal page
         if y_pos > PAGE_H - min_y_from_bottom:
             page = doc.new_page(width=PAGE_W, height=PAGE_H)
             draw_header(page, is_first_page=False)
-            return 1.5*72
+            return 1.6*72
         return y_pos
 
-    page.insert_text(fitz.Point(LEFT_INDENT, y), "PRODUCT INFORMATION", fontname=sec_style[0], fontsize=sec_style[1]); y += 0.25*72
-    for field, display_name in [("product_id", "Product ID"), ("product_name", "Product Name")]:
-        y = new_page_check(y)
-        draw_right_aligned(page, f"{display_name}:", y, fname_style[0], fname_style[1])
-        page.insert_text(fitz.Point(FIELD_VALUE_X, y), clean_text(main_row.get(field, "")), fontname=fval_style[0], fontsize=fval_style[1]); y += 0.25*72
-    y += 0.25*72; y = new_page_check(y)
-    
-    page.insert_text(fitz.Point(LEFT_INDENT, y), "SHIPPING DETAILS", fontname=sec_style[0], fontsize=sec_style[1]); y += 0.25*72
-    for field, display_name in [("cost_center", "Cost Center")]:
-        y = new_page_check(y)
-        draw_right_aligned(page, f"{display_name}:", y, fname_style[0], fname_style[1])
-        page.insert_text(fitz.Point(FIELD_VALUE_X, y), clean_text(main_row.get(field, "")), fontname=fval_style[0], fontsize=fval_style[1]); y += 0.25*72
-        
+    y_left = y_start_body
+    page.insert_text(fitz.Point(LEFT_COL_START, y_left), "SHIPPING DETAILS", fontname=sec_style[0], fontsize=sec_style[1])
+    y_left += 0.25*72
+
     ship_company = clean_text(main_row.get("ship_to_company", "")); ship_attn = clean_text(main_row.get("ship_attn", "")); ship_addr4 = clean_text(main_row.get("address4", ""))
     addr1 = clean_text(main_row.get("address1", "")); addr2 = clean_text(main_row.get("address2", "")); addr3 = clean_text(main_row.get("address3", ""))
     city = clean_text(main_row.get("city", "")); state = clean_text(main_row.get("state", "")); zip_code = format_zip_code(main_row.get("zip", ""))
-    if ship_company:
-        y = new_page_check(y); draw_right_aligned(page, "Ship Company:", y, fname_style[0], fname_style[1]); page.insert_text(fitz.Point(FIELD_VALUE_X, y), ship_company, fontname=fval_style[0], fontsize=fval_style[1]); y += 0.25*72
+    
     combined_attention_line = ' '.join(filter(None, [ship_attn, ship_addr4]))
     if combined_attention_line:
-        y = new_page_check(y); draw_right_aligned(page, "Attention:", y, fname_style[0], fname_style[1]); page.insert_text(fitz.Point(FIELD_VALUE_X, y), combined_attention_line, fontname=fval_style[0], fontsize=fval_style[1]); y += 0.25*72
+        y_left = new_page_check(y_left)
+        draw_right_aligned(page, "Attn:", y_left, fname_style[0], fname_style[1], LEFT_LABEL_RIGHT_EDGE)
+        page.insert_text(fitz.Point(LEFT_VALUE_X, y_left), combined_attention_line, fontname=fval_style[0], fontsize=fval_style[1])
+        y_left += 0.25*72
+        
+    if ship_company:
+        y_left = new_page_check(y_left)
+        draw_right_aligned(page, "Ship Company:", y_left, fname_style[0], fname_style[1], LEFT_LABEL_RIGHT_EDGE)
+        
+        words = ship_company.split()
+        current_line = []
+        line_y = y_left
+        for word in words:
+            if fitz.get_text_length(' '.join(current_line + [word]), fontname=fval_style[0], fontsize=fval_style[1]) > LEFT_MAX_LINE_WIDTH:
+                if current_line:
+                    line_y = new_page_check(line_y)
+                    page.insert_text(fitz.Point(LEFT_VALUE_X, line_y), ' '.join(current_line), fontname=fval_style[0], fontsize=fval_style[1])
+                    line_y += 0.2 * 72
+                current_line = [word]
+            else: current_line.append(word)
+        if current_line:
+            line_y = new_page_check(line_y)
+            page.insert_text(fitz.Point(LEFT_VALUE_X, line_y), ' '.join(current_line), fontname=fval_style[0], fontsize=fval_style[1])
+        
+        y_left = line_y + 0.25*72
+        
     address_lines = [line for line in [addr1, addr2, addr3] if line]; last_line = ' '.join(filter(None, [city, state, zip_code]))
     if last_line: address_lines.append(last_line)
     if address_lines:
-        y = new_page_check(y); draw_right_aligned(page, "Ship Address:", y, fname_style[0], fname_style[1]); addr_y = y
+        y_left = new_page_check(y_left)
+        draw_right_aligned(page, "Ship Address:", y_left, fname_style[0], fname_style[1], LEFT_LABEL_RIGHT_EDGE)
+        addr_y = y_left
         for i, line in enumerate(address_lines):
-            page.insert_text(fitz.Point(FIELD_VALUE_X, addr_y), line, fontname=fval_style[0], fontsize=fval_style[1])
+            page.insert_text(fitz.Point(LEFT_VALUE_X, addr_y), line, fontname=fval_style[0], fontsize=fval_style[1])
             if i < len(address_lines) - 1: addr_y += 0.18 * 72
-        y = addr_y + 0.05 * 72
-    y += 0.25*72; y = new_page_check(y)
+        y_left = addr_y + 0.25*72
+
+    y_right = y_start_body
+    page.insert_text(fitz.Point(RIGHT_COL_START, y_right), "INFO & INSTRUCTIONS", fontname=sec_style[0], fontsize=sec_style[1])
+    y_right += 0.25*72
     
+    instruction_fields = [
+        ("product_id", "Product ID:"),
+        ("product_name", "Product Name:"),
+        ("general_description", "General Desc:"),
+        ("paper_description", "Paper Desc:"),
+        ("press_instructions", "Press Inst:"),
+        ("bindery_instructions", "Bindery Inst:"),
+        ("job_ticket_shipping_instructions", "Shipping Inst:")
+    ]
+    
+    for field, display_name in instruction_fields:
+        value = clean_text(main_row.get(field, ""))
+        if not value: continue
+        y_right = new_page_check(y_right)
+        draw_right_aligned(page, display_name, y_right, fname_style[0], fname_style[1], RIGHT_LABEL_RIGHT_EDGE)
+        
+        words = value.split()
+        current_line = []
+        line_y = y_right
+        for word in words:
+            if fitz.get_text_length(' '.join(current_line + [word]), fontname=fval_style[0], fontsize=fval_style[1]) > RIGHT_MAX_LINE_WIDTH:
+                if current_line:
+                    line_y = new_page_check(line_y)
+                    page.insert_text(fitz.Point(RIGHT_VALUE_X, line_y), ' '.join(current_line), fontname=fval_style[0], fontsize=fval_style[1])
+                    line_y += 0.2 * 72
+                current_line = [word]
+            else: current_line.append(word)
+        if current_line:
+            line_y = new_page_check(line_y)
+            page.insert_text(fitz.Point(RIGHT_VALUE_X, line_y), ' '.join(current_line), fontname=fval_style[0], fontsize=fval_style[1])
+        y_right = line_y + 0.25*72
+
+    y = max(y_left, y_right) + 0.1 * 72
+    y = new_page_check(y)
+
     try: total_items = int(main_row.get("job_total_line_items"))
     except (ValueError, TypeError, AttributeError): total_items = total_counts_map.get(str(ticket_number), len(ticket_rows))
     
@@ -358,22 +434,6 @@ def generate_ticket_pymupdf(ticket_rows, base_job_number, total_counts_map=None,
         y = final_y + 0.125*72 
         page.draw_line(fitz.Point(LEFT_INDENT, y), fitz.Point(PAGE_W - RIGHT_INDENT, y)); y += 0.1875*72
     
-    y += 0.25*72; y = new_page_check(y)
-    page.insert_text(fitz.Point(LEFT_INDENT, y), "PRODUCTION INSTRUCTIONS", fontname=sec_style[0], fontsize=sec_style[1]); y += 0.3*72
-    instruction_fields = {"general_description": "General Desc.", "paper_description": "Paper Desc.", "press_instructions": "Press Inst.", "bindery_instructions": "Bindery Inst.", "job_ticket_shipping_instructions": "Shipping Inst."}
-    for field, display_name in instruction_fields.items():
-        value = clean_text(main_row.get(field, ""))
-        if not value: continue
-        y = new_page_check(y)
-        draw_right_aligned(page, f"{display_name}:", y, fname_style[0], fname_style[1])
-        words, current_line, line_y = value.split(), [], y
-        for word in words:
-            if fitz.get_text_length(' '.join(current_line + [word]), fontname=fval_style[0], fontsize=fval_style[1]) > MAX_LINE_WIDTH:
-                if current_line: line_y = new_page_check(line_y); page.insert_text(fitz.Point(FIELD_VALUE_X, line_y), ' '.join(current_line), fontname=fval_style[0], fontsize=fval_style[1]); line_y += 0.2 * 72
-                current_line = [word]
-            else: current_line.append(word)
-        if current_line: line_y = new_page_check(line_y); page.insert_text(fitz.Point(FIELD_VALUE_X, line_y), ' '.join(current_line), fontname=fval_style[0], fontsize=fval_style[1])
-        y = line_y + (0.2 * 72) + 0.05 * 72
     return doc
 
 def process_dataframe(df, files_path, tickets_path, sheet_name, watermark_path=None):

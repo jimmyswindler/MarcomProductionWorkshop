@@ -184,6 +184,14 @@ def organize_by_product_id(input_file, config):
                 utils_ui.print_warning(f"Quarantined {len(jobs_to_fail)} jobs to 'FAILED' due to failed output file URLs.")
                 df.loc[df[col_base_job].isin(jobs_to_fail), 'Category'] = 'FAILED'
 
+        standing_files_dict = config.get('standing_files', {})
+        if standing_files_dict:
+            is_standing_file = df[col_pid].isin(standing_files_dict.keys())
+            if is_standing_file.sum() > 0:
+                for pid, local_path in standing_files_dict.items():
+                    df.loc[is_standing_file & (df[col_pid] == str(pid)), col_url] = local_path
+                utils_ui.print_info(f"Assigned local standing file paths for {is_standing_file.sum()} items.")
+
         # Existing 'PrintOnDemand' fallback for genuinely empty URLs
         has_no_url_content = df[col_url].isnull() | (df[col_url].astype(str).str.strip() == '')
         eligible_url_mask = df['Category'].isin(['12ptBounceBack', '16ptBusinessCard']) & has_no_url_content

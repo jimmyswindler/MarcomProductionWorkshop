@@ -67,13 +67,18 @@ def process_sheet_downloads(df, files_path, sheet_name):
             if url.startswith('http'):
                 if not os.path.exists(dest_path):
                     download_tasks.append((row['index'], url, dest_path))
-            elif os.path.exists(url):
-                # Local copy if not already there
-                if not os.path.exists(dest_path):
-                   try: 
-                       shutil.copy2(url, dest_path)
-                   except Exception: 
-                       pass # Fail silently here?
+            else:
+                # Handle local paths, ensuring relative paths resolve correctly from project_root
+                if not os.path.isabs(url):
+                    url = os.path.join(project_root, url)
+                
+                if os.path.exists(url):
+                    # Local copy if not already there
+                    if not os.path.exists(dest_path):
+                       try: 
+                           shutil.copy2(url, dest_path)
+                       except Exception: 
+                           pass # Fail silently here?
     
     if not download_tasks:
         utils_ui.print_info("No new files to download.")
