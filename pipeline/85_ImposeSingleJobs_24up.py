@@ -98,7 +98,7 @@ def standardize_pages(file_path, profile):
             
             if w > h:  # Original is landscape (e.g. 3.75x2.25) -> Rotate to portrait
                 if i % 2 != 0: # Back page head-to-head rotation
-                    transform = transform.rotate(90)
+                    transform = transform.rotate(-90)
                 else:          # Front page rotation
                     transform = transform.rotate(90)
             else: # Already portrait
@@ -163,15 +163,14 @@ def generate_header_card(barcode_val, row_data, profile, qty_ordered, std_pages,
     
     if barcode_val:
         try:
-            bc = code128.Code128(str(barcode_val), barHeight=18, barWidth=1.4)
-            target_w = 1.75 * 72
-            scale_x = target_w / bc.width if bc.width > 0 else 1.0
+            target_w = 1.5 * 72
+            temp_bc = code128.Code128(str(barcode_val), barWidth=1.0, quiet=False)
+            actual_bar_width = target_w / temp_bc.width if temp_bc.width > 0 else 1.0
+            bc = code128.Code128(str(barcode_val), barHeight=18, barWidth=actual_bar_width, quiet=False)
             
             c.saveState()
             bc_x = (card_w - target_w) / 2
-            c.translate(bc_x, current_y)
-            c.scale(scale_x, 1.0)
-            bc.drawOn(c, 0, 0)
+            bc.drawOn(c, bc_x, current_y)
             c.restoreState()
             
             current_y -= 8
@@ -252,6 +251,9 @@ def impose_content(standardized_pages, profile, qty_ordered, row_data, barcodes,
     blank_front = PageObject.create_blank_page(width=profile['card_width_pts'], height=profile['card_height_pts'])
     blank_back = PageObject.create_blank_page(width=profile['card_width_pts'], height=profile['card_height_pts'])
     
+    if not barcodes:
+        barcodes = [None]
+
     for bc in barcodes:
         hf = generate_header_card(bc, row_data, profile, qty_ordered, standardized_pages, target_icon_path)
         header_fronts.append(hf)
@@ -267,20 +269,40 @@ def impose_content(standardized_pages, profile, qty_ordered, row_data, barcodes,
     pad_blanks_needed = (num_front_sheets * cards_per_sheet) - total_slots_needed
     
     # 2. BUILD THE FLAT SEQUENCES
+    job_fronts = []
+    job_backs = []
+    for i in range(unique_cards):
+        for _ in range(copies_per_card):
+            job_fronts.append(fronts[i])
+            job_backs.append(backs[i])
+            
+    # Calculate how many job cards must sit on sheet 1 to push blanks to the end of the sheet
+    first_sheet_job_count = cards_per_sheet - num_headers - pad_blanks_needed
+    
     front_sequence = []
     back_sequence = []
     
+    # 1. Headers first
     front_sequence.extend(header_fronts)
     back_sequence.extend(header_backs)
     
+    # 2. Add just enough jobs to reach the start index of the blanks
+    if first_sheet_job_count > 0:
+        front_sequence.extend(job_fronts[:first_sheet_job_count])
+        back_sequence.extend(job_backs[:first_sheet_job_count])
+        
+    # 3. Add all blanks (which now fall exactly at the end of the first 24-up sequence)
     for _ in range(pad_blanks_needed):
         front_sequence.append(blank_front)
         back_sequence.append(blank_back)
         
-    for i in range(unique_cards):
-        for _ in range(copies_per_card):
-            front_sequence.append(fronts[i])
-            back_sequence.append(backs[i])
+    # 4. Add the rest of the jobs (which will now cleanly fill out the rest of the sheets)
+    if first_sheet_job_count > 0:
+        front_sequence.extend(job_fronts[first_sheet_job_count:])
+        back_sequence.extend(job_backs[first_sheet_job_count:])
+    else:
+        front_sequence.extend(job_fronts)
+        back_sequence.extend(job_backs)
             
     writer = PdfWriter()
     
@@ -288,23 +310,25 @@ def impose_content(standardized_pages, profile, qty_ordered, row_data, barcodes,
         press_sheet_f = PageObject.create_blank_page(width=profile['paper_width'], height=profile['paper_height'])
         press_sheet_b = PageObject.create_blank_page(width=profile['paper_width'], height=profile['paper_height'])
         
-        # New sequence map: column-by-column, bottom-to-top
-        for col in range(profile['columns']):
-            for row in range(profile['rows']):
-                slot = (col * profile['rows']) + row
-                global_idx = (sheet_idx * cards_per_sheet) + slot
-                
-                c_front = front_sequence[global_idx]
-                c_back = back_sequence[global_idx]
-                
-                x_f = profile['start_x'] + (col * (profile['card_width_pts'] + profile['h_gutter']))
-                y = profile['start_y'] + (row * (profile['card_height_pts'] + profile['v_gutter']))
-                
-                curr_col_b = (profile['columns'] - 1) - col
-                x_b = profile['start_x'] + (curr_col_b * (profile['card_width_pts'] + profile['h_gutter']))
-                
-                press_sheet_f.merge_transformed_page(c_front, Transformation().translate(tx=x_f, ty=y))
-                press_sheet_b.merge_transformed_page(c_back, Transformation().translate(tx=x_b, ty=y))
+        # New sequence map: left-to-right, top-to-bottom
+        for slot in range(cards_per_sheet):
+            row_logical = slot // profile['columns']
+            row = (profile['rows'] - 1) - row_logical
+            col = slot % profile['columns']
+            
+            global_idx = (sheet_idx * cards_per_sheet) + slot
+            
+            c_front = front_sequence[global_idx]
+            c_back = back_sequence[global_idx]
+            
+            x_f = profile['start_x'] + (col * (profile['card_width_pts'] + profile['h_gutter']))
+            y = profile['start_y'] + (row * (profile['card_height_pts'] + profile['v_gutter']))
+            
+            curr_col_b = (profile['columns'] - 1) - col
+            x_b = profile['start_x'] + (curr_col_b * (profile['card_width_pts'] + profile['h_gutter']))
+            
+            press_sheet_f.merge_transformed_page(c_front, Transformation().translate(tx=x_f, ty=y))
+            press_sheet_b.merge_transformed_page(c_back, Transformation().translate(tx=x_b, ty=y))
                 
         writer.add_page(press_sheet_f)
         writer.add_page(press_sheet_b)
@@ -427,8 +451,14 @@ def main(input_excel_path, one_up_files_folder, output_dir, central_config_json)
                         progress.update(task, advance=1)
                         continue
                         
-                    # Fetch barcodes before composing
-                    barcodes = fetch_item_boxes_for_job(conn, job_ticket) if conn else []
+                    # Extract barcodes directly from the row payload (box_A, box_B, etc.)
+                    barcodes = []
+                    for col in row.keys():
+                        if str(col).startswith('box_') and pd.notna(row[col]) and str(row[col]).strip() not in ['nan', '']:
+                            barcodes.append(str(row[col]).strip())
+                    
+                    if not barcodes:
+                        barcodes = [None] # Guarantee at least one header
                     
                     target_icon_path = None
                     if category and str(qty_ordered) in shipping_box_rules.get(category, {}):

@@ -8,6 +8,7 @@ import shutil
 import pandas as pd
 from datetime import datetime
 import json
+import re
 
 # Setup import path to include project root
 project_root = os.path.dirname(os.path.abspath(__file__))
@@ -61,13 +62,28 @@ def process_ingestion(input_dir, processed_dir, config, dry_run=False):
         logging.error(f"Input directory not found: {input_dir}")
         return
 
-    orders_pattern = config.get('stage1_source_files', {}).get('orders_xml', 'Orders_')
-    tickets_pattern = config.get('stage1_source_files', {}).get('job_tickets_xml', 'JobTickets_')
+    file_pairs = {}
+    pattern = re.compile(r'^(?P<prefix>.*?)_(?P<type>Orders|JobTickets)_(?P<daterange>\d{8}_\d{4}_to_\d{8}_\d{4})_.*\.xml$')
     
-    order_files = [f for f in all_files if orders_pattern in f and f.endswith('.xml')]
-    ticket_files = [f for f in all_files if tickets_pattern in f and f.endswith('.xml')]
+    for f in all_files:
+        match = pattern.match(f)
+        if match:
+            key = f"{match.group('prefix')}_{match.group('daterange')}"
+            if key not in file_pairs:
+                file_pairs[key] = {}
+            file_pairs[key][match.group('type')] = f
+
+    order_files = []
+    ticket_files = []
     
-    logging.info(f"Found {len(order_files)} Order files and {len(ticket_files)} Ticket files.")
+    for key, pair in file_pairs.items():
+        if 'Orders' in pair and 'JobTickets' in pair:
+            order_files.append(pair['Orders'])
+            ticket_files.append(pair['JobTickets'])
+        else:
+            logging.info(f"Skipping incomplete pair for {key}: {list(pair.keys())} found.")
+
+    logging.info(f"Found {len(order_files)} complete Order/Ticket file pairs to process.")
 
     # Pair them? Or process widely? 
     # Logic from 10_DataCollection implies processing all found.
@@ -82,10 +98,7 @@ def process_ingestion(input_dir, processed_dir, config, dry_run=False):
             df['source_file'] = f
             all_orders_df = pd.concat([all_orders_df, df], ignore_index=True)
             
-    if all_orders_df.empty:
-        logging.info("No order data found.")
-        conn.close()
-        return
+            all_orders_df = pd.concat([all_orders_df, df], ignore_index=True)
 
     # Parse Tickets to enrich (Description fields mostly)
     all_tickets_df = pd.DataFrame()
@@ -134,7 +147,6 @@ def process_ingestion(input_dir, processed_dir, config, dry_run=False):
     else:
         merged_df['job_ticket_display_id'] = None
 
-    # 3. Insert into DB
     count_new = 0
     count_exists = 0
     
@@ -283,13 +295,45 @@ def process_ingestion(input_dir, processed_dir, config, dry_run=False):
             logging.error(f"Error processing row {job_ticket}: {e}")
             conn.rollback()
 
+    # --- 3.5 Update Job Instructions (Backfill and Guaranteed Consistency) ---
+    count_updated_tickets = 0
+    if not all_tickets_df.empty:
+        logging.info("Ensuring all job tickets have instructions mapped...")
+        for idx, row in all_tickets_df.iterrows():
+            job_ticket = get_db_string(row.get('job_ticket_number'))
+            if not job_ticket: continue
+            
+            general_desc = get_db_string(row.get('general_description'))
+            paper_desc = get_db_string(row.get('paper_description'))
+            press_inst = get_db_string(row.get('press_instructions'))
+            bindery_inst = get_db_string(row.get('bindery_instructions'))
+            shipping_inst = get_db_string(row.get('job_ticket_shipping_instructions'))
+            
+            # Skip update if no data to map? Or update to sync what's available
+            if not dry_run:
+                try:
+                    cur.execute("""
+                        UPDATE jobs SET 
+                            general_description = COALESCE(%s, general_description),
+                            paper_description = COALESCE(%s, paper_description),
+                            press_instructions = COALESCE(%s, press_instructions),
+                            bindery_instructions = COALESCE(%s, bindery_instructions),
+                            shipping_instructions = COALESCE(%s, shipping_instructions)
+                        WHERE job_ticket_number = %s
+                    """, (general_desc, paper_desc, press_inst, bindery_inst, shipping_inst, job_ticket))
+                    if cur.rowcount > 0: count_updated_tickets += 1
+                except Exception as e:
+                    logging.error(f"Failed to update instructions for ticket {job_ticket}: {e}")
+            else:
+                logging.info(f"[DRY RUN] Would update instructions for ticket {job_ticket}")
+
     conn.commit()
     conn.close()
     
-    logging.info(f"Ingestion Complete. Processed {count_new} new/updated jobs. Skipped {count_exists} existing.")
+    logging.info(f"Ingestion Complete. Processed {count_new} new/updated jobs. Skipped {count_exists} existing. Updated instructions for {count_updated_tickets} tickets.")
     
     # 4. Move Files (if active)
-    if not dry_run and count_new > 0:
+    if not dry_run and (count_new > 0 or count_updated_tickets > 0):
         processed_dir_final = os.path.join(processed_dir, 'processed') # Per user request, no date folder? 
         # Plan says: "processed files will move to smb://.../processed/ without dated subfolders"
         os.makedirs(processed_dir_final, exist_ok=True)

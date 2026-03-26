@@ -4,7 +4,7 @@ import os
 import sys
 import subprocess
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 import argparse
 
 # Setup import path to include project root
@@ -71,7 +71,7 @@ def main():
     
     logging.info(f"Starting Ingest Daemon.")
     logging.info(f"Monitoring Directory: {args.input_dir}")
-    logging.info(f"Polling Interval: {args.interval} seconds")
+    logging.info(f"Polling Interval: Hourly at the 30-minute mark")
     
     while True:
         try:
@@ -87,8 +87,15 @@ def main():
             break
         except Exception as e:
             logging.error(f"Unexpected error in daemon loop: {e}")
+        now = datetime.now()
+        if now.minute < 30:
+            target = now.replace(minute=30, second=0, microsecond=0)
+        else:
+            target = (now + timedelta(hours=1)).replace(minute=30, second=0, microsecond=0)
             
-        time.sleep(args.interval)
+        sleep_seconds = (target - now).total_seconds()
+        logging.info(f"Next ingestion check scheduled for {target.strftime('%H:%M:%S')} (in {sleep_seconds:.0f} seconds).")
+        time.sleep(sleep_seconds)
 
 if __name__ == "__main__":
     main()

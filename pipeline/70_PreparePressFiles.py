@@ -37,9 +37,11 @@ BARCODE_HEIGHT, ICON_HEIGHT = 18, 18
 BLOCK_SPACING, LINE_SPACING = 6, 2
 
 def _create_barcode_pdf_in_memory(data_string, width, height):
+    temp_bc = code128.Code128(data_string, barWidth=1.0, quiet=False)
+    actual_bar_width = width / temp_bc.width if temp_bc.width > 0 else 1.0
     buffer = BytesIO(); c = rl_canvas.Canvas(buffer, pagesize=(width, height))
-    barcode = code128.Code128(data_string, barHeight=height, barWidth=1.4) 
-    barcode.drawOn(c, (width - barcode.width) / 2, 0)
+    barcode = code128.Code128(data_string, barHeight=height, barWidth=actual_bar_width, quiet=False) 
+    barcode.drawOn(c, 0, 0)
     c.save(); buffer.seek(0)
     return buffer
 
@@ -113,7 +115,7 @@ def create_header_page(pdf_path, order_number=None, segment=None, total_segments
                 will_draw_box = False 
 
         if will_draw_box and box_value:
-            bc_w = 1.75 * 72; bc_x = (HEADER_PAGE_WIDTH - bc_w) / 2
+            bc_w = 1.5 * 72; bc_x = (HEADER_PAGE_WIDTH - bc_w) / 2
             wb_w, wb_h = 136, 20
             header_page.draw_rect(fitz.Rect((HEADER_PAGE_WIDTH-wb_w)/2, current_y - (wb_h-BARCODE_HEIGHT)/2, (HEADER_PAGE_WIDTH-wb_w)/2+wb_w, current_y - (wb_h-BARCODE_HEIGHT)/2+wb_h), color=(1,1,1), fill=(1,1,1))
             with fitz.open("pdf", _create_barcode_pdf_in_memory(box_value, bc_w, BARCODE_HEIGHT)) as bd: header_page.show_pdf_page(fitz.Rect(bc_x, current_y, bc_x + bc_w, current_y + BARCODE_HEIGHT), bd, 0)

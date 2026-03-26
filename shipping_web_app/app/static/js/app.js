@@ -619,12 +619,48 @@ function formatAddr(a) {
     return `${a.company}\n${a.name}\n${a.address1}\n${a.city}, ${a.state} ${a.zip}`;
 }
 
-function formatOrderNumbers(orders) {
-    const nums = [...new Set(orders.map(o => o.related_order_number || o.order_number))];
-    if (nums.length === 1) return nums[0];
-    if (nums.length === 2) return nums.join(' and ');
-    const last = nums.pop();
-    return nums.join(', ') + ', and ' + last;
+function formatDynamicHeadline(shipment) {
+    let orderToJobs = {};
+    
+    shipment.orders.forEach(o => {
+        let orderNum = o.related_order_number || o.order_number;
+        if (!orderToJobs[orderNum]) orderToJobs[orderNum] = new Set();
+        
+        (o.line_items || []).forEach(li => {
+            if (li.job_ticket) orderToJobs[orderNum].add(li.job_ticket);
+        });
+    });
+
+    let orderKeys = Object.keys(orderToJobs).sort();
+    
+    if (orderKeys.length === 1) {
+        let o = orderKeys[0];
+        let jobs = Array.from(orderToJobs[o]).sort();
+        if (jobs.length === 0) return `<span style="color:#007bff; font-weight:bold;">Order ${o}</span>`;
+        if (jobs.length === 1) return `<span style="color:#007bff; font-weight:bold;">Job ${jobs[0]}</span> <span style="font-size: 0.6em; color: #555;">(Order: ${o})</span>`;
+        if (jobs.length <= 4) return `<span style="color:#007bff; font-weight:bold;">Jobs ${jobs.join(', ')}</span> <span style="font-size: 0.6em; color: #555;">(Order: ${o})</span>`;
+        
+        return `<span style="color:#007bff; font-weight:bold;">${jobs.length} Jobs</span> <span style="font-size: 0.6em; color: #555;">(Order: ${o})</span>`;
+    } else {
+        let totalJobs = 0;
+        let breakdown = [];
+        
+        orderKeys.forEach(o => {
+            let count = orderToJobs[o].size;
+            totalJobs += count;
+            let noun = count === 1 ? "Job" : "Jobs";
+            breakdown.push(`${o} (${count} ${noun})`);
+        });
+
+        let orderStr = "";
+        if (breakdown.length <= 2) {
+            orderStr = breakdown.join(', ');
+        } else {
+            orderStr = `${breakdown[0]}, ${breakdown[1]}, and ${breakdown.length - 2} more orders`;
+        }
+
+        return `<span style="color:#007bff; font-weight:bold;">${totalJobs} Jobs</span> <span style="font-size: 0.6em; color: #555;">(Across ${orderKeys.length} Orders: ${orderStr})</span>`;
+    }
 }
 
 function mergeNewOrder(newOrder) {
@@ -669,8 +705,8 @@ function setupStep2() {
     step2.style.display = 'block';
     el('last-shipment-display').style.display = 'none';
 
-    const ordersFormatted = formatOrderNumbers(currentShipment.orders);
-    el('scanning-header').textContent = `Scanning Items for ${ordersFormatted}`;
+    const headlineHtml = formatDynamicHeadline(currentShipment);
+    el('scanning-header').innerHTML = `Scanning Items for ${headlineHtml}`;
 
     const a = currentShipment.ship_to;
     el('shipping-address').innerHTML = `<strong>Ship To:</strong> ${a.name} (Store #: ${a.store_number || 'N/A'})<br>${a.address1}<br>${a.city}, ${a.state} ${a.zip}`;
@@ -681,35 +717,7 @@ function setupStep2() {
     updateButtonState(el('process-shipment-btn'), false);
     updateButtonState(el('add-order-btn'), currentShipment.status !== 'COMPLETED');
 
-    // Status Banner
-    const statusEl = el('order-status-display');
-    if (currentShipment.status === 'SHIPPED') {
-        statusEl.textContent = '✅ ORDER SHIPPED';
-        statusEl.style.background = '#d4edda';
-        statusEl.style.color = '#155724';
-        statusEl.style.border = '1px solid #c3e6cb';
-        statusEl.style.display = 'block';
-    } else if (currentShipment.status === 'PARTIALLY SHIPPED') {
-        statusEl.textContent = '⚠️ PARTIALLY SHIPPED';
-        statusEl.style.background = '#fff3cd';
-        statusEl.style.color = '#856404';
-        statusEl.style.border = '1px solid #ffeeba';
-        statusEl.style.display = 'block';
-    } else if (currentShipment.status === 'PACKED') {
-        statusEl.textContent = '📦 ORDER PACKED';
-        statusEl.style.background = '#e2e3e5';
-        statusEl.style.color = '#383d41';
-        statusEl.style.border = '1px solid #d6d8db';
-        statusEl.style.display = 'block';
-    } else if (currentShipment.status === 'PARTIALLY PACKED') {
-        statusEl.textContent = '⚠️ PARTIALLY PACKED';
-        statusEl.style.background = '#fff3cd';
-        statusEl.style.color = '#856404';
-        statusEl.style.border = '1px solid #ffeeba';
-        statusEl.style.display = 'block';
-    } else {
-        statusEl.style.display = 'none';
-    }
+    // Status Banner behavior removed from setupStep2
 }
 
 function updateBarcodeList() {
@@ -726,12 +734,13 @@ function updateBarcodeList() {
     // Update Progress Bar
     const pct = grandTotal > 0 ? (grandPacked / grandTotal) * 100 : 0;
     el('scan-progress-bar').style.width = `${pct}%`;
+    el('scan-progress-bar').textContent = `${Math.round(pct)}%`;
     el('scan-progress-text').textContent = `${grandPacked} / ${grandTotal}`;
 
     // Header Dynamic Update
-    const activeOrderNum = formatOrderNumbers(currentShipment.orders);
+    const activeHeadlineHtml = formatDynamicHeadline(currentShipment);
     const h1 = step2.querySelector('h1');
-    if (h1) h1.innerHTML = `Scanning Items for <span style="color:#007bff; font-weight:bold;">${activeOrderNum}</span>`;
+    if (h1) h1.innerHTML = `Scanning Items for ${activeHeadlineHtml}`;
 
     // 2. Render Job Groups
     el('expected-barcodes').innerHTML = ''; // Clear List

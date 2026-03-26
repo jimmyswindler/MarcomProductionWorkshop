@@ -24,8 +24,8 @@ def get_job_details(lookup_id):
         target_job_ids = []
         
         if job_data:
-            cur.execute("SELECT id FROM jobs WHERE order_id = %s", (job_data['order_id'],))
-            target_job_ids = [r['id'] for r in cur.fetchall()]
+            # Instead of fetching all jobs for the order_id, only fetch the matched job
+            target_job_ids = [job_data['job_id']]
             
             response_data = {
                 "order_number": job_data['job_ticket_number'], 
@@ -94,8 +94,8 @@ def get_job_details(lookup_id):
                 job_data = cur.fetchone()
 
                 if job_data:
-                    cur.execute("SELECT id FROM jobs WHERE order_id = %s", (job_data['order_id'],))
-                    target_job_ids = [r['id'] for r in cur.fetchall()]
+                    # Instead of fetching all jobs for the order_id, only fetch the matched job
+                    target_job_ids = [job_data['job_id']]
                     
                     response_data = {
                         "order_number": job_data['job_ticket_number'], 

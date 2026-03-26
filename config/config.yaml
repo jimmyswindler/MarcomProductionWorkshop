@@ -11,7 +11,7 @@ paths:
     pressprep: './pipeline/70_PreparePressFiles.py'
     impose: './pipeline/80_GR_Imposition_5x5_BB_BC.py'
     impose_single: './pipeline/85_ImposeSingleJobs_24up.py'
-    # email: './90_email.py'
+    email: './pipeline/90_email.py'
 
   stage1_collect:
     input_dir: './_REPORT_INPUT'
@@ -42,8 +42,8 @@ paths:
   icon_I_path: './resources/icon_I.pdf'
   icon_J_path: './resources/icon_J.pdf'
 
-  # dynamic_build_root: '/Volumes/AraxiVolume_Jobs/Jobs/DigimasterProductionNew/MARCOM orders/' # production path
-  dynamic_build_root: './Output_Test_Folder/'   # testing path
+  dynamic_build_root: '/Volumes/AraxiVolume_Jobs/Jobs/DigimasterProductionNew/MARCOM orders/' # production path
+  # dynamic_build_root: './Output_Test_Folder/'   # testing path
   
   # --- DUPLICATE INGESTION CONTROL (Safeguard) ---
   # Set to TRUE to allow re-processing the same data (Test Mode).
@@ -261,6 +261,7 @@ product_ids:
     - "T_ED_PST"
     - "T_NEW_STORE_BAN_12X4_F"
     - "POD_T_1911_COMM_BAN_FINAL"
+    - "4"
     - "5"
     - "6"
     - "22"
@@ -446,7 +447,6 @@ product_ids:
     - "T_TY_FE_BBK"
     - "M_2304_LSM_COM_BSC"
     - "M_2304_LSM_LN_BSC"
-    - "4"
     - "27"
     - "166"
     - "200"
@@ -526,7 +526,7 @@ product_ids:
     - "4109"
   
 standing_files:
-  "3007": "./standing_files/3007_print_file.pdf"
+#   "3007": "./standing_files/3007_print_file.pdf"
   
 categorization_rules:
   business_card_identifiers: ['16pt', '16 pt']

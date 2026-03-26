@@ -66,16 +66,45 @@ def main():
     recipients = [r.strip() for r in recipient_list.split(',')]
     msg = MIMEMultipart(); msg['From'] = sender_email; msg['To'] = ", ".join(recipients)
 
-    body_lines = ["Attachments are for reference only. No outside services are required for these orders."]
+    body_lines = []
     standard_attachments = [args.bundled_excel_path, args.runlist_pdf_path]
     conditional_attachments = []
+    subject_flags = []
 
     try:
-        # utils_ui.print_info(f"Checking for 'CBO' in: {os.path.basename(args.bundled_excel_path)}")
+        # utils_ui.print_info(f"Checking for flags in: {os.path.basename(args.bundled_excel_path)}")
         xls = pd.ExcelFile(args.bundled_excel_path)
+        
+        # 1. Check for FAILED
+        if 'FAILED' in xls.sheet_names:
+            utils_ui.print_warning("'FAILED' sheet FOUND.")
+            subject_flags.append("ACTION REQUIRED: FAILED JOBS")
+            df_FAILED = pd.read_excel(xls, sheet_name='FAILED')
+            if 'job_ticket_number' in df_FAILED.columns:
+                FAILED_ticket_dir = os.path.join(args.job_tickets_dir, 'FAILED')
+                unique_base_jobs_failed = set()
+                for job_ticket in df_FAILED['job_ticket_number'].dropna().astype(str):
+                    base_job_num = job_ticket.rsplit('-', 1)[0]
+                    unique_base_jobs_failed.add(base_job_num)
+                    ticket_path = os.path.join(FAILED_ticket_dir, f"{base_job_num}_TICKETwPROOFS.pdf")
+                    if os.path.exists(ticket_path): conditional_attachments.append(ticket_path)
+
+                FAILED_job_numbers = sorted(list(unique_base_jobs_failed))
+                if FAILED_job_numbers:
+                    body_lines.extend([
+                        "The following Job Numbers FAILED processing and require investigation:",
+                        f"({', '.join(FAILED_job_numbers)})",
+                        ""
+                    ])
+            else:
+                body_lines.append("ATTENTION: 'FAILED' sheet found but missing job numbers.\n")
+        else:
+            utils_ui.print_info("'FAILED' sheet not found.")
+
+        # 2. Check for CBO
         if 'CBO' in xls.sheet_names:
             utils_ui.print_warning("'CBO' sheet FOUND.")
-            subject += " OUTSIDE SERVICES REQUIRED"
+            subject_flags.append("OUTSIDE SERVICES REQUIRED")
             df_CBO = pd.read_excel(xls, sheet_name='CBO')
             if 'job_ticket_number' in df_CBO.columns:
                 CBO_oneup_dir = os.path.join(args.oneup_files_dir, 'CBO')
@@ -90,16 +119,30 @@ def main():
                     ticket_path = os.path.join(CBO_ticket_dir, f"{base_job_num}_TICKETwPROOFS.pdf")
                     if os.path.exists(ticket_path): conditional_attachments.append(ticket_path)
 
-                conditional_attachments = sorted(list(set(conditional_attachments)))
                 CBO_job_numbers = sorted(list(unique_base_jobs))
-                body_lines = ["The following Job Numbers require outside services:", f"({', '.join(CBO_job_numbers)})", "\nOther attachments are for reference only."]
+                if CBO_job_numbers:
+                    body_lines.extend([
+                        "The following Job Numbers require outside services:",
+                        f"({', '.join(CBO_job_numbers)})",
+                        ""
+                    ])
             else:
-                body_lines = ["ATTENTION: 'CBO' sheet found but missing job numbers."]
+                body_lines.append("ATTENTION: 'CBO' sheet found but missing job numbers.\n")
         else:
             utils_ui.print_info("'CBO' sheet not found.")
 
     except Exception as e:
-        utils_ui.print_error(f"Excel Check Error: {e}"); body_lines.append("\nWARNING: Error checking CBO files.")
+        utils_ui.print_error(f"Excel Check Error: {e}"); body_lines.append(f"\nWARNING: Error checking sheets: {e}")
+
+    if subject_flags:
+        subject += " - " + " & ".join(subject_flags)
+
+    if not body_lines:
+        body_lines = ["Attachments are for reference only. No outside services are required for these orders."]
+    else:
+        body_lines.append("\nOther attachments are for reference only.")
+
+    conditional_attachments = sorted(list(set(conditional_attachments)))
 
     msg['Subject'] = subject 
     msg.attach(MIMEText("\n".join(body_lines), 'plain'))
