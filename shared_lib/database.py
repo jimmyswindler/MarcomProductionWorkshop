@@ -143,6 +143,18 @@ def init_db(conn):
             );
         """)
 
+        # Shipping Stations (New)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS shipping_stations (
+                id SERIAL PRIMARY KEY,
+                station_id TEXT UNIQUE NOT NULL,
+                display_name TEXT NOT NULL,
+                smb_path TEXT NOT NULL,
+                is_active BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+        """)
+
 
         # --- 2. MIGRATIONS (Add Columns if Missing) ---
         
@@ -181,6 +193,7 @@ def init_db(conn):
         cur.execute("ALTER TABLE shipments ADD COLUMN IF NOT EXISTS marcom_sync_status TEXT;")
         cur.execute("ALTER TABLE shipments ADD COLUMN IF NOT EXISTS marcom_response_message TEXT;")
         cur.execute("ALTER TABLE shipments ADD COLUMN IF NOT EXISTS packing_slip_id TEXT;")
+        cur.execute("ALTER TABLE shipments ADD COLUMN IF NOT EXISTS station_id TEXT;")
 
         conn.commit()
     except Exception as e:

@@ -282,6 +282,11 @@ body {
     justify-content: center;
 }
 
+.btn-barcode svg {
+    max-width: 100%;
+    height: 40px !important; /* Force height to never scale down */
+}
+
 /* Utils */
 .info-box {
     padding: 10px;
@@ -427,4 +432,18 @@ body {
 
 .button-row .btn-composite {
     flex: 1;
+}
+
+/* Fixed action header for scanner operators */
+.sticky-action-header {
+    position: sticky;
+    top: -20px; /* Aligns flush with the #app padding */
+    margin-top: -20px;
+    margin-left: -40px;
+    margin-right: -40px;
+    padding: 20px 40px 15px 40px;
+    background-color: #ffffff;
+    z-index: 100;
+    border-bottom: 1px solid #dee2e6;
+    box-shadow: 0 4px 6px -6px rgba(0,0,0,0.15); /* Drop shadow depth indicator */
 }

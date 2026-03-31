@@ -276,33 +276,45 @@ def impose_content(standardized_pages, profile, qty_ordered, row_data, barcodes,
             job_fronts.append(fronts[i])
             job_backs.append(backs[i])
             
-    # Calculate how many job cards must sit on sheet 1 to push blanks to the end of the sheet
-    first_sheet_job_count = cards_per_sheet - num_headers - pad_blanks_needed
+    # Calculate row-specific blanks based on total pad_blanks_needed
+    b_mid = min(pad_blanks_needed, 8)
+    b_btm = max(0, pad_blanks_needed - 8)
+    
+    # Calculate how many jobs fill out the rest of the 3 rows on sheet 1
+    j1 = 8 - num_headers
+    j2 = 8 - b_mid
+    j3 = 8 - b_btm
     
     front_sequence = []
     back_sequence = []
     
-    # 1. Headers first
+    jobs_used = 0
+    
+    # --- FIRST SHEET (24 Slots) ---
+    # ROW 1 (Top)
     front_sequence.extend(header_fronts)
     back_sequence.extend(header_backs)
+    front_sequence.extend(job_fronts[jobs_used : jobs_used + j1])
+    back_sequence.extend(job_backs[jobs_used : jobs_used + j1])
+    jobs_used += j1
     
-    # 2. Add just enough jobs to reach the start index of the blanks
-    if first_sheet_job_count > 0:
-        front_sequence.extend(job_fronts[:first_sheet_job_count])
-        back_sequence.extend(job_backs[:first_sheet_job_count])
-        
-    # 3. Add all blanks (which now fall exactly at the end of the first 24-up sequence)
-    for _ in range(pad_blanks_needed):
-        front_sequence.append(blank_front)
-        back_sequence.append(blank_back)
-        
-    # 4. Add the rest of the jobs (which will now cleanly fill out the rest of the sheets)
-    if first_sheet_job_count > 0:
-        front_sequence.extend(job_fronts[first_sheet_job_count:])
-        back_sequence.extend(job_backs[first_sheet_job_count:])
-    else:
-        front_sequence.extend(job_fronts)
-        back_sequence.extend(job_backs)
+    # ROW 2 (Mid)
+    front_sequence.extend([blank_front] * b_mid)
+    back_sequence.extend([blank_back] * b_mid)
+    front_sequence.extend(job_fronts[jobs_used : jobs_used + j2])
+    back_sequence.extend(job_backs[jobs_used : jobs_used + j2])
+    jobs_used += j2
+    
+    # ROW 3 (Btm)
+    front_sequence.extend([blank_front] * b_btm)
+    back_sequence.extend([blank_back] * b_btm)
+    front_sequence.extend(job_fronts[jobs_used : jobs_used + j3])
+    back_sequence.extend(job_backs[jobs_used : jobs_used + j3])
+    jobs_used += j3
+    
+    # --- REMAINING SHEETS ---
+    front_sequence.extend(job_fronts[jobs_used:])
+    back_sequence.extend(job_backs[jobs_used:])
             
     writer = PdfWriter()
     

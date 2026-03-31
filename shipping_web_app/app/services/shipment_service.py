@@ -5,7 +5,6 @@ from shared_lib.database import get_db_connection, get_real_dict_cursor
 from shared_lib.config import get_env_var
 from shared_lib.utils import get_store_number, get_product_category
 
-LIVE_XML_DIR = '/Volumes/XML Auto Import'
 def get_shipping_cartons():
     conn = get_db_connection()
     if not conn: return {}, "DB Connection Failed"
@@ -19,6 +18,20 @@ def get_shipping_cartons():
     except Exception as e:
         if conn: conn.close()
         return {}, str(e)
+
+def get_shipping_stations():
+    conn = get_db_connection()
+    if not conn: return [], "DB Connection Failed"
+    
+    try:
+        cur = get_real_dict_cursor(conn)
+        cur.execute("SELECT station_id, display_name FROM shipping_stations WHERE is_active = TRUE ORDER BY display_name")
+        stations = cur.fetchall()
+        conn.close()
+        return stations, None
+    except Exception as e:
+        if conn: conn.close()
+        return [], str(e)
 
 def generate_worldship_xml(shipment_data, packages, store_number_arg=None):
     # ... copied logic ...
@@ -125,7 +138,10 @@ def generate_worldship_xml(shipment_data, packages, store_number_arg=None):
 </OpenShipments>""")
     return "".join(xml_parts)
 
-def process_shipment_logic(orders, scanned_boxes, package_list_in):
+def process_shipment_logic(orders, scanned_boxes, package_list_in, station_id=None):
+    if not station_id or station_id == 'null':
+        return {"error": "A Shipping Station must be selected."}, 400
+
     conn = get_db_connection()
     if not conn: raise Exception("DB Connection Failed")
     
@@ -288,10 +304,10 @@ def process_shipment_logic(orders, scanned_boxes, package_list_in):
         ref_order_number = orders[0]['order_number'] if orders else None
         
         cur.execute("""
-            INSERT INTO shipments (shipment_uid, order_number, marcom_sync_status, created_at)
-            VALUES (%s, %s, 'PROCESSING', NOW())
+            INSERT INTO shipments (shipment_uid, order_number, station_id, marcom_sync_status, created_at)
+            VALUES (%s, %s, %s, 'PROCESSING', NOW())
             RETURNING id
-        """, (shipment_uid, ref_order_number))
+        """, (shipment_uid, ref_order_number, station_id))
         
         # Link Boxes to Shipment
         if scanned_boxes:
@@ -306,14 +322,25 @@ def process_shipment_logic(orders, scanned_boxes, package_list_in):
         # 5. XML
         xml_string = generate_worldship_xml({"orders": orders}, final_packages, store_number)
         filename = f"{shipment_uid}.xml"
-        target_folder = LIVE_XML_DIR
+        
+        target_folder = None
+        cur.execute("SELECT smb_path FROM shipping_stations WHERE station_id = %s", (station_id,))
+        row = cur.fetchone()
+        if row and row['smb_path']:
+            target_folder = row['smb_path']
+            
+        if not target_folder:
+            conn.close()
+            return {"error": f"No valid SMB path configured for station '{station_id}'."}, 400
             
         try:
             with open(os.path.join(target_folder, filename), "w") as f:
                 f.write(xml_string)
             print(f"XML written to {target_folder}/{filename}")
         except OSError as e:
+            conn.close()
             print(f"Warning: Could not write XML to {target_folder}/{filename}: {e}")
+            return {"error": f"Network Error: Could not write to {target_folder}. Make sure the drive is mounted."}, 500
             
         # Assuming single tracking number for whole shipment (Worldship .out file provided it previously)
         # BUT here we are at generating the XML stage. We don't have tracking number yet?
@@ -348,7 +375,7 @@ def get_recent_shipments(limit=50):
         # We aggregate contents into a list
         cur.execute("""
             SELECT s.shipment_uid, s.tracking_number, s.marcom_sync_status,
-                   s.marcom_response_message, s.created_at, s.packing_slip_id, s.carrier, s.order_number,
+                   s.marcom_response_message, s.created_at, s.packing_slip_id, s.carrier, s.order_number, s.station_id,
                    COALESCE(
                        array_agg(DISTINCT c.val) FILTER (WHERE c.val IS NOT NULL), 
                        '{}'
@@ -374,7 +401,7 @@ def get_recent_shipments(limit=50):
                 )
             ) c ON TRUE
             GROUP BY s.shipment_uid, s.tracking_number, s.marcom_sync_status, 
-                     s.marcom_response_message, s.created_at, s.packing_slip_id, s.carrier, s.order_number
+                     s.marcom_response_message, s.created_at, s.packing_slip_id, s.carrier, s.order_number, s.station_id
             ORDER BY s.created_at DESC
             LIMIT %s
         """, (limit,))

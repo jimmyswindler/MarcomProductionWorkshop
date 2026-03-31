@@ -18,6 +18,12 @@ def get_cartons():
     if error: return jsonify({"error": error}), 500
     return jsonify(mapping)
 
+@api_bp.route('/stations', methods=['GET'])
+def get_stations():
+    stations, error = shipment_service.get_shipping_stations()
+    if error: return jsonify({"error": error}), 500
+    return jsonify(stations)
+
 @api_bp.route('/order/search', methods=['GET'])
 def search_orders():
     query = request.args.get('q', '')
@@ -34,8 +40,9 @@ def process_shipment():
     orders = data.get('orders', [])
     scanned = data.get('scanned_barcodes', []) or data.get('scanned_boxes', [])
     pkgs = data.get('package_list', [])
+    station_id = data.get('station_id')
     
-    result, status = shipment_service.process_shipment_logic(orders, scanned, pkgs)
+    result, status = shipment_service.process_shipment_logic(orders, scanned, pkgs, station_id=station_id)
     return jsonify(result), status
 
 
@@ -105,14 +112,29 @@ def get_system_status():
         pass
 
     # 3. UPS Worldship Folder and Lock File
-    # /Volumes/XML Auto Import/WSXMLAIFOLDERLOCK.dat
-    folder_path = "/Volumes/XML Auto Import"
-    if os.path.exists(folder_path) and os.path.isdir(folder_path):
-        status["ups_folder"] = True
-        
-    lock_file = os.path.join(folder_path, "WSXMLAIFOLDERLOCK.dat")
-    if os.path.exists(lock_file):
-        status["ups_auto_import"] = True
+    folder_path = None
+    station_id = request.args.get('station_id')
+    
+    if station_id and station_id != 'null':
+        # Fetch station's SMB path from DB
+        try:
+            conn2 = get_db_connection()
+            if conn2:
+                cur2 = conn2.cursor()
+                cur2.execute("SELECT smb_path FROM shipping_stations WHERE station_id = %s", (station_id,))
+                row = cur2.fetchone()
+                if row:
+                    folder_path = row[0]
+                conn2.close()
+        except:
+            pass
+
+        if folder_path and os.path.exists(folder_path) and os.path.isdir(folder_path):
+            status["ups_folder"] = True
+            
+            lock_file = os.path.join(folder_path, "WSXMLAIFOLDERLOCK.dat")
+            if os.path.exists(lock_file):
+                status["ups_auto_import"] = True
     
     return jsonify(status)
 

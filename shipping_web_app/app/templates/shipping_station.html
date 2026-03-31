@@ -3,6 +3,13 @@
 {% block content %}
 <!-- STEP 1: START / ORDER ENTRY -->
 <div id="step1-scan-order">
+    <div class="station-selector" style="margin-bottom: 20px; display: flex; justify-content: flex-end; align-items: center;">
+        <label for="station-select" style="font-weight: bold; margin-right: 10px; color: var(--text-primary);">Current Shipping Station:</label>
+        <select id="station-select" style="padding: 8px 12px; font-size: 1.1em; border-radius: 4px; border: 1px solid var(--border); background-color: white;">
+            <option value="">-- Select a Station --</option>
+        </select>
+    </div>
+
     <div id="last-shipment-display" style="display:none;"></div>
 
     <h1>Scan or Enter JOB Number</h1>
@@ -16,46 +23,56 @@
 
 <!-- STEP 2: SCANNING ITEMS -->
 <div id="step2-scan-boxes" style="display:none;">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-        <h1 id="scanning-header" style="margin: 0;">Scanning Items</h1>
-        <button id="process-shipment-btn" class="btn-composite btn-centered" disabled
-            style="width: 25%; min-height: 70px;">
-            <div class="btn-barcode"><svg id="bc-process"></svg></div>
-            <span class="btn-text">Process Shipment</span>
-        </button>
-    </div>
-
-    <!-- Order status display banner removed per request -->
-
-    <!-- Row 1: Cancel Button & Shipping Address -->
-    <div style="display: flex; gap: 20px; margin-bottom: 20px;">
-        <div style="flex: 1;">
-            <button id="cancel-btn" class="btn-composite active-danger" style="height: 100%;">
-                <span class="btn-text">Cancel & Reset</span>
-                <div class="btn-barcode"><svg id="bc-cancel"></svg></div>
-            </button>
+    <div class="sticky-action-header">
+        <!-- Row 1: Header & Ship To Grid -->
+        <div style="display: flex; gap: 20px; align-items: center; margin-bottom: 20px;">
+            <div style="flex: 2;">
+                <h1 id="scanning-header" style="margin: 0;">Scanning Items</h1>
+            </div>
+            <div style="flex: 1;">
+                <div id="shipping-address" class="info-box" style="margin-bottom: 0; width: 100%; box-sizing: border-box; text-align: right;"></div>
+            </div>
         </div>
-        <div style="flex: 1;">
-            <div id="shipping-address" class="info-box" style="margin-bottom: 0; height: 100%; box-sizing: border-box;"></div>
-        </div>
-    </div>
 
-    <!-- Row 2: Scanning Progress -->
-    <div class="progress-section" style="display: flex; align-items: center; gap: 15px; margin-bottom: 20px;">
-        <div class="progress-labels" style="margin-bottom: 0; white-space: nowrap;">
-            <h3 style="margin: 0;">Scanning Progress (<span id="scan-progress-text">0 / 0</span>)</h3>
-        </div>
-        <div class="progress-container" style="flex-grow: 1; margin: 0;">
-            <div id="scan-progress-bar" class="progress-fill">0%</div>
-        </div>
-    </div>
+        <!-- Order status display banner removed per request -->
 
-    <!-- Row 3: Scan Item Input -->
-    <div class="input-group" style="display: flex; align-items: center; gap: 15px; margin-bottom: 20px;">
-        <label for="box-barcode-input" style="margin-bottom: 0; white-space: nowrap;">Scan Item Barcode or additional Job Numbers:</label>
-        <input type="text" id="box-barcode-input" placeholder="Scan item..." style="flex-grow: 1;">
+        <!-- Row 2: Consolidated 3-Column Action Row -->
+        <div style="display: flex; gap: 20px; margin-bottom: 20px; align-items: stretch;">
+            <!-- Column 1: Cancel Button -->
+            <div style="flex: 1;">
+                <button id="cancel-btn" class="btn-composite active-danger btn-centered" style="height: 100%; min-width: min-content;">
+                    <span class="btn-text" style="text-align: center; margin-bottom: 15px;">Cancel & Reset</span>
+                    <div class="btn-barcode" style="margin-bottom: 0;"><svg id="bc-cancel"></svg></div>
+                </button>
+            </div>
+
+            <!-- Column 2: Scan Item Input -->
+            <div class="input-group" style="flex: 1; display: flex; flex-direction: column; justify-content: center; text-align: center; margin-bottom: 0;">
+                <label for="box-barcode-input" style="margin-bottom: 10px; font-weight: bold; white-space: normal;">Scan Item Barcode or additional Job Numbers:</label>
+                <input type="text" id="box-barcode-input" placeholder="Scan item..." style="text-align: center; font-size: 1.5em; padding: 12px; width: 100%; box-sizing: border-box;">
+            </div>
+
+            <!-- Column 3: Process Shipment Button -->
+            <div style="flex: 1;">
+                <button id="process-shipment-btn" class="btn-composite btn-centered" disabled
+                    style="width: 100%; height: 100%; min-width: min-content; min-height: 70px;">
+                    <span class="btn-text" style="text-align: center; margin-bottom: 15px;">Process Shipment</span>
+                    <div class="btn-barcode" style="margin-bottom: 0;"><svg id="bc-process"></svg></div>
+                </button>
+            </div>
+        </div>
+
+        <!-- Row 3: Scanning Progress -->
+        <div class="progress-section" style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
+            <div class="progress-labels" style="margin-bottom: 0; white-space: nowrap;">
+                <h3 style="margin: 0;">Scanning Progress (<span id="scan-progress-text">0 / 0</span>)</h3>
+            </div>
+            <div class="progress-container" style="flex-grow: 1; margin: 0;">
+                <div id="scan-progress-bar" class="progress-fill">0%</div>
+            </div>
+        </div>
+        <div id="box-scan-status" class="status"></div>
     </div>
-    <div id="box-scan-status" class="status"></div>
 
 
     <div id="expected-barcodes"></div>

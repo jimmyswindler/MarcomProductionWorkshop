@@ -79,7 +79,9 @@ function resetAll() {
 // --- System Status Logic ---
 async function fetchSystemStatus() {
     try {
-        const res = await fetch('/api/status');
+        const savedStation = localStorage.getItem('shipping_station_id');
+        const url = savedStation ? '/api/status?station_id=' + encodeURIComponent(savedStation) : '/api/status';
+        const res = await fetch(url);
         if (res.ok) {
             const data = await res.json();
             updateIndicator('status-db', data.db);
@@ -168,8 +170,11 @@ function renderFeed(items) {
                 <span>${item.shipment_uid || 'Unknown ID'}</span>
                 <span style="color: #999; font-size:0.8em;">${item.created_at}</span>
             </div>
-            <div style="font-size: 0.95em; color: #0056b3; margin-bottom: 3px; font-weight:bold;">
-                Order: ${item.order_number || 'N/A'}
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px;">
+                <div style="font-size: 0.95em; color: #0056b3; font-weight:bold;">
+                    Order: ${item.order_number || 'N/A'}
+                </div>
+                ${item.station_id ? `<span style="background-color:#e9ecef; color:#495057; padding:2px 6px; border-radius:10px; font-size:0.75em; font-weight:bold;">${item.station_id}</span>` : ''}
             </div>
             <div style="font-size: 0.9em; color: #333; margin-bottom: 5px; font-weight:500;">
                 ${shipper}: ${item.tracking_number || 'Processing...'}
@@ -188,10 +193,48 @@ function renderFeed(items) {
 
 
 
+async function initStations() {
+    const select = document.getElementById('station-select');
+    if (!select) return;
+    
+    try {
+        const res = await fetch('/api/stations');
+        if (res.ok) {
+            const stations = await res.json();
+            stations.forEach(st => {
+                const opt = document.createElement('option');
+                opt.value = st.station_id;
+                opt.textContent = st.display_name;
+                select.appendChild(opt);
+            });
+            
+            // Restore from localStorage
+            const savedStation = localStorage.getItem('shipping_station_id');
+            if (savedStation) {
+                select.value = savedStation;
+            }
+            
+            // Listen for changes
+            select.addEventListener('change', (e) => {
+                const val = e.target.value;
+                if (val) {
+                    localStorage.setItem('shipping_station_id', val);
+                } else {
+                    localStorage.removeItem('shipping_station_id');
+                }
+                fetchSystemStatus();
+            });
+        }
+    } catch (e) {
+        console.error("Failed to load stations", e);
+    }
+}
+
 // Initialization
 window.onload = function () {
     initBarcodes();
     initListeners();
+    initStations();
     if (orderInput) {
         orderInput.value = '';
         orderInput.focus();
@@ -267,11 +310,16 @@ function initBarcodes() {
         { id: "#bc-cancel-step4", val: "#CANC" }
     ];
     cmds.forEach(c => {
-        try { JsBarcode(c.id, c.val.toUpperCase(), { format: "CODE128", width: 2.2, height: 40, displayValue: false, margin: 0 }); }
+        try { 
+            JsBarcode(c.id, c.val.toUpperCase(), { format: "CODE128", width: 4.5, height: 40, displayValue: false, margin: 0 }); 
+            const svgEl = document.querySelector(c.id);
+            if(svgEl) svgEl.setAttribute('preserveAspectRatio', 'none');
+        }
         catch (e) { }
     });
     document.querySelectorAll('.bc-render').forEach(el => {
-        JsBarcode(el, el.dataset.value, { format: "CODE128", width: 2.2, height: 40, displayValue: false, margin: 0 });
+        JsBarcode(el, el.dataset.value, { format: "CODE128", width: 3.5, height: 40, displayValue: false, margin: 0 });
+        el.setAttribute('preserveAspectRatio', 'none');
     });
 }
 
@@ -279,6 +327,11 @@ function initListeners() {
     // 1. Order Entry
     orderInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
+            const select = document.getElementById('station-select');
+            if (select && !select.value) {
+                alert("Please select a Current Shipping Station before scanning jobs.");
+                return;
+            }
             const val = orderInput.value.trim();
             if (val && !val.toUpperCase().includes('CMD-')) {
                 fetchOrderData(val);
@@ -567,13 +620,26 @@ async function fetchOrderData(id) {
 let tempNewOrderData = null;
 
 async function fetchAndCompareOrder(newId) {
-    // 1. Check if it's already in the shipment?
-    // (Logic handled by processBoxScan mostly, but if user scans a NEW Order Number, we land here)
-
-    showStatus(el('box-scan-status'), 'Verifying Order...', 'warn', false);
-
     // Clean ID
     newId = newId.trim();
+
+    // Prevent duplicate orders/jobs from being appended multiple times
+    let alreadyScannedJob = false;
+    currentShipment.orders.forEach(o => {
+        if ((o.order_number && o.order_number.toUpperCase() === newId.toUpperCase()) || 
+            (o.searched_job_ticket && o.searched_job_ticket.toUpperCase() === newId.toUpperCase()) ||
+            (o.related_order_number && o.related_order_number.toUpperCase() === newId.toUpperCase())) {
+            alreadyScannedJob = true;
+        }
+    });
+
+    if (alreadyScannedJob) {
+        showStatus(el('box-scan-status'), 'Job/Order already loaded.', 'warn');
+        boxInput.value = '';
+        return;
+    }
+
+    showStatus(el('box-scan-status'), 'Verifying Order...', 'warn', false);
 
     try {
         const res = await fetch('/api/order/compare', {
@@ -1278,7 +1344,8 @@ async function finalizeShipment() {
             body: JSON.stringify({
                 orders: currentShipment.orders,
                 scanned_barcodes: Array.from(currentShipment.scanned_barcodes),
-                package_list: packageList
+                package_list: packageList,
+                station_id: localStorage.getItem('shipping_station_id') || null
             })
         });
         const data = await res.json();

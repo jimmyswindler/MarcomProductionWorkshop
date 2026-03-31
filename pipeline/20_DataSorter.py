@@ -143,7 +143,7 @@ def organize_by_product_id(input_file, config):
     for category_name, id_list in product_id_categories.items():
         if not isinstance(id_list, list) or not id_list: continue
         cond_pid = df[col_pid].isin(id_list)
-        conditions.append(cond_pid | cond_bc_paper if category_name == '16ptBusinessCard' else cond_pid); choices.append(category_name)
+        conditions.append(cond_pid); choices.append(category_name)
     
     if conditions: df['Category'] = np.select(conditions, choices, default='Uncategorized')
     else: utils_ui.print_warning("No categories defined in config."); df['Category'] = 'Uncategorized'

@@ -32,123 +32,130 @@ def move_to_processed(file_path, base_dir):
 
 def process_ups_output_files():
     """
-    Reads SHIP_*.out files.
+    Reads SHIP_*.out files from all active stations.
     Updates the database with the tracking number.
     Returns number of records updated.
     """
-    target_dir = shipment_service.LIVE_XML_DIR
-    if not os.path.exists(target_dir):
-        print(f"Target dir {target_dir} does not exist.")
-        return 0
-
-    # Ensure processed dir exists
-    processed_dir = ensure_processed_dir(target_dir)
-
-    count = 0
-    # Match standard Worldship output pattern
-    out_files = glob.glob(os.path.join(target_dir, "[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]_*.out"))
-    if not out_files:
-         out_files = glob.glob(os.path.join(target_dir, "[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]_*.Out"))
-    
     conn = get_db_connection()
     if not conn:
         print("DB Connection failed in feedback_loop")
         return 0
-        
+
+    target_dirs = []
+    try:
+        cur = get_real_dict_cursor(conn)
+        cur.execute("SELECT smb_path FROM shipping_stations WHERE is_active = TRUE")
+        for row in cur.fetchall():
+            if row['smb_path']:
+                target_dirs.append(row['smb_path'])
+    except Exception as e:
+        print(f"Error fetching stations in feedback loop: {e}")
+
+    count = 0
     try:
         cur = get_real_dict_cursor(conn)
         
-        for fpath in out_files:
-            try:
-                # Derive shipment_uid from filename regardless of format
-                # Filename example: 20260212_0011.Out -> 20260212_0011
-                fname = os.path.basename(fpath)
-                ship_uid_from_file = os.path.splitext(fname)[0]
+        for target_dir in target_dirs:
+            if not os.path.exists(target_dir):
+                continue
 
-                with open(fpath, 'r', encoding='utf-8', errors='ignore') as f:
-                    content = f.read().strip()
+            processed_dir = ensure_processed_dir(target_dir)
+
+            out_files = glob.glob(os.path.join(target_dir, "[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]_*.out"))
+            if not out_files:
+                 out_files = glob.glob(os.path.join(target_dir, "[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]_*.Out"))
+                 
+            for fpath in out_files:
+                try:
+                    # Derive shipment_uid from filename regardless of format
+                    # Filename example: 20260212_0011.Out -> 20260212_0011
+                    fname = os.path.basename(fpath)
+                    ship_uid_from_file = os.path.splitext(fname)[0]
+
+                    with open(fpath, 'r', encoding='utf-8', errors='ignore') as f:
+                        content = f.read().strip()
                 
-                tracking = None
+                    tracking = None
                 
-                # Check if XML
-                if content.strip().startswith('<') and 'OpenShipments' in content:
-                    try:
-                        # Parse XML to find tracking number
-                        import re
-                        xml_clean = re.sub(r' xmlns="[^"]+"', '', content, count=1)
-                        root = ET.fromstring(xml_clean)
-                        tn_node = root.find(".//TrackingNumber")
-                        if tn_node is not None:
-                            tracking = tn_node.text
+                    # Check if XML
+                    if content.strip().startswith('<') and 'OpenShipments' in content:
+                        try:
+                            # Parse XML to find tracking number
+                            import re
+                            xml_clean = re.sub(r' xmlns="[^"]+"', '', content, count=1)
+                            root = ET.fromstring(xml_clean)
+                            tn_node = root.find(".//TrackingNumber")
+                            if tn_node is not None:
+                                tracking = tn_node.text
                             
-                    except Exception as e:
-                        print(f"Failed to parse XML in {fpath}: {e}")
+                        except Exception as e:
+                            print(f"Failed to parse XML in {fpath}: {e}")
                 
-                # Fallback to CSV (legacy/simulation)
-                if not tracking:
-                    parts = content.split(',')
-                    if len(parts) >= 2:
-                        # In CSV, col 0 is ship_uid, col 1 is tracking
-                        csv_uid = parts[0].strip()
-                        if csv_uid == ship_uid_from_file:
-                             tracking = parts[1].strip()
-                        else:
-                             tracking = parts[1].strip()
+                    # Fallback to CSV (legacy/simulation)
+                    if not tracking:
+                        parts = content.split(',')
+                        if len(parts) >= 2:
+                            # In CSV, col 0 is ship_uid, col 1 is tracking
+                            csv_uid = parts[0].strip()
+                            if csv_uid == ship_uid_from_file:
+                                 tracking = parts[1].strip()
+                            else:
+                                 tracking = parts[1].strip()
 
-                if tracking:
-                    # Update DB if tracking is missing
-                    # Force status to PENDING so it gets picked up by sync loop, 
-                    # unless it's already success/failed? No, if we are setting key, we want to try sync.
-                    cur.execute("""
-                        UPDATE shipments 
-                        SET tracking_number = %s,
-                            marcom_sync_status = 'PENDING',
-                            ship_date = COALESCE(ship_date, NOW())
-                        WHERE shipment_uid = %s AND tracking_number IS NULL
-                        RETURNING order_number, ship_date
-                    """, (tracking, ship_uid_from_file))
+                    if tracking:
+                        # Update DB if tracking is missing
+                        # Force status to PENDING so it gets picked up by sync loop, 
+                        # unless it's already success/failed? No, if we are setting key, we want to try sync.
+                        cur.execute("""
+                            UPDATE shipments 
+                            SET tracking_number = %s,
+                                marcom_sync_status = 'PENDING',
+                                ship_date = COALESCE(ship_date, NOW())
+                            WHERE shipment_uid = %s AND tracking_number IS NULL
+                            RETURNING order_number, ship_date
+                        """, (tracking, ship_uid_from_file))
                     
-                    if cur.rowcount > 0:
-                        count += 1
-                        print(f"Updated tracking for {ship_uid_from_file}: {tracking}")
+                        if cur.rowcount > 0:
+                            count += 1
+                            print(f"Updated tracking for {ship_uid_from_file}: {tracking}")
                         
-                        row = cur.fetchone()
-                        if row:
-                            order_num = row['order_number']
-                            ship_date = row['ship_date']
+                            row = cur.fetchone()
+                            if row:
+                                order_num = row['order_number']
+                                ship_date = row['ship_date']
                             
-                            if order_num:
+                                if order_num:
+                                    cur.execute("""
+                                        UPDATE orders
+                                        SET actual_ship_date = %s
+                                        WHERE order_number = %s AND actual_ship_date IS NULL
+                                    """, (ship_date, order_num))
+                            
                                 cur.execute("""
-                                    UPDATE orders
-                                    SET actual_ship_date = %s
-                                    WHERE order_number = %s AND actual_ship_date IS NULL
-                                """, (ship_date, order_num))
-                            
-                            cur.execute("""
-                                UPDATE jobs
-                                SET production_status = 'SHIPPED'
-                                WHERE id IN (
-                                    SELECT i.job_id
-                                    FROM item_boxes b
-                                    JOIN items i ON b.order_item_id = i.order_item_id
-                                    WHERE b.shipment_uid = %s
-                                ) AND production_status != 'SHIPPED'
-                            """, (ship_uid_from_file,))
-                else:
-                    print(f"Could not extract tracking number from {fpath}")
-                    # Update DB to show error in UI
-                    cur.execute("""
-                        UPDATE shipments
-                        SET marcom_response_message = %s
-                        WHERE shipment_uid = %s AND tracking_number IS NULL
-                    """, (f"UPS Error: File found but no tracking in {os.path.basename(fpath)}", ship_uid_from_file))
+                                    UPDATE jobs
+                                    SET production_status = 'SHIPPED'
+                                    WHERE id IN (
+                                        SELECT i.job_id
+                                        FROM item_boxes b
+                                        JOIN items i ON b.order_item_id = i.order_item_id
+                                        WHERE b.shipment_uid = %s
+                                    ) AND production_status != 'SHIPPED'
+                                """, (ship_uid_from_file,))
+                    else:
+                        print(f"Could not extract tracking number from {fpath}")
+                        # Update DB to show error in UI
+                        cur.execute("""
+                            UPDATE shipments
+                            SET marcom_response_message = %s
+                            WHERE shipment_uid = %s AND tracking_number IS NULL
+                        """, (f"UPS Error: File found but no tracking in {os.path.basename(fpath)}", ship_uid_from_file))
                         
-            except Exception as e:
-                print(f"Error reading UPS output {fpath}: {e}")
+                except Exception as e:
+                    print(f"Error reading UPS output {fpath}: {e}")
             
-            # ALWAYS move the file to processed, even if it failed parsing or was legacy/ignored.
-            # This prevents infinite loops of trying to read bad files.
-            move_to_processed(fpath, target_dir)
+                # ALWAYS move the file to processed, even if it failed parsing or was legacy/ignored.
+                # This prevents infinite loops of trying to read bad files.
+                move_to_processed(fpath, target_dir)
                 
         conn.commit()
         

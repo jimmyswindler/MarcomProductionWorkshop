@@ -266,6 +266,7 @@ product_ids:
     - "6"
     - "22"
     - "68"
+    - "79"
     - "80"
     - "89"
     - "141"
@@ -403,6 +404,7 @@ product_ids:
     - "4688"
     - "4689"
     - "4690"
+    - "4697"
     - "4699"
     - "4708"
     - "4710"
@@ -527,6 +529,11 @@ product_ids:
   
 standing_files:
 #   "3007": "./standing_files/3007_print_file.pdf"
+   "2969": "./standing_files/T_2303_MA_SC_F.pdf"
+   "POD_T_2303_MA_SC_F": "./standing_files/T_2303_MA_SC_F.pdf"
+   "3007": "./standing_files/POD_T_2309_MA_WTL_BCS_F.pdf"
+
+
   
 categorization_rules:
   business_card_identifiers: ['16pt', '16 pt']
