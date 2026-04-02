@@ -5,8 +5,7 @@
     style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
     <div>
         <h1 style="margin-bottom: 0;">Open Items (Overdue) <span class="badge bg-danger"
-                style="font-size: inherit; font-weight: inherit;">{{
-                items|length }}</span>
+                style="font-size: inherit; font-weight: inherit;">{{ open_items_count }}</span>
         </h1>
         <p class="text-secondary small" style="margin-bottom: 0;">Items with no actual ship date where the scheduled
             ship date is in the
@@ -18,33 +17,33 @@
 </div>
 
 <div class="table-container">
-    {% if items %}
+    {% if orders %}
     <table class="table table-dark table-hover width-100">
         <thead class="sticky-th">
             <tr>
-                <th class="sortable" data-sort="line_item">Line Item</th>
-                <th class="sortable" data-sort="order">Order</th>
-                <th class="sortable" data-sort="store">Store</th>
-                <th class="sortable" data-sort="date">Date Ordered</th>
-                <th>Company</th>
-                <th>Location</th>
-                <th>Action</th>
+                <th>Order</th>
+                <th>Date Ordered</th>
+                <th>Ship by Date</th>
+                <th>Days Overdue</th>
+                <th>Line Item</th>
+                <th>Status</th>
             </tr>
         </thead>
         <tbody>
-            {% for item in items %}
+            {% for order in orders %}
+            {% set row_span = order.line_items|length %}
+            {% for item in order.line_items %}
             <tr>
-                <td data-sort-val="{{ item.line_item_number }}"><strong>{{ item.line_item_number }}</strong></td>
-                <td data-sort-val="{{ item.order_number }}">{{ item.order_number }}</td>
-                <td data-sort-val="{{ item.store_number or '' }}">{{ item.store_number or '--' }}</td>
-                <td data-sort-val="{{ item.order_date }}">{{ item.order_date|string|truncate(10, True, '') }}</td>
-                <td>{{ item.ship_to_company }}</td>
-                <td>{{ item.city }}, {{ item.state }}</td>
-                <td>
-                    <a href="{{ url_for('address_issues.fix_exception', order_number=item.order_number) }}"
-                        class="btn btn-sm btn-outline-secondary">View Order</a>
-                </td>
+                {% if loop.first %}
+                <td class="align-top" rowspan="{{ row_span }}">{{ order.order_number }}</td>
+                <td class="align-top" rowspan="{{ row_span }}">{{ order.order_date|string|truncate(10, True, '') }}</td>
+                <td class="align-top" rowspan="{{ row_span }}">{{ order.ship_date|string|truncate(10, True, '') }}</td>
+                <td class="align-top" rowspan="{{ row_span }}">{{ order.days_overdue }}</td>
+                {% endif %}
+                <td class="align-top {% if not loop.first %}reset-padding-left{% endif %}"><strong>{{ item.line_item_number }}</strong></td>
+                <td class="align-top"><span class="badge bg-success">{{ item.production_status or 'NEW' }}</span></td>
             </tr>
+            {% endfor %}
             {% endfor %}
         </tbody>
     </table>

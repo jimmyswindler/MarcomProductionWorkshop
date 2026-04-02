@@ -3,35 +3,41 @@
 {% block content %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-<div class="card">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-        <h1>Production Dashboard</h1>
-    </div>
+<div class="page-header-controls">
+    <h1>Production Dashboard</h1>
+</div>
 
+<div class="card">
     <!-- Timeline Chart -->
     <div style="margin-bottom: 2rem;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-            <h3>Activity Volume</h3>
-            <div style="display: flex; gap: 0.5rem;">
-                <button class="btn btn-sm"
-                    style="{% if current_range == '10' %}background-color: var(--accent); color: white;{% endif %}"
+        <!-- Container with Grid Layout (1fr auto) -->
+        
+        <div style="display: grid; grid-template-columns: 1fr auto; gap: 1.5rem; align-items: stretch;">
+            
+            <!-- Left Grid Item: The Chart -->
+            <div style="min-width: 0;">
+                <canvas id="productionChart" style="min-height: 300px; height: 100%;"></canvas>
+            </div>
+            
+            <!-- Right Grid Item: The Date Range Selectors -->
+            <div style="display: flex; flex-direction: column; gap: 0.75rem; justify-content: center; min-width: 140px;">
+                <button class="btn btn-sm date-range-btn"
+                    style="text-align: left; padding: 0.5rem 1rem; {% if current_range == '10' %}background-color: var(--accent); color: #0f172a; border: 1px solid var(--accent);{% else %}background-color: transparent; border: 1px solid var(--border); color: var(--text-secondary);{% endif %}"
                     onclick="setRange('10')">10 Days</button>
-                <button class="btn btn-sm"
-                    style="{% if current_range == '30' %}background-color: var(--accent); color: white;{% endif %}"
+                <button class="btn btn-sm date-range-btn"
+                    style="text-align: left; padding: 0.5rem 1rem; {% if current_range == '30' %}background-color: var(--accent); color: #0f172a; border: 1px solid var(--accent);{% else %}background-color: transparent; border: 1px solid var(--border); color: var(--text-secondary);{% endif %}"
                     onclick="setRange('30')">30 Days</button>
-                <button class="btn btn-sm"
-                    style="{% if current_range == '90' %}background-color: var(--accent); color: white;{% endif %}"
+                <button class="btn btn-sm date-range-btn"
+                    style="text-align: left; padding: 0.5rem 1rem; {% if current_range == '90' %}background-color: var(--accent); color: #0f172a; border: 1px solid var(--accent);{% else %}background-color: transparent; border: 1px solid var(--border); color: var(--text-secondary);{% endif %}"
                     onclick="setRange('90')">90 Days</button>
-                <button class="btn btn-sm"
-                    style="{% if current_range == '365' %}background-color: var(--accent); color: white;{% endif %}"
+                <button class="btn btn-sm date-range-btn"
+                    style="text-align: left; padding: 0.5rem 1rem; {% if current_range == '365' %}background-color: var(--accent); color: #0f172a; border: 1px solid var(--accent);{% else %}background-color: transparent; border: 1px solid var(--border); color: var(--text-secondary);{% endif %}"
                     onclick="setRange('365')">1 Year</button>
-                <button class="btn btn-sm"
-                    style="{% if current_range == 'all' %}background-color: var(--accent); color: white;{% endif %}"
+                <button class="btn btn-sm date-range-btn"
+                    style="text-align: left; padding: 0.5rem 1rem; {% if current_range == 'all' %}background-color: var(--accent); color: #0f172a; border: 1px solid var(--accent);{% else %}background-color: transparent; border: 1px solid var(--border); color: var(--text-secondary);{% endif %}"
                     onclick="setRange('all')">All Time</button>
             </div>
-        </div>
-        <div style="height: 300px;">
-            <canvas id="productionChart"></canvas>
+            
         </div>
     </div>
 
@@ -106,19 +112,37 @@
             maintainAspectRatio: false,
             plugins: {
                 legend: {
-                    position: 'top',
-                    labels: { color: '#94a3b8' }
+                    position: 'left',
+                    align: 'center',
+                    labels: { 
+                        color: '#94a3b8',
+                        usePointStyle: true,
+                        padding: 15,
+                        font: { size: 13 }
+                    }
                 },
                 title: {
                     display: true,
-                    text: 'Activity Volume ({{ current_range | capitalize }} Days)',
-                    color: '#f8fafc'
+                    text: 'Activity Volume',
+                    color: '#f8fafc',
+                    align: 'center',
+                    font: {
+                        size: 18,
+                        weight: 'normal'
+                    },
+                    padding: {
+                        bottom: 20
+                    }
+                },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false
                 }
             },
             scales: {
                 y: {
                     beginAtZero: true,
-                    grid: { color: '#334155' },
+                    grid: { color: '#334155', borderDash: [5, 5] },
                     ticks: { color: '#94a3b8' }
                 },
                 x: {
@@ -131,26 +155,20 @@
 
     // Dynamic Update Function
     function setRange(days) {
-        // Update Buttons UI
-        document.querySelectorAll('.btn-sm').forEach(btn => {
-            btn.style.backgroundColor = '';
-            btn.style.color = '';
-            // Reset to default bootstrap/theme styles if needed, 
-            // but simply removing inline styles clears the "active" look defined in HTML
+        // Reset Date Range Buttons UI
+        document.querySelectorAll('.date-range-btn').forEach(btn => {
+            btn.style.backgroundColor = 'transparent';
+            btn.style.color = 'var(--text-secondary)';
+            btn.style.border = '1px solid var(--border)';
         });
 
-        // Find the button that was clicked and style it (requires event or ID)
-        // For simplicity, we can rely on passing `this` or ID, but let's just 
-        // iterate to find the text content matching the days? 
-        // Or simpler: just fetch the data and update.
-        // Let's assume the user can see the chart update.
-
-        // Better: select by onclick attribute value to highlight active
-        const btns = document.querySelectorAll('button[onclick^="setRange"]');
+        // Highlight active button
+        const btns = document.querySelectorAll('button.date-range-btn[onclick^="setRange"]');
         btns.forEach(b => {
             if (b.getAttribute('onclick').includes(`'${days}'`)) {
                 b.style.backgroundColor = 'var(--accent)';
-                b.style.color = 'white';
+                b.style.color = '#0f172a';
+                b.style.border = '1px solid var(--accent)';
             }
         });
 
@@ -188,8 +206,8 @@
                 ds[5].data = data.datasets.overdue;
                 ds[5].label = `Overdue (${data.totals.overdue})`;
 
-                // Update Title
-                productionChart.options.plugins.title.text = `Activity Volume (${data.interval_description})`;
+                // Update Title internally if needed, or rely on active button selection.
+                // Re-enabling the title via JS is omitted as we use the HTML H3 and highlighted button.
 
                 productionChart.update();
             })

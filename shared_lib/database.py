@@ -155,6 +155,51 @@ def init_db(conn):
             );
         """)
 
+        # --- Phase 1: Config Tables ---
+        
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS production_categories (
+                id SERIAL PRIMARY KEY,
+                name TEXT UNIQUE NOT NULL,
+                description TEXT,
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS app_products (
+                id SERIAL PRIMARY KEY,
+                marcom_id TEXT UNIQUE NOT NULL,
+                category_name TEXT,
+                standing_file TEXT,
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS shipping_box_rules (
+                id SERIAL PRIMARY KEY,
+                rule_identifier TEXT NOT NULL,
+                quantity INTEGER NOT NULL,
+                icon_file TEXT,
+                icon_cards INTEGER,
+                extra_blanks INTEGER,
+                total_segments INTEGER,
+                stack_cards INTEGER,
+                box_sequence JSONB,
+                UNIQUE(rule_identifier, quantity)
+            );
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS global_settings (
+                key TEXT UNIQUE PRIMARY KEY,
+                value JSONB,
+                description TEXT,
+                updated_at TIMESTAMP DEFAULT NOW()
+            );
+        """)
+
 
         # --- 2. MIGRATIONS (Add Columns if Missing) ---
         

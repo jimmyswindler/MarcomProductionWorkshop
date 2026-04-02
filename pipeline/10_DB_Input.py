@@ -45,6 +45,7 @@ def fetch_ready_jobs(conn, dry_run=False, start_date=None, end_date=None):
             o.cost_center,
             
             i.order_item_id,
+            i.job_ticket_display_id,
             i.product_id,
             i.product_name,
             i.product_description,

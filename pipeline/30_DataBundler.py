@@ -24,39 +24,34 @@ CONSTITUTION = {
 
 # --- CONFIGURATION ---
 def load_config_from_path(config_path=None):
-    if config_path is None or config_path == "config.yaml":
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        project_root = os.path.dirname(script_dir)
-        config_path = os.path.join(project_root, 'config', 'config.yaml')
-
-    if not os.path.exists(config_path):
-        utils_ui.print_error(f"Configuration file not found at '{config_path}'")
-        return {}
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(script_dir)
+    if project_root not in sys.path: sys.path.append(project_root)
+    from shared_lib.config import load_yaml_config
     try:
-        with open(config_path, 'r') as f: config = yaml.safe_load(f)
+        config = load_yaml_config(config_path if config_path != "config.yaml" else None)
+        if not config: utils_ui.print_error(f"Configuration file not found at '{config_path}'")
         return config
     except Exception as e:
-        utils_ui.print_error(f"Could not parse YAML file: {e}")
+        utils_ui.print_error(f"Could not parse configuration: {e}")
         return {}
 
 # ======================
 # RUN HISTORY FUNCTIONS
 # ======================
 def load_run_history(history_path="run_history.yaml"):
-    if not os.path.exists(history_path):
-        default_history = {'monthly_pace_job_number': 100000, 'last_used_gang_run_suffix': 0}
-        with open(history_path, 'w') as f: yaml.dump(default_history, f)
-        return default_history
-    try:
-        with open(history_path, 'r') as f: return yaml.safe_load(f)
-    except Exception as e:
-        utils_ui.print_error(f"History file error: {e}"); sys.exit(1)
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(script_dir)
+    if project_root not in sys.path: sys.path.append(project_root)
+    from shared_lib.config import get_run_history
+    return get_run_history()
 
 def save_run_history(pace_number, last_suffix, history_path="run_history.yaml"):
-    try:
-        history_data = {'monthly_pace_job_number': pace_number, 'last_used_gang_run_suffix': last_suffix}
-        with open(history_path, 'w') as f: yaml.dump(history_data, f)
-    except Exception as e: utils_ui.print_warning(f"Could not save run history file: {e}")
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(script_dir)
+    if project_root not in sys.path: sys.path.append(project_root)
+    from shared_lib.config import update_run_history
+    update_run_history(pace_number, last_suffix)
 
 def safe_get_list(config_dict, key_path):
     keys = key_path.split('.')

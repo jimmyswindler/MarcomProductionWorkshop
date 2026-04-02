@@ -13,17 +13,18 @@ import utils_ui  # <--- New UI Utility
 
 # --- CONFIGURATION ---
 def load_config_from_path(config_path=None):
-    if config_path is None or config_path == "config.yaml":
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        project_root = os.path.dirname(script_dir)
-        config_path = os.path.join(project_root, 'config', 'config.yaml')
-
-    if not os.path.exists(config_path):
-        utils_ui.print_error(f"Configuration file not found at '{config_path}'")
-        return {}
-
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(script_dir)
+    if project_root not in sys.path:
+        sys.path.append(project_root)
+        
+    from shared_lib.config import load_yaml_config
+    
     try:
-        with open(config_path, 'r') as f: return yaml.safe_load(f)
+        config = load_yaml_config(config_path if config_path != "config.yaml" else None)
+        if not config:
+            utils_ui.print_error(f"Configuration file not found at '{config_path}'")
+        return config
     except Exception as e:
         utils_ui.print_error(f"Unexpected error while loading config: {e}")
         return {}
@@ -113,20 +114,22 @@ def organize_by_product_id(input_file, config):
 
     # --- Job Ticket Renaming ---
     utils_ui.print_info("Applying universal job ticket renaming...")
-    df[col_base_job] = df[col_base_job].astype(str); groups = df.groupby(col_base_job)
     
-    # --- Using RICH Progress Bar ---
-    with utils_ui.create_progress() as progress:
-        task = progress.add_task("Renaming Jobs...", total=len(groups))
-        for base_ticket, group in groups:
-            if len(group) > 1:
-                if col_item_id and col_item_id in df.columns:
-                     group_sorted = group.sort_values(by=col_item_id)
-                else:
-                     group_sorted = group.sort_index()
-                for i, idx in enumerate(group_sorted.index):
-                     if idx in df.index: df.loc[idx, col_job] = f"{base_ticket}-{i + 1:02d}"
-            progress.update(task, advance=1)
+    if 'job_ticket_display_id' in df.columns:
+        df[col_job] = df['job_ticket_display_id'].fillna(df[col_job])
+    else:
+        df[col_base_job] = df[col_base_job].astype(str); groups = df.groupby(col_base_job)
+        with utils_ui.create_progress() as progress:
+            task = progress.add_task("Renaming Jobs (Fallback)...", total=len(groups))
+            for base_ticket, group in groups:
+                if len(group) > 1:
+                    if col_item_id and col_item_id in df.columns:
+                         group_sorted = group.sort_values(by=col_item_id)
+                    else:
+                         group_sorted = group.sort_index()
+                    for i, idx in enumerate(group_sorted.index):
+                         if idx in df.index: df.loc[idx, col_job] = f"{base_ticket}-{i + 1:02d}"
+                progress.update(task, advance=1)
             
     utils_ui.print_success("Renaming complete.")
 

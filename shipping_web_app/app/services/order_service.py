@@ -163,7 +163,7 @@ def get_job_details(lookup_id):
             
             cur.execute("""
                 SELECT b.barcode_value, b.status, b.packed_at, b.box_sequence, i.sku, i.sku_description, i.order_item_id, 
-                       i.quantity_ordered, i.cost_center, i.product_id, j.job_ticket_number,
+                       i.quantity_ordered, i.cost_center, i.product_id, i.job_ticket_display_id, j.job_ticket_number,
                        s.tracking_number, s.marcom_response_message
                 FROM items i
                 LEFT JOIN item_boxes b ON i.order_item_id = b.order_item_id
@@ -189,6 +189,7 @@ def get_job_details(lookup_id):
                 if oid not in seen_items:
                     seen_items[oid] = {
                         "job_ticket": row['job_ticket_number'],
+                        "job_ticket_display_id": row['job_ticket_display_id'],
                         "sku": row['sku'],
                         "sku_description": row['sku_description'],
                         "quantity_ordered": row['quantity_ordered'],

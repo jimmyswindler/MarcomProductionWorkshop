@@ -18,6 +18,8 @@ from routes.file_errors import file_errors_bp
 from routes.production import production_bp
 from routes.cartons import cartons_bp
 from routes.shipping_stations import shipping_stations_bp
+from routes.products import products_bp
+from routes.settings import settings_bp
 
 app.register_blueprint(dashboard_bp)
 app.register_blueprint(api_bp)
@@ -29,6 +31,8 @@ app.register_blueprint(file_errors_bp)
 app.register_blueprint(production_bp)
 app.register_blueprint(cartons_bp)
 app.register_blueprint(shipping_stations_bp)
+app.register_blueprint(products_bp)
+app.register_blueprint(settings_bp)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', debug=False, port=5002)

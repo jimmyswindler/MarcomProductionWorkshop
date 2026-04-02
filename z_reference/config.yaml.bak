@@ -42,8 +42,8 @@ paths:
   icon_I_path: './resources/icon_I.pdf'
   icon_J_path: './resources/icon_J.pdf'
 
-  dynamic_build_root: '/Volumes/AraxiVolume_Jobs/Jobs/DigimasterProductionNew/MARCOM orders/' # production path
-  # dynamic_build_root: './Output_Test_Folder/'   # testing path
+  # dynamic_build_root: '/Volumes/AraxiVolume_Jobs/Jobs/DigimasterProductionNew/MARCOM orders/' # production path
+  dynamic_build_root: './Output_Test_Folder/'   # testing path
   
   # --- DUPLICATE INGESTION CONTROL (Safeguard) ---
   # Set to TRUE to allow re-processing the same data (Test Mode).

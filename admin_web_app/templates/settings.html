@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header-controls" style="display: flex; justify-content: space-between; align-items: center;">
+    <div>
+        <h2>Global Pipeline Settings</h2>
+        <p style="color: var(--text-secondary); margin: 0; font-size: 0.9em;">Adjust active pipeline variables spanning batch sizes, padding, and environment toggles.</p>
+    </div>
+</div>
+
+<div class="card table-container" style="flex: 1; padding: 2rem; background: var(--bg-body); border: none; overflow: auto; display: grid; gap: 1.5rem; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); align-content: start;">
+    {% for setting in settings %}
+    <div class="card" style="margin: 0; display: flex; flex-direction: column;">
+        <div style="border-bottom: 1px solid var(--border); padding-bottom: 0.75rem; margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center;">
+            <h3 style="margin: 0; font-family: monospace; color: var(--accent);">{{ setting.key }}</h3>
+            <span class="badge" style="background: rgba(255,255,255,0.1); color: var(--text-secondary);">JSON Schema</span>
+        </div>
+        
+        <form action="{{ url_for('settings.update_setting') }}" method="POST" style="flex: 1; display: flex; flex-direction: column;">
+            <input type="hidden" name="key" value="{{ setting.key }}">
+            <div class="form-group" style="flex: 1; display: flex; flex-direction: column;">
+                <textarea name="value" style="width: 100%; min-height: 250px; flex: 1; font-family: monospace; font-size: 0.85em; background: #0f172a; border: 1px solid var(--border); color: #f8fafc; padding: 1rem; border-radius: 6px; resize: vertical;" spellcheck="false" required>{{ setting.formatted_value }}</textarea>
+                <small style="color: var(--text-secondary); font-size: 0.8em; margin-top: 8px; display: block;">Ensure JSON is strictly formatted (use double quotes, no trailing commas).</small>
+            </div>
+            
+            <div style="margin-top: 1rem; display: flex; justify-content: flex-end;">
+                <button type="submit" class="btn btn-sm" onclick="return confirm('WARNING: Modifying raw JSON can break the pipeline if incorrectly formatted. Save?');">Save Configuration</button>
+            </div>
+        </form>
+    </div>
+    {% else %}
+    <div style="grid-column: 1 / -1; text-align: center; color: var(--text-secondary); padding: 3rem;">
+        No global settings found in database. Seed strategy may have failed.
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

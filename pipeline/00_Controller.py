@@ -20,23 +20,21 @@ def strip_ansi(text):
 
 # --- Configuration Loading ---
 def load_config(config_path=None):
-    if config_path is None:
-        # Resolve relative to script
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        project_root = os.path.dirname(script_dir)
-        config_path = os.path.join(project_root, 'config', 'config.yaml')
-
-    utils_ui.print_info(f"Loading configuration from: {config_path}")
-    if not os.path.exists(config_path):
-        utils_ui.print_error(f"FATAL ERROR: Configuration file not found at '{config_path}'")
-        sys.exit(1)
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(script_dir)
+    if project_root not in sys.path:
+        sys.path.append(project_root)
+        
+    from shared_lib.config import load_yaml_config
+    
+    utils_ui.print_info(f"Loading configuration from DB + File: {config_path}")
     try:
-        with open(config_path, 'r') as f: config = yaml.safe_load(f)
+        config = load_yaml_config(config_path)
+        if not config:
+            utils_ui.print_error(f"FATAL ERROR: Configuration file not found at '{config_path}'")
+            sys.exit(1)
         utils_ui.print_success("Central configuration loaded successfully.")
         return config
-    except yaml.YAMLError as e: 
-        utils_ui.print_error(f"FATAL ERROR: Could not parse YAML file: {e}")
-        sys.exit(1)
     except Exception as e: 
         utils_ui.print_error(f"FATAL ERROR: An unexpected error occurred while loading the config: {e}")
         sys.exit(1)
@@ -133,12 +131,27 @@ def main_workflow():
     project_root = os.path.dirname(script_dir)
     config_file_path = os.path.join(project_root, 'config', 'config.yaml')
 
+    import argparse
+    parser = argparse.ArgumentParser(description="Marcom Production Pipeline")
+    parser.add_argument('--start_date', type=str, help="Start date for filtering", default=None)
+    parser.add_argument('--end_date', type=str, help="End date for filtering", default=None)
+    parser.add_argument('--dry_run', action='store_true', help="Run without changing DB status")
+    # We use parse_known_args in case other args are passed later without breaking
+    args, _ = parser.parse_known_args()
+    
+    if args.dry_run:
+        os.environ["PRODUCTION_DRY_RUN"] = "1"
+
     config = load_config(config_file_path)
     paths = config.get('paths', {}); script_paths = paths.get('scripts', {})
     
     stage1_paths = paths.get('stage1_collect', {})
     
-    dynamic_build_root = paths.get('dynamic_build_root')
+    if args.dry_run:
+        dynamic_build_root = paths.get('dry_run_build_root', './Output_Test_Folder')
+    else:
+        dynamic_build_root = paths.get('dynamic_build_root')
+        
     if not dynamic_build_root:
         utils_ui.print_error("'dynamic_build_root' path missing in config.yaml.")
         sys.exit(1)
@@ -175,15 +188,6 @@ def main_workflow():
     try:
     # --- Stage 1: DB Input (Replaces Data Collection & Ingest) ---
         utils_ui.print_section("Stage 1: DB Input")
-        
-        import argparse
-        parser = argparse.ArgumentParser(description="Marcom Production Pipeline")
-        parser.add_argument('--start_date', type=str, help="Start date for filtering", default=None)
-        parser.add_argument('--end_date', type=str, help="End date for filtering", default=None)
-        parser.add_argument('--dry_run', action='store_true', help="Run without changing DB status")
-        # We use parse_known_args in case other args are passed later without breaking
-        args, _ = parser.parse_known_args()
-        
         utils_ui.print_info(f"Received start_date: {args.start_date}, end_date: {args.end_date}, dry_run: {args.dry_run}")
         
         # Generate dynamic filename for the report based on dates

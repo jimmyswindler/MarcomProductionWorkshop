@@ -56,20 +56,11 @@ def register_custom_fonts(config):
         return False
 
 def load_run_history(history_path=None):
-    if history_path is None or history_path == "run_history.yaml":
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        project_root = os.path.dirname(script_dir)
-        history_path = os.path.join(project_root, 'data', 'run_history.yaml')
-
-    if not os.path.exists(history_path):
-        utils_ui.print_info("Creating default run history file.")
-        default_history = {'monthly_pace_job_number': 100000, 'last_used_gang_run_suffix': 0}
-        with open(history_path, 'w') as f: yaml.dump(default_history, f)
-        return default_history
-    try:
-        with open(history_path, 'r') as f: return yaml.safe_load(f)
-    except Exception as e:
-        utils_ui.print_error(f"Could not parse run history: {e}"); sys.exit(1)
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(script_dir)
+    if project_root not in sys.path: sys.path.append(project_root)
+    from shared_lib.config import get_run_history
+    return get_run_history()
 
 # =========================================================
 # PDF GENERATION

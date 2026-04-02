@@ -13,8 +13,14 @@ from email.mime.text import MIMEText
 import utils_ui
 
 def load_config(config_path):
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(script_dir)
+    if project_root not in sys.path: sys.path.append(project_root)
+    from shared_lib.config import load_yaml_config
     try:
-        with open(config_path, 'r') as f: return yaml.safe_load(f)
+        config = load_yaml_config(config_path)
+        if not config: utils_ui.print_error(f"Config file not found: {config_path}")
+        return config
     except Exception as e:
         utils_ui.print_error(f"Config Load Error: {e}"); sys.exit(1)
 

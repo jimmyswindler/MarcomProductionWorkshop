@@ -622,13 +622,22 @@ let tempNewOrderData = null;
 async function fetchAndCompareOrder(newId) {
     // Clean ID
     newId = newId.trim();
+    let numericNewId = newId.replace(/\D/g, ''); // Extract only the numbers!
 
     // Prevent duplicate orders/jobs from being appended multiple times
     let alreadyScannedJob = false;
     currentShipment.orders.forEach(o => {
+        let numericOrder = o.order_number ? o.order_number.replace(/\D/g, '') : '';
+        let numericSearched = o.searched_job_ticket ? o.searched_job_ticket.replace(/\D/g, '') : '';
+        let numericRelated = o.related_order_number ? o.related_order_number.replace(/\D/g, '') : '';
+
+        // Exact match OR Number-only match
         if ((o.order_number && o.order_number.toUpperCase() === newId.toUpperCase()) || 
+            (numericOrder && numericOrder === numericNewId) ||
             (o.searched_job_ticket && o.searched_job_ticket.toUpperCase() === newId.toUpperCase()) ||
-            (o.related_order_number && o.related_order_number.toUpperCase() === newId.toUpperCase())) {
+            (numericSearched && numericSearched === numericNewId) ||
+            (o.related_order_number && o.related_order_number.toUpperCase() === newId.toUpperCase()) ||
+            (numericRelated && numericRelated === numericNewId)) {
             alreadyScannedJob = true;
         }
     });
@@ -915,7 +924,7 @@ function updateBarcodeList() {
             });
 
             const nestedHeaderHtml = isMultiple
-                ? `<div style="font-weight:bold; font-size:1.05em; color:#555; margin-bottom:10px; padding-bottom:5px; border-bottom:1px solid #ddd;">${jt}-${String(idx + 1).padStart(2, '0')}</div>`
+                ? `<div style="font-weight:bold; font-size:1.05em; color:#555; margin-bottom:10px; padding-bottom:5px; border-bottom:1px solid #ddd;">${item.job_ticket_display_id || jt + '-' + String(idx + 1).padStart(2, '0')}</div>`
                 : '';
 
             // Item Title

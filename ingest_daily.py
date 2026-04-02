@@ -36,9 +36,9 @@ console.setLevel(logging.INFO)
 logging.getLogger('').addHandler(console)
 
 def load_config():
+    from shared_lib.config import load_yaml_config
     config_path = os.path.join(project_root, 'config', 'config.yaml')
-    with open(config_path, 'r') as f:
-        return yaml.safe_load(f)
+    return load_yaml_config(config_path)
 
 def get_db_string(val):
     if pd.isna(val) or val == "":
@@ -96,8 +96,6 @@ def process_ingestion(input_dir, processed_dir, config, dry_run=False):
         df = parse_orders_xml(path)
         if not df.empty:
             df['source_file'] = f
-            all_orders_df = pd.concat([all_orders_df, df], ignore_index=True)
-            
             all_orders_df = pd.concat([all_orders_df, df], ignore_index=True)
 
     # Parse Tickets to enrich (Description fields mostly)

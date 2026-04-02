@@ -1,3 +1,4 @@
+from datetime import datetime
 from flask import Blueprint, render_template
 from utils.db import get_db, get_real_dict_cursor
 
@@ -12,8 +13,7 @@ def open_orders():
     cur.execute("""
         SELECT 
             i.job_ticket_display_id AS line_item_number,
-            o.id, o.order_number, o.order_date, o.ship_date, o.ship_to_company, 
-            o.city, o.state, o.store_number
+            o.id, o.order_number, o.order_date, o.ship_date, j.production_status
         FROM items i
         JOIN jobs j ON i.job_id = j.id
         JOIN orders o ON j.order_id = o.id
@@ -23,14 +23,39 @@ def open_orders():
     """)
     items_raw = cur.fetchall()
     
-    items = []
-    for item_dict in items_raw:
-        item = dict(item_dict)
-        if item.get('store_number') and str(item['store_number']).isdigit():
-            item['store_number'] = str(item['store_number']).zfill(4)
-        items.append(item)
+    from collections import OrderedDict
+    orders_dict = OrderedDict()
+    today = datetime.now().date()
+    
+    for row in items_raw:
+        order_id = row['id']
+        if order_id not in orders_dict:
+            ship_date = row['ship_date']
+            if ship_date:
+                days_overdue = (today - ship_date.date()).days
+                days_overdue = days_overdue if days_overdue > 0 else 0
+            else:
+                days_overdue = 0
+                
+            orders_dict[order_id] = {
+                'id': row['id'],
+                'order_number': row['order_number'],
+                'order_date': row['order_date'],
+                'ship_date': ship_date,
+                'days_overdue': days_overdue,
+                'line_items': []
+            }
+        
+        # Add item specific status
+        orders_dict[order_id]['line_items'].append({
+            'line_item_number': row['line_item_number'],
+            'production_status': row['production_status']
+        })
+        
+    orders_list = list(orders_dict.values())
+    open_items_count = len(items_raw)
     
     cur.close()
     conn.close()
     
-    return render_template('open_orders.html', items=items)
+    return render_template('open_orders.html', orders=orders_list, open_items_count=open_items_count)

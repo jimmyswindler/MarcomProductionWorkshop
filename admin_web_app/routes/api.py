@@ -34,7 +34,7 @@ def get_chart_data(days_range):
         WITH dates AS (
             SELECT generate_series(
                 CURRENT_DATE - INTERVAL '{interval_str}',
-                CURRENT_DATE - INTERVAL '1 day',
+                CURRENT_DATE,
                 '1 day'::interval
             )::date AS day
         ),
