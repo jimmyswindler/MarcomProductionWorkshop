@@ -306,6 +306,11 @@ def process_dataframe(df, files_path, originals_path, sheet_name, palette_path=N
                 add_segmented_headers_to_pdf(arch_path, prod_path, str(row.get("order_number", "")), qty, color_map.get(idx), store, target_icon_path, icon_cards, box_vals)
             except Exception as e: utils_ui.print_error(f"Row {idx} Failed: {e}")
             progress.update(task, advance=1)
+            
+            # --- Progress Update ---
+            import utils_progress
+            run_name = os.environ.get('PIPELINE_RUN_NAME', 'MOCK_RUN')
+            utils_progress.get_observer(run_name).update_stage('stage_4_press_files_status', increment=1)
 
 def main(input_excel_path, files_base_folder, originals_base_folder, central_config_json):
     utils_ui.setup_logging(None)
@@ -318,11 +323,31 @@ def main(input_excel_path, files_base_folder, originals_base_folder, central_con
         shipping_box_rules = config.get('shipping_box_rules', {})
         
         xls = pd.ExcelFile(input_excel_path)
+        
+        # Calculate total stage work
+        total_items = 0
+        for sheet_name in xls.sheet_names:
+            if GANG_RUN_TRIGGER in sheet_name.upper():
+                df_count = pd.read_excel(xls, sheet_name=sheet_name)
+                total_items += len(df_count)
+                
+        import utils_progress
+        run_name = os.environ.get('PIPELINE_RUN_NAME', 'MOCK_RUN')
+        observer = utils_progress.get_observer(run_name)
+        observer.start_stage('stage_4_press_files_status', total=total_items)
+        
         for sheet_name in xls.sheet_names:
             if GANG_RUN_TRIGGER in sheet_name.upper():
                 df = pd.read_excel(xls, sheet_name=sheet_name, dtype={f'box_{chr(65+i)}': str for i in range(8)})
                 process_dataframe(df, os.path.join(files_base_folder, sanitize_filename(sheet_name)), os.path.join(originals_base_folder, sanitize_filename(sheet_name)), sheet_name, config.get('COLOR_PALETTE_PATH'), icon_file_paths, shipping_box_rules)
-    except Exception as e: utils_ui.print_error(f"Fatal Error: {e}"); sys.exit(1)
+                
+        observer.finish_stage('stage_4_press_files_status')
+    except Exception as e: 
+        import utils_progress
+        run_name = os.environ.get('PIPELINE_RUN_NAME', 'MOCK_RUN')
+        utils_progress.get_observer(run_name).error_stage('stage_4_press_files_status')
+        utils_ui.print_error(f"Fatal Error: {e}")
+        sys.exit(1)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

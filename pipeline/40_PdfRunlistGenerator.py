@@ -342,6 +342,10 @@ def generate_pdf_run_list(excel_path, pdf_path, config, history, fragmentation_m
         if c.getPageNumber() == 0: utils_ui.print_warning("No PDF pages generated."); return False
         c.save()
         utils_ui.print_success(f"PDF Saved: {os.path.basename(pdf_path)}")
+        
+        import utils_progress
+        utils_progress.get_observer(os.environ.get('PIPELINE_RUN_NAME', 'MOCK_RUN')).update_stage('stage_1_runlist_status', increment=1)
+        
         return True
     except Exception as e:
         utils_ui.print_error(f"PDF Gen Error: {e}"); traceback.print_exc(); return False
@@ -367,8 +371,17 @@ def main(bundled_excel_path, output_dir, central_config_json, fragmentation_map_
         if pdf_settings.get('generate_pdf_run_lists', False):
              history_path = central_config.get('paths', {}).get('run_history_path', 'run_history.yaml')
              history = load_run_history(history_path)
+             
+             import utils_progress
+             run_name = os.environ.get('PIPELINE_RUN_NAME', 'MOCK_RUN')
+             observer = utils_progress.get_observer(run_name)
+             xls = pd.ExcelFile(bundled_excel_path)
+             observer.start_stage('stage_1_runlist_status', total=1)
+             
              if not generate_pdf_run_list(bundled_excel_path, pdf_output_path, central_config, history, fragmentation_map):
                  raise Exception("PDF generation failed.")
+                 
+             observer.finish_stage('stage_1_runlist_status')
         else:
             utils_ui.print_warning("PDF generation disabled in config.")
 

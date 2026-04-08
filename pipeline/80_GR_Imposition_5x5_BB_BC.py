@@ -60,14 +60,14 @@ def load_and_plan(central_config):
 # ==============================================================================
 # STAGE 2: PAGE COLLECTION & STANDARDIZATION
 # ==============================================================================
-def standardize_pages(file_paths, profile):
+def standardize_pages(file_paths, profile, batch_name, run_name):
     utils_ui.print_section(f"Stage 2: Standardizing {len(file_paths)} Files")
     all_pages = []
     
     with utils_ui.create_progress() as progress:
         task = progress.add_task("Standardizing...", total=len(file_paths))
         
-        for file_path in file_paths:
+        for i, file_path in enumerate(file_paths):
             try:
                 reader = PdfReader(file_path)
                 for page in reader.pages:
@@ -85,6 +85,9 @@ def standardize_pages(file_paths, profile):
             except Exception as e:
                 utils_ui.print_warning(f"Error reading {os.path.basename(file_path)}: {e}")
             progress.update(task, advance=1)
+            import utils_progress
+            pct = int((i + 1) / len(file_paths) * 30)
+            utils_progress.get_observer(run_name).update_batch_progress('stage_5_imposition_gang_status', batch_name, pct=pct)
             
     utils_ui.print_info(f"Standardized {len(all_pages)} total pages.")
     return all_pages
@@ -92,7 +95,7 @@ def standardize_pages(file_paths, profile):
 # ==============================================================================
 # STAGE 3: CORE IMPOSITION ENGINE
 # ==============================================================================
-def impose_content(standardized_pages, profile):
+def impose_content(standardized_pages, profile, batch_name, run_name):
     total_pages = len(standardized_pages)
     cards_per_sheet = profile['columns'] * profile['rows']
     num_sheets = math.ceil(total_pages / cards_per_sheet)
@@ -128,6 +131,10 @@ def impose_content(standardized_pages, profile):
             
             writer.add_page(press_sheet)
             progress.update(task, advance=1)
+            if sheet_idx % 5 == 0:
+                import utils_progress
+                pct = 30 + int((sheet_idx + 1) / num_sheets * 50)
+                utils_progress.get_observer(run_name).update_batch_progress('stage_5_imposition_gang_status', batch_name, pct=pct)
 
     return writer
 
@@ -151,7 +158,7 @@ def create_slug_line_overlay(profile, batch_name, sheet_num, total_sheets):
     packet.seek(0)
     return PdfReader(packet).pages[0]
 
-def apply_finishing(imposed_writer, profile, batch_name, central_config):
+def apply_finishing(imposed_writer, profile, batch_name, central_config, run_name):
     utils_ui.print_section("Stage 4: Finishing Marks")
     tmpl_path = central_config['marks_template']
     
@@ -171,6 +178,10 @@ def apply_finishing(imposed_writer, profile, batch_name, central_config):
             sheet.merge_page(create_slug_line_overlay(profile, batch_name, i+1, total))
             final_writer.add_page(sheet)
             progress.update(task, advance=1)
+            if i % 5 == 0 or i == total - 1:
+                import utils_progress
+                pct = 80 + int((i + 1) / total * 20)
+                utils_progress.get_observer(run_name).update_batch_progress('stage_5_imposition_gang_status', batch_name, pct=pct)
             
     return final_writer
 
@@ -190,17 +201,19 @@ def main(batch_folder, output_dir, central_config_json):
 
     if not os.path.isdir(batch_folder): utils_ui.print_error(f"Batch folder not found: {batch_folder}"); return
 
+    run_name = os.environ.get('PIPELINE_RUN_NAME', 'MOCK_RUN')
+
     profile = load_and_plan(central_config)
     if not profile: return
 
     file_paths = [os.path.join(batch_folder, f) for f in sorted(os.listdir(batch_folder)) if f.lower().endswith(".pdf")]
     if not file_paths: utils_ui.print_warning("No PDF files found."); return
         
-    std_pages = standardize_pages(file_paths, profile)
+    std_pages = standardize_pages(file_paths, profile, batch_name, run_name)
     if not std_pages: utils_ui.print_error("Standardization failed."); return
         
-    imp_writer = impose_content(std_pages, profile)
-    final_writer = apply_finishing(imp_writer, profile, batch_name, central_config)
+    imp_writer = impose_content(std_pages, profile, batch_name, run_name)
+    final_writer = apply_finishing(imp_writer, profile, batch_name, central_config, run_name)
     if not final_writer: return
 
     out_path = os.path.join(output_dir, f"{batch_name}.pdf")

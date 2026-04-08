@@ -136,7 +136,9 @@ def main():
             
         df = pd.DataFrame(data)
         
-        # Update Status to IN_PROCESS
+
+    # Update Status to IN_PROCESS
+    try:
         job_ids = list(set([r['job_id_db'] for r in rows]))
         if job_ids:
             if not args.dry_run:
@@ -151,12 +153,15 @@ def main():
             else:
                 print(f"[DRY RUN] Would have updated {len(job_ids)} jobs to IN_PROCESS.")
 
-    # Save to Excel
-    print(f"Saving to {args.output}")
-    # Create directory if needed
-    os.makedirs(os.path.dirname(args.output), exist_ok=True)
-    df.to_excel(args.output, index=False)
-    
+        # Save to Excel
+        print(f"Saving to {args.output}")
+        # Create directory if needed
+        os.makedirs(os.path.dirname(args.output), exist_ok=True)
+        df.to_excel(args.output, index=False)
+    except Exception as e:
+        print(f"Error handling job status update or save: {e}")
+        traceback.print_exc()
+        sys.exit(1)
     conn.close()
 
 if __name__ == "__main__":

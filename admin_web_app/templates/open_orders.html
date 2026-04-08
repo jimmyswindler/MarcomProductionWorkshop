@@ -1,32 +1,31 @@
-{% extends "base.html" %}
+{% extends "base_v2.html" %}
 
 {% block content %}
-<div class="page-header-controls"
-    style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+<div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-        <h1 style="margin-bottom: 0;">Open Items (Overdue) <span class="badge bg-danger"
-                style="font-size: inherit; font-weight: inherit;">{{ open_items_count }}</span>
+        <h1 class="h3 mb-0">
+            Open Orders <span class="badge text-bg-warning fs-6">{{ open_orders_count }}</span> 
+            <span class="text-muted fw-light mx-2">|</span> 
+            Overdue Items <span class="badge text-bg-danger fs-6">{{ overdue_items_count }}</span>
         </h1>
-        <p class="text-secondary small" style="margin-bottom: 0;">Items with no actual ship date where the scheduled
-            ship date is in the
-            past.</p>
+        <p class="text-secondary small mb-0">Open Orders are not 100% shipped and are past due. Overdue Items counts line items lacking tracking details.</p>
     </div>
     <div>
         <a href="{{ url_for('dashboard.dashboard') }}" class="btn btn-outline-secondary">Back to Dashboard</a>
     </div>
 </div>
 
-<div class="table-container">
+<div class="table-responsive bg-dark rounded border border-secondary shadow-sm">
     {% if orders %}
-    <table class="table table-dark table-hover width-100">
-        <thead class="sticky-th">
+    <table class="table table-dark table-hover mb-0 align-middle">
+        <thead>
             <tr>
-                <th>Order</th>
-                <th>Date Ordered</th>
-                <th>Ship by Date</th>
-                <th>Days Overdue</th>
-                <th>Line Item</th>
-                <th>Status</th>
+                <th scope="col" class="ps-3 border-secondary">Order</th>
+                <th scope="col" class="border-secondary">Days Overdue</th>
+                <th scope="col" class="border-secondary">Line Item</th>
+                <th scope="col" class="border-secondary">Category</th>
+                <th scope="col" class="border-secondary">Tracking</th>
+                <th scope="col" class="border-secondary">Status</th>
             </tr>
         </thead>
         <tbody>
@@ -36,22 +35,35 @@
             <tr>
                 {% if loop.first %}
                 <td class="align-top" rowspan="{{ row_span }}">{{ order.order_number }}</td>
-                <td class="align-top" rowspan="{{ row_span }}">{{ order.order_date|string|truncate(10, True, '') }}</td>
-                <td class="align-top" rowspan="{{ row_span }}">{{ order.ship_date|string|truncate(10, True, '') }}</td>
                 <td class="align-top" rowspan="{{ row_span }}">{{ order.days_overdue }}</td>
                 {% endif %}
                 <td class="align-top {% if not loop.first %}reset-padding-left{% endif %}"><strong>{{ item.line_item_number }}</strong></td>
-                <td class="align-top"><span class="badge bg-success">{{ item.production_status or 'NEW' }}</span></td>
+                <td class="align-top">{{ item.product_category }}</td>
+                <td class="align-top" style="font-family: monospace;">{{ item.tracking_number }}</td>
+                <td class="align-top">
+                    {% set status = (item.production_status or 'NEW')|string|trim|upper %}
+                    {% if status == 'SHIPPED' %}
+                    <span class="badge text-bg-success">SHIPPED</span>
+                    {% elif status == 'SHIPPED_LATE' %}
+                    <span class="badge text-bg-danger">SHIPPED LATE</span>
+                    {% elif status == 'IN_PROCESS' %}
+                    <span class="badge text-bg-primary">IN PROCESS</span>
+                    {% elif status == 'READY' %}
+                    <span class="badge text-bg-info">READY</span>
+                    {% else %}
+                    <span class="badge text-bg-light">{{ status }}</span>
+                    {% endif %}
+                </td>
             </tr>
             {% endfor %}
             {% endfor %}
         </tbody>
     </table>
     {% else %}
-    <div style="padding: 2rem; text-align: center; color: var(--text-secondary);">
-        <i class="bi bi-check-circle" style="font-size: 2rem; color: var(--success);"></i>
-        <p style="margin-top: 0.5rem;">No overdue open items found.</p>
+    <div class="p-5 text-center text-secondary">
+        <i class="bi bi-check-circle text-success" style="font-size: 2rem;"></i>
+        <p class="mt-2 text-white-50">No overdue open items found.</p>
     </div>
-{% endif %}
+    {% endif %}
 </div>
 {% endblock %}

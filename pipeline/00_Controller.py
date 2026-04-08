@@ -85,6 +85,11 @@ def run_script(script_path, args=None):
 
         logging.info(f"--- Real-time Output from {script_name} ---")
         
+        import time, utils_progress
+        run_name = os.environ.get('PIPELINE_RUN_NAME')
+        observer = utils_progress.get_observer(run_name) if run_name else None
+        last_cancel_check = time.time()
+
         # Read line by line
         for line in process.stdout:
             line = line.rstrip()
@@ -98,9 +103,24 @@ def run_script(script_path, args=None):
             
             # Also log to file - BUT STRIP ANSI CODES FIRST
             logging.info(strip_ansi(line))
+            
+            # Check cancel periodically inside the event loop (2s debounce)
+            if observer and (time.time() - last_cancel_check > 2.0):
+                last_cancel_check = time.time()
+                if observer.check_cancellation():
+                    utils_ui.print_error("Pipeline aborted remotely via Dashboard. Terminating active subprocess...")
+                    logging.error("Pipeline aborted remotely via Dashboard. Terminating active subprocess...")
+                    process.terminate()
+                    sys.exit(1)
         
         process.wait() 
         logging.info(f"--- End of Output from {script_name} ---")
+
+        # --- Check for Pipeline Remote Cancellation between scripts ---
+        if observer and observer.check_cancellation():
+            utils_ui.print_error("Pipeline aborted remotely via Dashboard.")
+            logging.error("Pipeline aborted remotely via Dashboard.")
+            sys.exit(1)
 
         if process.returncode != 0:
             utils_ui.print_error(f"FATAL ERROR in {script_name}")
@@ -204,10 +224,14 @@ def main_workflow():
             timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
             
         consolidated_report_name = f"MarcomOrderDate_{timestamp}.xlsx" 
-        # Note: 20_DataSorter expects file to start with "MarcomOrderDate" if we rely on its regex or pattern matching, but passing path explicitly is safer.
-        # Actually 00_Controller handles the path passing.
-        
         consolidated_report_path = os.path.join(s1_staging_dir, consolidated_report_name)
+        
+        # --- Start Pipeline Observer ---
+        dynamic_base_name = os.path.splitext(consolidated_report_name)[0]
+        import utils_progress
+        os.environ['PIPELINE_RUN_NAME'] = dynamic_base_name
+        observer = utils_progress.get_observer(dynamic_base_name)
+        observer.start_run(dynamic_base_name)
         
         # Call 10_DB_Input.py
         if 'db_input' not in script_paths:
@@ -240,7 +264,6 @@ def main_workflow():
         utils_ui.print_info("Setting up dynamic job folders...")
         dynamic_base_name = os.path.splitext(os.path.basename(consolidated_report_path))[0]
         dynamic_job_folder = os.path.join(dynamic_build_root, dynamic_base_name)
-        # utils_ui.print_info(f"Dynamic job root: {dynamic_job_folder}")
 
         # --- Load dynamic job structure from config ---
         job_structure = config.get('paths', {}).get('dynamic_job_structure', {})
@@ -413,6 +436,23 @@ def main_workflow():
             utils_ui.print_info("No Gang Run folders found. Skipping Gang Run Imposition.")
         else:
             utils_ui.print_section("Stage 4: Gang Run Imposition")
+            
+            # --- Progress Update ---
+            import utils_progress
+            run_name = os.environ.get('PIPELINE_RUN_NAME')
+            observer = utils_progress.get_observer(run_name)
+            
+            batches_info = {}
+            for bf in gang_run_folders:
+                b_name = os.path.basename(bf)
+                # Parse category for coloring
+                category = "Other"
+                if "12ptbb" in b_name.lower(): category = "12ptBB"
+                elif "16ptbc" in b_name.lower(): category = "16ptBC"
+                batches_info[b_name] = {"category": category, "pct": 0}
+            
+            observer.start_stage('stage_5_imposition_gang_status', total=len(gang_run_folders), details={"batches": batches_info})
+
             s4_config_subset = {
                  'imposition_profile': paths.get('imposition_profile_path'),
                  'marks_template': paths.get('marks_template_path')
@@ -423,6 +463,11 @@ def main_workflow():
                 utils_ui.print_info(f"Imposing batch: {os.path.basename(batch_folder)}")
                 s4_args = [batch_folder, s4_output_dir, json.dumps(s4_config_subset)]
                 run_script(script_paths['impose'], s4_args)
+                observer.reload_stage_from_db('stage_5_imposition_gang_status')
+                observer.update_stage('stage_5_imposition_gang_status', increment=1)
+                
+            observer.reload_stage_from_db('stage_5_imposition_gang_status')
+            observer.finish_stage('stage_5_imposition_gang_status')
 
         # --- Stage 4.1: Imposition Single Jobs ---
         utils_ui.print_section("Stage 4.1: Single Job Imposition")
@@ -458,17 +503,23 @@ def main_workflow():
         # --- Workflow Complete ---
         utils_ui.print_banner("Workflow Complete", f"All files in: {dynamic_job_folder}")
         logging.info("--- [ WORKFLOW COMPLETE ] ---")
+        if 'observer' in locals():
+            observer.finish_run("COMPLETED")
 
     except (FileNotFoundError, FileExistsError, ValueError) as config_err:
          utils_ui.print_banner("Workflow Failed", "Configuration or File Error")
          utils_ui.print_error(str(config_err))
          logging.critical(traceback.format_exc())
+         if 'observer' in locals():
+             observer.finish_run("FAILED")
          sys.exit(1) 
     except Exception as e:
         utils_ui.print_banner("Workflow Failed", "Unexpected Error")
         utils_ui.print_error(str(e))
         logging.critical(traceback.format_exc())
-        sys.exit(1) 
+        if 'observer' in locals():
+            observer.finish_run("FAILED")
+        sys.exit(1)
 
 if __name__ == "__main__":
     try:

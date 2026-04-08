@@ -1,155 +1,159 @@
-{% extends "base.html" %}
+{% extends "base_v2.html" %}
 
 {% block content %}
-<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem; align-items: start;">
+<div class="row g-4 align-items-start">
 
     <!-- Column 1: The Problem (Incoming Address) -->
-    <div class="card" style="margin-bottom: 0;">
-        <h1>Review Exception</h1>
-        <h2 style="color: var(--accent); margin-bottom: 0;">{{ order.order_number }}</h2>
-        <div style="font-size: 1.1rem; color: var(--text-secondary); margin-bottom: 1.5rem;">
-            {% if order.store_number %}
-            Store #<span style="color: var(--text-primary); font-weight: 600;">{{ order.store_number }}</span>
-            {% else %}
-            <span style="color: var(--warning); font-style: italic;">Store Number Not Found</span>
-            {% endif %}
-        </div>
+    <div class="col-md-4">
+        <div class="card bg-dark border-secondary h-100 shadow-sm">
+            <div class="card-body">
+                <h1 class="h4 mb-3">Review Exception</h1>
+                <h2 class="h5 text-info mb-1">{{ order.order_number }}</h2>
+                <div class="fs-6 text-secondary mb-4">
+                    {% if order.store_number %}
+                    Store #<span class="text-white fw-bold">{{ order.store_number }}</span>
+                    {% else %}
+                    <span class="text-warning fst-italic">Store Number Not Found</span>
+                    {% endif %}
+                </div>
 
-        <div style="margin-top: 1.5rem;">
-            <label class="form-label">Incoming Address</label>
-            <div style="background: rgba(0,0,0,0.3); padding: 1rem; border-radius: 6px;">
-                <div style="display: grid; grid-template-columns: auto 1fr; gap: 0.2rem 1rem;">
-                    <span style="text-align: right; color: var(--text-secondary);">Company:</span>
-                    <span><strong>{{ order.ship_to_company }}</strong></span>
+                <div class="mb-4">
+                    <label class="form-label text-secondary fw-bold">Incoming Address</label>
+                    <div class="bg-black bg-opacity-25 p-3 rounded border border-dark">
+                        <div class="row g-2 small">
+                            <div class="col-4 text-end text-secondary">Company:</div>
+                            <div class="col-8"><strong>{{ order.ship_to_company }}</strong></div>
 
-                    <span style="text-align: right; color: var(--text-secondary);">Attention:</span>
-                    <span>{{ order.ship_to_name }}</span>
+                            <div class="col-4 text-end text-secondary">Attention:</div>
+                            <div class="col-8">{{ order.ship_to_name }}</div>
 
-                    <span style="text-align: right; color: var(--text-secondary);">Address 1:</span>
-                    <span>{{ order.address1 }}</span>
+                            <div class="col-4 text-end text-secondary">Address 1:</div>
+                            <div class="col-8">{{ order.address1 }}</div>
 
-                    <span style="text-align: right; color: var(--text-secondary);">Address 2:</span>
-                    <span>{{ order.address2 or '' }}</span>
+                            <div class="col-4 text-end text-secondary">Address 2:</div>
+                            <div class="col-8">{{ order.address2 or '' }}</div>
 
-                    <span style="text-align: right; color: var(--text-secondary);">Address 3:</span>
-                    <span>{{ order.address3 or '' }}</span>
+                            <div class="col-4 text-end text-secondary">Address 3:</div>
+                            <div class="col-8">{{ order.address3 or '' }}</div>
 
-                    <span style="text-align: right; color: var(--text-secondary);">City, ST ZIP:</span>
-                    <span>{{ order.city }}, {{ order.state }} {{ order.zip }}</span>
+                            <div class="col-4 text-end text-secondary">City, ST ZIP:</div>
+                            <div class="col-8">{{ order.city }}, {{ order.state }} {{ order.zip }}</div>
 
-                    <span style="text-align: right; color: var(--text-secondary);">Country:</span>
-                    <span>{{ order.country or 'US' }}</span>
+                            <div class="col-4 text-end text-secondary">Country:</div>
+                            <div class="col-8">{{ order.country or 'US' }}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <label class="form-label text-secondary fw-bold d-block">Current Status</label>
+                    <span class="badge text-bg-danger">EXCEPTION</span>
+                </div>
+
+                <div class="mb-4">
+                    <label class="form-label text-secondary fw-bold">Validation Details</label>
+                    <pre class="bg-black bg-opacity-25 p-3 rounded border border-dark text-warning small overflow-x-auto" style="white-space: pre-wrap; word-wrap: break-word;">{{ order.address_validation_details }}</pre>
+                </div>
+
+                <div class="mt-4">
+                    <a href="/exceptions" class="btn btn-outline-secondary w-100">← Back to Queue</a>
                 </div>
             </div>
-        </div>
-
-        <div style="margin-top: 1.5rem;">
-            <label class="form-label">Current Status</label>
-            <span class="badge badge-danger">EXCEPTION</span>
-        </div>
-
-        <div style="margin-top: 1.5rem;">
-            <label class="form-label">Validation Details</label>
-            <pre
-                style="background: rgba(0,0,0,0.3); padding: 1rem; border-radius: 6px; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word; color: var(--text-secondary);">{{ order.address_validation_details }}</pre>
-        </div>
-
-        <div style="margin-top: 1.5rem;">
-            <a href="/exceptions" class="btn"
-                style="background: transparent; border: 1px solid var(--border); color: var(--text-secondary); width: 100%; text-align: center; box-sizing: border-box;">←
-                Back to
-                Queue</a>
         </div>
     </div>
 
     <!-- Column 2: Option 1 (Address Book) -->
-    <div class="card" style="border-top: 4px solid var(--accent); margin-bottom: 0;">
-        <h3 style="color: var(--accent);">Option 1: Apply Address Book</h3>
-        <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1rem;">
-            Force an update using a verified store address.
-        </p>
+    <div class="col-md-4">
+        <div class="card bg-dark border-secondary border-top border-info border-4 h-100 shadow-sm">
+            <div class="card-body">
+                <h3 class="h5 text-info mb-2">Option 1: Apply Address Book</h3>
+                <p class="text-secondary small mb-4">
+                    Force an update using a verified store address.
+                </p>
 
-        <form method="POST">
-            <input type="hidden" name="action" value="apply_book">
+                <form method="POST">
+                    <input type="hidden" name="action" value="apply_book">
 
-            <div style="margin-bottom: 1.5rem;">
-                <label class="form-label">Address Preview</label>
-                <div id="address-preview"
-                    style="background: rgba(0,0,0,0.3); padding: 1rem; border-radius: 6px; min-height: 80px; display: flex; align-items: start; color: var(--text-secondary); font-style: italic;">
-                    Enter a valid store number to preview.
-                </div>
+                    <div class="mb-4">
+                        <label class="form-label text-secondary fw-bold">Address Preview</label>
+                        <div id="address-preview" class="bg-black bg-opacity-25 p-3 rounded border border-dark text-secondary fst-italic small" style="min-height: 120px;">
+                            Enter a valid store number to preview.
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label text-secondary fw-bold">Store Number</label>
+                        <div class="input-group">
+                            <input type="text" id="store_number_input" name="store_number" class="form-control" value="{{ guessed_store }}" placeholder="e.g. 0237" required>
+                            <button type="submit" id="apply_book_btn" class="btn btn-info text-dark fw-bold" disabled style="opacity: 0.5;">Apply</button>
+                        </div>
+                        <div class="form-text text-white-50 mt-2">
+                            System guessed: <strong class="text-white">{{ guessed_store }}</strong>
+                        </div>
+                    </div>
+                </form>
             </div>
-
-            <div class="form-group">
-                <label class="form-label">Store Number</label>
-                <div style="display: flex; gap: 0.5rem;">
-                    <input type="text" id="store_number_input" name="store_number" value="{{ guessed_store }}"
-                        placeholder="e.g. 0237" required>
-                    <button type="submit" id="apply_book_btn" class="btn" disabled
-                        style="opacity: 0.5; cursor: not-allowed;">Apply</button>
-                </div>
-                <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.5rem;">
-                    System guessed: <strong>{{ guessed_store }}</strong>
-                </div>
-            </div>
-        </form>
+        </div>
     </div>
 
     <!-- Column 3: Option 2 (Manual Fix) -->
-    <div class="card" style="margin-bottom: 0;">
-        <h3>Option 2: Manual Edit</h3>
-        <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1rem;">
-            Manually correct the fields below.
-        </p>
+    <div class="col-md-4">
+        <div class="card bg-dark border-secondary h-100 shadow-sm">
+            <div class="card-body">
+                <h3 class="h5 mb-2">Option 2: Manual Edit</h3>
+                <p class="text-secondary small mb-4">
+                    Manually correct the fields below.
+                </p>
 
-        <form method="POST">
-            <input type="hidden" name="action" value="manual_fix">
+                <form method="POST">
+                    <input type="hidden" name="action" value="manual_fix">
 
-            <div class="form-group">
-                <label class="form-label">Address 1</label>
-                <input type="text" name="address1" value="{{ order.address1 or '' }}" required>
-            </div>
+                    <div class="mb-3">
+                        <label class="form-label text-secondary">Address 1</label>
+                        <input type="text" name="address1" class="form-control" value="{{ order.address1 or '' }}" required>
+                    </div>
 
-            <div class="form-group">
-                <label class="form-label">Address 2</label>
-                <input type="text" name="address2" value="{{ order.address2 or '' }}">
-            </div>
+                    <div class="mb-3">
+                        <label class="form-label text-secondary">Address 2</label>
+                        <input type="text" name="address2" class="form-control" value="{{ order.address2 or '' }}">
+                    </div>
 
-            <div class="form-group">
-                <label class="form-label">Address 3</label>
-                <input type="text" name="address3" value="{{ order.address3 or '' }}">
-            </div>
+                    <div class="mb-3">
+                        <label class="form-label text-secondary">Address 3</label>
+                        <input type="text" name="address3" class="form-control" value="{{ order.address3 or '' }}">
+                    </div>
 
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                <div class="form-group">
-                    <label class="form-label">City</label>
-                    <input type="text" name="city" value="{{ order.city or '' }}" required>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">State</label>
-                    <input type="text" name="state" value="{{ order.state or '' }}" required>
-                </div>
-            </div>
-            <div class="form-group">
-                <label class="form-label">Zip</label>
-                <input type="text" name="zip" value="{{ order.zip or '' }}" required>
-            </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label text-secondary">City</label>
+                            <input type="text" name="city" class="form-control" value="{{ order.city or '' }}" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label text-secondary">State</label>
+                            <input type="text" name="state" class="form-control" value="{{ order.state or '' }}" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-secondary">Zip</label>
+                        <input type="text" name="zip" class="form-control" value="{{ order.zip or '' }}" required>
+                    </div>
 
-            <div class="form-group">
-                <label class="form-label">Country</label>
-                <input type="text" name="country" value="{{ order.country or 'US' }}" placeholder="e.g. US, CA"
-                    required>
-            </div>
+                    <div class="mb-4">
+                        <label class="form-label text-secondary">Country</label>
+                        <input type="text" name="country" class="form-control" value="{{ order.country or 'US' }}" placeholder="e.g. US, CA" required>
+                    </div>
 
-            <div style="margin-top: 1rem;">
-                <button type="submit" class="btn"
-                    style="background-color: var(--success); color: white; width: 100%;">Mark as Corrected</button>
+                    <div class="mt-4">
+                        <button type="submit" class="btn btn-success w-100">Mark as Corrected</button>
+                    </div>
+                </form>
             </div>
-        </form>
+        </div>
     </div>
 
 </div>
 
+{% block extra_scripts %}
 <script>
     document.addEventListener('DOMContentLoaded', () => {
         const storeInput = document.getElementById('store_number_input');
@@ -160,15 +164,14 @@
         const updatePreview = (storeNumber) => {
             if (!storeNumber) {
                 previewDiv.innerHTML = 'Enter a valid store number to preview.';
-                previewDiv.style.color = 'var(--text-secondary)';
+                previewDiv.className = 'bg-black bg-opacity-25 p-3 rounded border border-dark text-secondary fst-italic small';
                 applyBtn.disabled = true;
                 applyBtn.style.opacity = '0.5';
-                applyBtn.style.cursor = 'not-allowed';
                 return;
             }
 
             previewDiv.innerHTML = 'Loading...';
-            previewDiv.style.color = 'var(--text-secondary)';
+            previewDiv.className = 'bg-black bg-opacity-25 p-3 rounded border border-dark text-secondary fst-italic small';
 
             fetch(`/api/address-book/${storeNumber}`)
                 .then(response => {
@@ -178,30 +181,26 @@
                     return response.json();
                 })
                 .then(data => {
-                    let addrHTML = '<div style="display: grid; grid-template-columns: auto 1fr; gap: 0.2rem 1rem; width: 100%;">';
-                    if (data.company_name) addrHTML += `<span style="text-align: right; color: var(--text-secondary);">Company:</span><span><strong>${data.company_name}</strong></span>`;
-                    if (data.attn) addrHTML += `<span style="text-align: right; color: var(--text-secondary);">Attention:</span><span>${data.attn}</span>`;
-                    if (data.address1) addrHTML += `<span style="text-align: right; color: var(--text-secondary);">Address 1:</span><span>${data.address1}</span>`;
-                    addrHTML += `<span style="text-align: right; color: var(--text-secondary);">Address 2:</span><span>${data.address2 || ''}</span>`;
-                    addrHTML += `<span style="text-align: right; color: var(--text-secondary);">Address 3:</span><span>${data.address3 || ''}</span>`;
-                    addrHTML += `<span style="text-align: right; color: var(--text-secondary);">City, ST ZIP:</span><span>${data.city || ''}, ${data.state || ''} ${data.zip || ''}</span>`;
-                    addrHTML += `<span style="text-align: right; color: var(--text-secondary);">Country:</span><span>US</span>`;
+                    let addrHTML = '<div class="row g-2 w-100">';
+                    if (data.company_name) addrHTML += `<div class="col-4 text-end text-secondary">Company:</div><div class="col-8"><strong>${data.company_name}</strong></div>`;
+                    if (data.attn) addrHTML += `<div class="col-4 text-end text-secondary">Attention:</div><div class="col-8">${data.attn}</div>`;
+                    if (data.address1) addrHTML += `<div class="col-4 text-end text-secondary">Address 1:</div><div class="col-8">${data.address1}</div>`;
+                    addrHTML += `<div class="col-4 text-end text-secondary">Address 2:</div><div class="col-8">${data.address2 || ''}</div>`;
+                    addrHTML += `<div class="col-4 text-end text-secondary">Address 3:</div><div class="col-8">${data.address3 || ''}</div>`;
+                    addrHTML += `<div class="col-4 text-end text-secondary">City, ST ZIP:</div><div class="col-8">${data.city || ''}, ${data.state || ''} ${data.zip || ''}</div>`;
+                    addrHTML += `<div class="col-4 text-end text-secondary">Country:</div><div class="col-8">US</div>`;
                     addrHTML += '</div>';
 
                     previewDiv.innerHTML = addrHTML;
-                    previewDiv.style.color = 'var(--text-primary)';
-                    previewDiv.style.fontStyle = 'normal';
+                    previewDiv.className = 'bg-black bg-opacity-25 p-3 rounded border border-dark text-white font-monospace small';
                     applyBtn.disabled = false;
                     applyBtn.style.opacity = '1';
-                    applyBtn.style.cursor = 'pointer';
                 })
                 .catch(error => {
                     previewDiv.innerHTML = `Store #${storeNumber} not found in Address Book.`;
-                    previewDiv.style.color = 'var(--danger)';
-                    previewDiv.style.fontStyle = 'italic';
+                    previewDiv.className = 'bg-black bg-opacity-25 p-3 rounded border border-dark text-danger fst-italic small';
                     applyBtn.disabled = true;
                     applyBtn.style.opacity = '0.5';
-                    applyBtn.style.cursor = 'not-allowed';
                 });
         };
 
@@ -219,4 +218,5 @@
         });
     });
 </script>
+{% endblock %}
 {% endblock %}

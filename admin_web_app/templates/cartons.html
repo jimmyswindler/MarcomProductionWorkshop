@@ -1,141 +1,151 @@
-{% extends "base.html" %}
+{% extends "base_v2.html" %}
 
 {% block content %}
-<div class="page-header-controls" style="display: flex; justify-content: space-between; align-items: center;">
-    <h1>Shipping Cartons Management</h1>
-    <button class="btn btn-success" onclick="document.getElementById('add-carton-modal').style.display='flex'">+ Add New
-        Carton</button>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">Shipping Cartons Management</h1>
+    <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addCartonModal">
+        <i class="bi bi-plus-circle me-1"></i> Add New Carton
+    </button>
 </div>
 
-<div class="card" style="padding: 0;">
-    <div class="table-container">
-        <table>
-            <thead class="sticky-th">
-                <tr>
-                    <th>Code (3-Letter)</th>
-                    <th>Name / Label</th>
-                    <th>Weight (lbs)</th>
-                    <th>Length (in)</th>
-                    <th>Width (in)</th>
-                    <th>Height (in)</th>
-                    <th style="text-align: right;">Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for carton in cartons %}
-                <tr>
-                    <td><span class="badge badge-warning">{{ carton.code }}</span></td>
-                    <td><strong>{{ carton.name }}</strong></td>
-                    <td>{{ carton.weight }}</td>
-                    <td>{{ carton.length }}</td>
-                    <td>{{ carton.width }}</td>
-                    <td>{{ carton.height }}</td>
-                    <td style="text-align: right;">
-                        <button class="btn btn-sm btn-info"
-                            onclick="editCarton('{{ carton.code }}', '{{ carton.name | escape }}', '{{ carton.weight }}', '{{ carton.length }}', '{{ carton.width }}', '{{ carton.height }}')">Edit</button>
-                        <form action="{{ url_for('cartons.delete_carton', code=carton.code) }}" method="POST"
-                            style="display:inline;" onsubmit="return confirm('Delete carton {{ carton.code }}?');">
-                            <button type="submit" class="btn btn-sm"
-                                style="background-color: var(--danger); color: white;">Delete</button>
-                        </form>
-                    </td>
-                </tr>
-                {% else %}
-                <tr>
-                    <td colspan="7" style="text-align: center; color: var(--text-secondary);">No cartons found. Add one
-                        above.</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
+<div class="table-responsive bg-dark rounded border border-secondary shadow-sm">
+    <table class="table table-dark table-hover mb-0 align-middle">
+        <thead>
+            <tr>
+                <th scope="col" class="ps-3 border-secondary text-secondary">Code (3-Letter)</th>
+                <th scope="col" class="border-secondary text-secondary">Name / Label</th>
+                <th scope="col" class="border-secondary text-secondary">Weight (lbs)</th>
+                <th scope="col" class="border-secondary text-secondary">Length (in)</th>
+                <th scope="col" class="border-secondary text-secondary">Width (in)</th>
+                <th scope="col" class="border-secondary text-secondary">Height (in)</th>
+                <th scope="col" class="border-secondary text-secondary text-end pe-3">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for carton in cartons %}
+            <tr>
+                <td class="ps-3"><span class="badge text-bg-warning">{{ carton.code }}</span></td>
+                <td><strong class="text-white">{{ carton.name }}</strong></td>
+                <td>{{ carton.weight }}</td>
+                <td>{{ carton.length }}</td>
+                <td>{{ carton.width }}</td>
+                <td>{{ carton.height }}</td>
+                <td class="text-end pe-3 text-nowrap">
+                    <button class="btn btn-sm btn-info me-1"
+                        onclick="editCarton('{{ carton.code }}', '{{ carton.name | escape }}', '{{ carton.weight }}', '{{ carton.length }}', '{{ carton.width }}', '{{ carton.height }}')">Edit</button>
+                    <form action="{{ url_for('cartons.delete_carton', code=carton.code) }}" method="POST"
+                        class="d-inline" onsubmit="return confirm('Delete carton {{ carton.code }}?');">
+                        <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="7" class="text-center p-5 text-secondary">No cartons found. Add one above.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
 </div>
 
 <!-- Add Modal -->
-<div id="add-carton-modal" class="modal-overlay"
-    style="display:none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1050; align-items: center; justify-content: center;">
-    <div class="card" style="width: 100%; max-width: 500px; margin: 0;">
-        <h2>Add Shipping Carton</h2>
-        <form action="{{ url_for('cartons.add_carton') }}" method="POST">
-            <div class="form-group">
-                <label class="form-label">Code (3-Letter Unique ID):</label>
-                <input type="text" name="code" required maxlength="5" placeholder="e.g. C05">
-            </div>
-            <div class="form-group">
-                <label class="form-label">Name / Label:</label>
-                <input type="text" name="name" required placeholder="e.g. Box #105">
-            </div>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                <div class="form-group">
-                    <label class="form-label">Weight (lbs):</label>
-                    <input type="number" step="0.01" min="0.01" name="weight" required placeholder="e.g. 0.5">
+<div class="modal fade" id="addCartonModal" tabindex="-1" aria-labelledby="addCartonModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form action="{{ url_for('cartons.add_carton') }}" method="POST">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="addCartonModalLabel">Add Shipping Carton</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <div class="form-group">
-                    <label class="form-label">Length (in):</label>
-                    <input type="number" step="0.1" name="length" placeholder="Optional">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label text-secondary">Code (3-Letter Unique ID):</label>
+                        <input type="text" name="code" class="form-control" required maxlength="5" placeholder="e.g. C05">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-secondary">Name / Label:</label>
+                        <input type="text" name="name" class="form-control" required placeholder="e.g. Box #105">
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-6">
+                            <label class="form-label text-secondary">Weight (lbs):</label>
+                            <input type="number" step="0.01" min="0.01" name="weight" class="form-control" required placeholder="e.g. 0.5">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label text-secondary">Length (in):</label>
+                            <input type="number" step="0.1" name="length" class="form-control" placeholder="Optional">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label text-secondary">Width (in):</label>
+                            <input type="number" step="0.1" name="width" class="form-control" placeholder="Optional">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label text-secondary">Height (in):</label>
+                            <input type="number" step="0.1" name="height" class="form-control" placeholder="Optional">
+                        </div>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label class="form-label">Width (in):</label>
-                    <input type="number" step="0.1" name="width" placeholder="Optional">
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success">Save Carton</button>
                 </div>
-                <div class="form-group">
-                    <label class="form-label">Height (in):</label>
-                    <input type="number" step="0.1" name="height" placeholder="Optional">
-                </div>
-            </div>
-            <div style="margin-top: 1rem; text-align: right;">
-                <button type="button" class="btn"
-                    style="background: transparent; border: 1px solid var(--border); color: var(--text-primary);"
-                    onclick="document.getElementById('add-carton-modal').style.display='none'">Cancel</button>
-                <button type="submit" class="btn btn-success">Save Carton</button>
-            </div>
-        </form>
+            </form>
+        </div>
     </div>
 </div>
 
 <!-- Edit Modal -->
-<div id="edit-carton-modal" class="modal-overlay"
-    style="display:none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1050; align-items: center; justify-content: center;">
-    <div class="card" style="width: 100%; max-width: 500px; margin: 0;">
-        <h2>Edit Shipping Carton</h2>
-        <form id="edit-form" method="POST">
-            <div class="form-group">
-                <label class="form-label">Code (3-Letter Unique ID):</label>
-                <input type="text" id="edit-code" name="code" required maxlength="5">
-            </div>
-            <div class="form-group">
-                <label class="form-label">Name / Label:</label>
-                <input type="text" id="edit-name" name="name" required>
-            </div>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                <div class="form-group">
-                    <label class="form-label">Weight (lbs):</label>
-                    <input type="number" step="0.01" min="0.01" id="edit-weight" name="weight" required>
+<div class="modal fade" id="editCartonModal" tabindex="-1" aria-labelledby="editCartonModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form id="edit-form" method="POST">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editCartonModalLabel">Edit Shipping Carton</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <div class="form-group">
-                    <label class="form-label">Length (in):</label>
-                    <input type="number" step="0.1" id="edit-length" name="length" placeholder="Optional">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label text-secondary">Code (3-Letter Unique ID):</label>
+                        <input type="text" id="edit-code" name="code" class="form-control" required maxlength="5">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-secondary">Name / Label:</label>
+                        <input type="text" id="edit-name" name="name" class="form-control" required>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-6">
+                            <label class="form-label text-secondary">Weight (lbs):</label>
+                            <input type="number" step="0.01" min="0.01" id="edit-weight" name="weight" class="form-control" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label text-secondary">Length (in):</label>
+                            <input type="number" step="0.1" id="edit-length" name="length" class="form-control" placeholder="Optional">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label text-secondary">Width (in):</label>
+                            <input type="number" step="0.1" id="edit-width" name="width" class="form-control" placeholder="Optional">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label text-secondary">Height (in):</label>
+                            <input type="number" step="0.1" id="edit-height" name="height" class="form-control" placeholder="Optional">
+                        </div>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label class="form-label">Width (in):</label>
-                    <input type="number" step="0.1" id="edit-width" name="width" placeholder="Optional">
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-info">Update Carton</button>
                 </div>
-                <div class="form-group">
-                    <label class="form-label">Height (in):</label>
-                    <input type="number" step="0.1" id="edit-height" name="height" placeholder="Optional">
-                </div>
-            </div>
-            <div style="margin-top: 1rem; text-align: right;">
-                <button type="button" class="btn"
-                    style="background: transparent; border: 1px solid var(--border); color: var(--text-primary);"
-                    onclick="document.getElementById('edit-carton-modal').style.display='none'">Cancel</button>
-                <button type="submit" class="btn btn-info">Update Carton</button>
-            </div>
-        </form>
+            </form>
+        </div>
     </div>
 </div>
 
+{% endblock %}
+
+{% block extra_scripts %}
 <script>
+    const editModal = new bootstrap.Modal(document.getElementById('editCartonModal'));
+    
     function editCarton(code, name, weight, length, width, height) {
         document.getElementById('edit-code').value = code;
         document.getElementById('edit-name').value = name;
@@ -147,7 +157,7 @@
         // Set form action dynamic path
         document.getElementById('edit-form').action = "/shipping-cartons/edit/" + code;
 
-        document.getElementById('edit-carton-modal').style.display = 'flex';
+        editModal.show();
     }
 </script>
 {% endblock %}

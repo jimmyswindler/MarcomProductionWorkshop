@@ -4,6 +4,14 @@ import datetime
 from shared_lib.database import get_db_connection, get_real_dict_cursor
 from shared_lib.config import get_env_var
 from shared_lib.utils import get_store_number, get_product_category
+from xml.sax.saxutils import escape
+
+def sanitize_xml(val):
+    if not val:
+        return ""
+    s = str(val)
+    s = s.replace('‘', "'").replace('’', "'").replace('“', '"').replace('”', '"')
+    return escape(s)
 
 def get_shipping_cartons():
     conn = get_db_connection()
@@ -49,12 +57,27 @@ def generate_worldship_xml(shipment_data, packages, store_number_arg=None):
     except ValueError:
         store_int = 99999 
 
-    if 1 <= store_int <= 1000:
-        final_company = f"Texas Roadhouse #{store_number_str.lstrip('0')}"
+    original_company = ship_to.get('company')
+    if not original_company or str(original_company).strip() == "":
+        original_company = "Texas Roadhouse"
+    else:
+        original_company = str(original_company).strip()
+
+    final_attention = ship_to.get('name')
+    if not final_attention or str(final_attention).strip() == "":
         final_attention = "Store Manager"
     else:
-        final_company = "Texas Roadhouse"
-        final_attention = ship_to.get('name', '')
+        final_attention = str(final_attention).strip()
+
+    formatted_store_num = store_number_str.lstrip('0')
+    if formatted_store_num and formatted_store_num != "0":
+        store_suffix = f" #{formatted_store_num}"
+        if store_suffix not in original_company:
+            final_company = f"{original_company}{store_suffix}"
+        else:
+            final_company = original_company
+    else:
+        final_company = original_company
     
     unique_numeric_orders = []
     for o in shipment_data['orders']:
@@ -67,18 +90,18 @@ def generate_worldship_xml(shipment_data, packages, store_number_arg=None):
     ref2 = ", ".join(unique_numeric_orders)
 
     xml_parts = []
-    xml_parts.append(f"""<?xml version="1.0" encoding="WINDOWS-1252"?>
+    xml_parts.append(f"""<?xml version="1.0" encoding="UTF-8"?>
 <OpenShipments xmlns="x-schema:OpenShipments.xdr">
     <OpenShipment ProcessStatus="Y">
         <ShipTo>
-            <CompanyOrName>{final_company}</CompanyOrName>
-            <Attention>{final_attention}</Attention>
-            <Address1>{ship_to.get('address1', '')}</Address1>
-            <CountryTerritory>{ship_to.get('country', 'US')}</CountryTerritory>
-            <PostalCode>{ship_to.get('zip', '')}</PostalCode>
-            <CityOrTown>{ship_to.get('city', '')}</CityOrTown>
-            <StateProvinceCounty>{ship_to.get('state', '')}</StateProvinceCounty>
-            <ReceiverUpsAccountNumber>{ship_to.get('account_number', 'Y76383')}</ReceiverUpsAccountNumber>
+            <CompanyOrName>{sanitize_xml(final_company)}</CompanyOrName>
+            <Attention>{sanitize_xml(final_attention)}</Attention>
+            <Address1>{sanitize_xml(ship_to.get('address1', ''))}</Address1>
+            <CountryTerritory>{sanitize_xml(ship_to.get('country', 'US'))}</CountryTerritory>
+            <PostalCode>{sanitize_xml(ship_to.get('zip', ''))}</PostalCode>
+            <CityOrTown>{sanitize_xml(ship_to.get('city', ''))}</CityOrTown>
+            <StateProvinceCounty>{sanitize_xml(ship_to.get('state', ''))}</StateProvinceCounty>
+            <ReceiverUpsAccountNumber>{sanitize_xml(ship_to.get('account_number', 'Y76383'))}</ReceiverUpsAccountNumber>
         </ShipTo>
         <ShipFrom>
             <CompanyOrName>Clark Riggs Printing</CompanyOrName>
@@ -125,8 +148,8 @@ def generate_worldship_xml(shipment_data, packages, store_number_arg=None):
         <Package>
             <PackageType>CP</PackageType>
             <Weight>{weight_str}</Weight>
-            <Reference1>{store_number_str}</Reference1>
-            <Reference2>{ref2}</Reference2>
+            <Reference1>{sanitize_xml(store_number_str)}</Reference1>
+            <Reference2>{sanitize_xml(ref2)}</Reference2>
             <Length>{l_str}</Length>
             <Width>{w_str}</Width>
             <Height>{h_str}</Height>
@@ -334,7 +357,7 @@ def process_shipment_logic(orders, scanned_boxes, package_list_in, station_id=No
             return {"error": f"No valid SMB path configured for station '{station_id}'."}, 400
             
         try:
-            with open(os.path.join(target_folder, filename), "w") as f:
+            with open(os.path.join(target_folder, filename), "w", encoding="utf-8") as f:
                 f.write(xml_string)
             print(f"XML written to {target_folder}/{filename}")
         except OSError as e:

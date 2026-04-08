@@ -1,44 +1,45 @@
-{% extends "base.html" %}
+{% extends "base_v2.html" %}
 
 {% block content %}
-<div class="page-header-controls">
-    <h1>Address Validation Exceptions</h1>
-    <p style="color: var(--text-secondary); margin-bottom: 0;">Orders flagged as an EXCEPTION by UPS or the
-        automated fallback sequence.</p>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 mb-0">Address Validation Exceptions</h1>
+        <p class="text-secondary small mb-0">Orders flagged as an EXCEPTION by UPS or the automated fallback sequence.</p>
+    </div>
 </div>
 
-<div class="table-container">
-    <form id="bulkForm" action="/exceptions/bulk_fix" method="POST">
+<div class="table-responsive bg-dark rounded border border-secondary shadow-sm mb-4">
+    <form id="bulkForm" action="/exceptions/bulk_fix" method="POST" class="mb-0">
         <!-- Bulk Actions Bar -->
-        <div id="bulkActionBar" style="display: none; background: var(--bg-card); border: 1px solid var(--border); padding: 1rem; margin-bottom: 1rem; border-radius: 6px; align-items: center; justify-content: space-between;">
+        <div id="bulkActionBar" class="bg-body-secondary border-bottom border-secondary p-3 d-flex align-items-center justify-content-between" style="display: none !important;">
             <div>
-                <span id="selectedCount" style="font-weight: bold; color: var(--accent);">0</span> orders selected
+                <span id="selectedCount" class="fw-bold text-info">0</span> <span class="text-secondary">orders selected</span>
             </div>
-            <div style="display: flex; gap: 0.5rem; align-items: center;">
-                <input type="text" name="store_number" placeholder="Enter Store # (e.g. 0237)" style="padding: 0.4rem; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-main); color: var(--text-primary);">
-                <button type="submit" class="btn btn-sm" style="background-color: var(--success); color: white;">Apply Address Book to Selected</button>
+            <div class="d-flex gap-2 align-items-center">
+                <input type="text" name="store_number" class="form-control form-control-sm border-secondary" placeholder="Enter Store # (e.g. 0237)" style="width: 200px;">
+                <button type="submit" class="btn btn-sm btn-success text-nowrap">Apply Address Book to Selected</button>
             </div>
         </div>
 
-    <table id="exceptionsTable" data-default-sort="order" data-default-sort-dir="asc">
-        <thead class="sticky-th">
-            <tr>
-                <th style="width: 40px; text-align: center;"><input type="checkbox" id="selectAll"></th>
-                <th class="sortable" data-sort="order">Order</th>
-                <th class="sortable" data-sort="store">Store</th>
-                <th class="sortable" data-sort="date">Date</th>
-                <th class="sortable" data-sort="issue">Issue</th>
-                <th>Input Address</th>
-                <th>Details</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody>
+        <table id="exceptionsTable" class="table table-dark table-hover mb-0 align-middle" data-default-sort="order" data-default-sort-dir="asc">
+            <thead>
+                <tr>
+                    <th scope="col" class="ps-3 border-secondary" style="width: 40px; text-align: center;"><input class="form-check-input" type="checkbox" id="selectAll"></th>
+                    <th scope="col" class="border-secondary text-secondary sortable" data-sort="order">Order</th>
+                    <th scope="col" class="border-secondary text-secondary sortable" data-sort="store">Store</th>
+                    <th scope="col" class="border-secondary text-secondary sortable" data-sort="date">Date</th>
+                    <th scope="col" class="border-secondary text-secondary sortable" data-sort="issue">Issue</th>
+                    <th scope="col" class="border-secondary text-secondary">Input Address</th>
+                    <th scope="col" class="border-secondary text-secondary">Details</th>
+                    <th scope="col" class="border-secondary text-secondary text-end pe-3">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
             {% for order in orders %}
             <tr>
-                <td style="text-align: center;"><input type="checkbox" name="order_numbers" value="{{ order.order_number }}" class="row-checkbox"></td>
-                <td data-sort-val="{{ order.order_number }}">{{ order.order_number }}</td>
-                <td data-sort-val="{{ order.store_number or '' }}">{{ order.store_number or '--' }}</td>
+                <td class="ps-3 text-center"><input class="form-check-input row-checkbox" type="checkbox" name="order_numbers" value="{{ order.order_number }}"></td>
+                <td class="fw-bold" data-sort-val="{{ order.order_number }}">{{ order.order_number }}</td>
+                <td class="text-info" data-sort-val="{{ order.store_number or '' }}">{{ order.store_number or '--' }}</td>
                 <td data-sort-val="{{ order.order_date }}">
                     {% if order.order_date %}
                     {% if order.order_date.strftime('%H:%M:%S') == '00:00:00' %}
@@ -51,25 +52,25 @@
                     {% endif %}
                 </td>
                 <td data-sort-val="{{ order.address_validation_status }}">
-                    <span class="badge badge-danger">{{ order.address_validation_status }}</span>
+                    <span class="badge text-bg-danger">{{ order.address_validation_status }}</span>
                 </td>
-                <td>
+                <td class="small">
                     {{ order.address1 }}<br>
                     {% if order.address2 %}{{ order.address2 }}<br>{% endif %}
                     {{ order.city }}, {{ order.state }} {{ order.zip }}
                 </td>
-                <td style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 300px; font-size: 0.8rem; color: var(--text-secondary);"
-                    title="{{ order.display_details }}">
+                <td class="small text-secondary text-truncate" style="max-width: 250px;" title="{{ order.display_details }}">
                     {{ order.display_details }}
                 </td>
-                <td>
-                    <a href="/exceptions/fix/{{ order.order_number }}" class="btn btn-sm">Review / Fix</a>
+                <td class="text-end pe-3">
+                    <a href="/exceptions/fix/{{ order.order_number }}" class="btn btn-sm btn-outline-info text-nowrap">Review / Fix</a>
                 </td>
             </tr>
             {% else %}
             <tr>
-                <td colspan="8" style="text-align: center; padding: 2rem; color: var(--text-secondary);">No
-                    exceptions found. Great job!</td>
+                <td colspan="8" class="text-center p-5 text-secondary">
+                    No exceptions found. Great job!
+                </td>
             </tr>
             {% endfor %}
         </tbody>
@@ -89,9 +90,9 @@
              const selectedCount = document.querySelectorAll('.row-checkbox:checked').length;
              selectedCountSpan.textContent = selectedCount;
              if (selectedCount > 0) {
-                 bulkActionBar.style.display = 'flex';
+                 bulkActionBar.style.setProperty('display', 'flex', 'important');
              } else {
-                 bulkActionBar.style.display = 'none';
+                 bulkActionBar.style.setProperty('display', 'none', 'important');
              }
         };
 

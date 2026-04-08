@@ -80,43 +80,38 @@ def process_sheet_downloads(df, files_path, sheet_name):
                        except Exception: 
                            pass # Fail silently here?
     
+    import utils_progress
+    run_name = os.environ.get('PIPELINE_RUN_NAME', 'MOCK_RUN')
+    observer = utils_progress.get_observer(run_name)
+    
+    observer.update_stage('stage_2_assets_status', increment=(len(rows_with_index) - len(download_tasks)))
+
     if not download_tasks:
         utils_ui.print_info("No new files to download.")
-        # Even if no download, we might need to update DB if it was already local?
-        # But we only track 'tasks'. 
-        return
-
-    # Just iterating is slow if large.
-    # But download_tasks is subset.
-    # Actually row is available in the loop above.
-    pass
-
-    # Better approach: Collect updates in the main loop
-
-    utils_ui.print_info(f"Downloading {len(download_tasks)} files...")
-    
-    success_count = 0
-    fail_count = 0
-    
-    with utils_ui.create_progress() as progress:
-        task = progress.add_task("Downloading...", total=len(download_tasks))
-        
-        # High concurrency for I/O bound tasks
-        with concurrent.futures.ThreadPoolExecutor(max_workers=16) as executor:
-            futures = [executor.submit(download_worker, t) for t in download_tasks]
-            
-            for future in concurrent.futures.as_completed(futures):
-                idx, path, success = future.result()
-                if success:
-                    success_count += 1
-                else:
-                    fail_count += 1
-                progress.update(task, advance=1)
-                
-    if fail_count > 0:
-        utils_ui.print_warning(f"Downloaded {success_count} files. Failed: {fail_count}.")
     else:
-        utils_ui.print_success(f"Successfully acquired {success_count} files.")
+        utils_ui.print_info(f"Downloading {len(download_tasks)} files...")
+        success_count = 0
+        fail_count = 0
+        
+        with utils_ui.create_progress() as progress:
+            task = progress.add_task("Downloading...", total=len(download_tasks))
+            
+            with concurrent.futures.ThreadPoolExecutor(max_workers=16) as executor:
+                futures = [executor.submit(download_worker, t) for t in download_tasks]
+                
+                for future in concurrent.futures.as_completed(futures):
+                    idx, path, success = future.result()
+                    if success:
+                        success_count += 1
+                    else:
+                        fail_count += 1
+                    progress.update(task, advance=1)
+                    observer.update_stage('stage_2_assets_status', increment=1)
+                    
+        if fail_count > 0:
+            utils_ui.print_warning(f"Downloaded {success_count} files. Failed: {fail_count}.")
+        else:
+            utils_ui.print_success(f"Successfully acquired {success_count} files.")
 
     # --- DB Update ---
     try:
@@ -162,9 +157,20 @@ def main(input_excel_path, files_base_folder):
     start_time = time.time()
 
     try:
+        import utils_progress
+        run_name = os.environ.get('PIPELINE_RUN_NAME', 'MOCK_RUN')
+        observer = utils_progress.get_observer(run_name)
+        
         os.makedirs(files_base_folder, exist_ok=True)
-
         xls = pd.ExcelFile(input_excel_path)
+        
+        total_items = 0
+        for sheet_name in xls.sheet_names:
+            df = pd.read_excel(xls, sheet_name=sheet_name)
+            total_items += len(df)
+            
+        observer.start_stage('stage_2_assets_status', total=total_items)
+
         for sheet_name in xls.sheet_names:
             df = pd.read_excel(xls, sheet_name=sheet_name)
             
@@ -176,8 +182,15 @@ def main(input_excel_path, files_base_folder):
             os.makedirs(sheet_files_path, exist_ok=True)
 
             process_sheet_downloads(df, sheet_files_path, sheet_name)
+            
+        observer.finish_stage('stage_2_assets_status')
 
     except Exception as e:
+        import utils_progress
+        run_name = os.environ.get('PIPELINE_RUN_NAME', 'MOCK_RUN')
+        observer = utils_progress.get_observer(run_name)
+        observer.error_stage('stage_2_assets_status')
+        
         utils_ui.print_error(f"Acquisition Failed: {e}")
         traceback.print_exc()
         sys.exit(1)

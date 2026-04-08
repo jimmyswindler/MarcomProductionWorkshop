@@ -132,14 +132,18 @@ def process_ups_output_files():
                                     """, (ship_date, order_num))
                             
                                 cur.execute("""
-                                    UPDATE jobs
-                                    SET production_status = 'SHIPPED'
-                                    WHERE id IN (
-                                        SELECT i.job_id
-                                        FROM item_boxes b
-                                        JOIN items i ON b.order_item_id = i.order_item_id
-                                        WHERE b.shipment_uid = %s
-                                    ) AND production_status != 'SHIPPED'
+                                    UPDATE jobs j
+                                    SET production_status = CASE 
+                                        WHEN o.ship_date < CURRENT_DATE THEN 'SHIPPED_LATE' 
+                                        ELSE 'SHIPPED' 
+                                    END
+                                    FROM items i
+                                    JOIN item_boxes b ON b.order_item_id = i.order_item_id,
+                                    orders o
+                                    WHERE j.id = i.job_id 
+                                      AND j.order_id = o.id
+                                      AND b.shipment_uid = %s
+                                      AND j.production_status NOT IN ('SHIPPED', 'SHIPPED_LATE')
                                 """, (ship_uid_from_file,))
                     else:
                         print(f"Could not extract tracking number from {fpath}")

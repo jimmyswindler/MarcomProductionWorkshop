@@ -1,43 +1,53 @@
-{% extends "base.html" %}
+{% extends "base_v2.html" %}
 
 {% block content %}
 <style>
     /* Decrease row height by reducing vertical padding */
-    .table-container td {
+    .table-responsive td {
         padding-top: 0.35rem;
         padding-bottom: 0.35rem;
     }
 </style>
-<div class="page-header-controls"
-    style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-    <h1 style="margin-bottom: 0;">Address Book ({{ addresses|length }})</h1>
-    <form action="/address-book" method="get" style="display: flex; gap: 0.5rem; margin-bottom: 0;">
-        <input type="text" name="search" placeholder="Search Store or Name..." value="{{ search }}">
-        <button type="submit" class="btn">Search</button>
-    </form>
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+    <h1 class="h3 mb-0">Address Book ({{ addresses|length }})</h1>
+    <div class="d-flex gap-4 align-items-center flex-wrap">
+        <form action="/address-book/upload" method="post" enctype="multipart/form-data" class="d-flex gap-2 align-items-center border-end pe-4 mb-0">
+            <div class="small text-secondary text-nowrap">Monthly Update:</div>
+            <input type="file" name="address_file" accept=".xlsx" required class="form-control form-control-sm" style="max-width: 250px;">
+            <button type="submit" class="btn btn-sm btn-info text-dark text-nowrap">Preview Sync</button>
+        </form>
+        <form action="/address-book" method="get" class="d-flex gap-2 mb-0">
+            <input type="text" name="search" placeholder="Search Store or Name..." value="{{ search }}" class="form-control form-control-sm" style="width: 250px;">
+            <button type="submit" class="btn btn-sm btn-outline-light">Search</button>
+        </form>
+    </div>
 </div>
 
-<div class="table-container">
-    <table>
-        <thead class="sticky-th">
+<div class="table-responsive bg-dark rounded border border-secondary shadow-sm">
+    <table class="table table-dark table-hover mb-0 align-middle">
+        <thead>
             <tr>
-                <th>Store</th>
-                <th>Company</th>
-                <th>Address</th>
-                <th>City/State/Zip</th>
-                <th>Actions</th>
+                <th scope="col" class="ps-3 border-secondary text-secondary">Store</th>
+                <th scope="col" class="border-secondary text-secondary">Company</th>
+                <th scope="col" class="border-secondary text-secondary">Address</th>
+                <th scope="col" class="border-secondary text-secondary">City/State/Zip</th>
+                <th scope="col" class="border-secondary text-secondary">Actions</th>
             </tr>
         </thead>
         <tbody>
             {% for addr in addresses %}
             <tr>
-                <td style="font-weight: 600; color: var(--accent);">{{ addr.store_number }}</td>
-                <td>{{ addr.company_name }}</td>
+                <td class="text-info fw-bold ps-3">{{ addr.store_number }}</td>
+                <td>
+                    <div class="fw-medium">{{ addr.company_name }}</div>
+                    {% if addr.store_name %}
+                    <div class="small text-secondary">{{ addr.store_name }}</div>
+                    {% endif %}
+                </td>
                 <td>{{ addr.address1 }}</td>
                 <td>{{ addr.city }}, {{ addr.state }} {{ addr.zip }}</td>
                 <td>
-                    <a href="/address-book/edit/{{ addr.store_number }}" class="btn btn-sm"
-                        style="background: transparent; border: 1px solid var(--border); color: var(--text-secondary);">Edit</a>
+                    <a href="/address-book/edit/{{ addr.store_number }}" class="btn btn-sm btn-outline-secondary">Edit</a>
                 </td>
             </tr>
             {% endfor %}

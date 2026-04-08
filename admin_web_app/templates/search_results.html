@@ -1,137 +1,79 @@
-{% extends "base.html" %}
+{% extends "base_v2.html" %}
 
 {% block content %}
 <div class="mb-4">
-    <h1>Search Results</h1>
-    <p class="text-secondary">Results for: <strong>{{ query }}</strong></p>
+    <h1 class="h3 mb-0">Search Results</h1>
+    <p class="text-secondary small mb-0">Results for: <strong class="text-white">{{ query }}</strong></p>
 </div>
 
-<div class="row">
-    <!-- ORDERS -->
-    <div class="col-12 mb-4">
-        <div class="card">
-            <div class="card-header bg-dark border-secondary">
-                <h5 class="mb-0">Orders <span class="badge bg-primary">{{ found_orders|length }}</span></h5>
-            </div>
-            <div class="card-body p-0">
-                {% if found_orders %}
-                <div class="table-responsive">
-                    <table class="table table-hover table-dark mb-0 align-middle">
-                        <thead>
-                            <tr>
-                                <th>Order #</th>
-                                <th>Date</th>
-                                <th>Ship To</th>
-                                <th>Status</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for order in found_orders %}
-                            <tr>
-                                <td>{{ order.order_number }}</td>
-                                <td>{{ order.order_date|string|truncate(10, True, '') }}</td>
-                                <td>
-                                    <div>{{ order.ship_to_company }}</div>
-                                    <div class="small text-muted">{{ order.ship_to_name }}</div>
-                                </td>
-                                <td>
-                                    {% if order.actual_ship_date %}
-                                    <span class="badge bg-success">Shipped</span>
-                                    {% elif order.production_status == 'NEW' %}
-                                    <span class="badge bg-info text-dark">New</span>
-                                    {% else %}
-                                    <span class="badge bg-secondary">{{ order.production_status }}</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    <a href="{{ url_for('address_issues.fix_exception', order_number=order.order_number) }}"
-                                        class="btn btn-sm btn-outline-light">Details</a>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                {% else %}
-                <div class="p-3 text-muted text-center">No orders found matching "{{ query }}".</div>
+<div class="table-responsive bg-dark rounded border border-secondary shadow-sm">
+    {% if orders %}
+    <table class="table table-dark table-hover mb-0 align-middle">
+        <thead>
+            <tr>
+                <th scope="col" class="ps-3 border-secondary">Order #</th>
+                <th scope="col" class="border-secondary">Date Ordered</th>
+                <th scope="col" class="border-secondary">Actual Ship Date</th>
+                <th scope="col" class="border-secondary">Line Item</th>
+                <th scope="col" class="border-secondary">Category</th>
+                <th scope="col" class="border-secondary">Print File Name</th>
+                <th scope="col" class="border-secondary">Tracking #</th>
+                <th scope="col" class="border-secondary">Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for order in orders %}
+            {% set row_span = order.line_items|length %}
+            {% if row_span == 0 %}
+            <tr>
+                <td class="align-top ps-3">{{ order.order_number }}</td>
+                <td class="align-top">{{ order.order_date|string|truncate(10, True, '') if order.order_date else 'N/A' }}</td>
+                <td class="align-top">{{ order.actual_ship_date|string|truncate(10, True, '') if order.actual_ship_date else 'N/A' }}</td>
+                <td class="align-top text-secondary fst-italic" colspan="5">No line items</td>
+            </tr>
+            {% else %}
+            {% for item in order.line_items %}
+            <tr>
+                {% if loop.first %}
+                <td class="align-top ps-3 fw-bold" rowspan="{{ row_span }}">{{ order.order_number }}</td>
+                <td class="align-top" rowspan="{{ row_span }}">{{ order.order_date|string|truncate(10, True, '') if order.order_date else 'N/A' }}</td>
+                <td class="align-top" rowspan="{{ row_span }}">{{ order.actual_ship_date|string|truncate(10, True, '') if order.actual_ship_date else 'N/A' }}</td>
                 {% endif %}
-            </div>
-        </div>
+                <td class="align-top {% if not loop.first %}reset-padding-left{% endif %}"><strong>{{ item.line_item_number }}</strong></td>
+                <td class="align-top">{{ item.product_category }}</td>
+                <td class="align-top">{{ item.print_filename }}</td>
+                <td class="align-top font-monospace">
+                    {% if item.tracking_number %}
+                    <a href="https://www.ups.com/track?track=yes&trackNums={{ item.tracking_number }}" target="_blank" class="text-info text-decoration-none">{{ item.tracking_number }}</a>
+                    {% else %}
+                    N/A
+                    {% endif %}
+                </td>
+                <td class="align-top">
+                    {% set status = (item.production_status or 'NEW')|string|trim|upper %}
+                    {% if status == 'SHIPPED' %}
+                    <span class="badge text-bg-success">SHIPPED</span>
+                    {% elif status == 'SHIPPED_LATE' %}
+                    <span class="badge text-bg-danger">SHIPPED LATE</span>
+                    {% elif status == 'IN_PROCESS' %}
+                    <span class="badge text-bg-primary">IN PROCESS</span>
+                    {% elif status == 'READY' %}
+                    <span class="badge text-bg-info">READY</span>
+                    {% else %}
+                    <span class="badge text-bg-light">{{ status }}</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+            {% endif %}
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="p-5 text-center text-secondary">
+        <i class="bi bi-search text-secondary opacity-50" style="font-size: 2rem;"></i>
+        <p class="mt-2 text-white-50">No results found matching "{{ query }}".</p>
     </div>
-
-    <!-- JOBS -->
-    <div class="col-12 mb-4">
-        <div class="card">
-            <div class="card-header bg-dark border-secondary">
-                <h5 class="mb-0">Jobs <span class="badge bg-warning text-dark">{{ found_jobs|length }}</span></h5>
-            </div>
-            <div class="card-body p-0">
-                {% if found_jobs %}
-                <div class="table-responsive">
-                    <table class="table table-hover table-dark mb-0 align-middle">
-                        <thead>
-                            <tr>
-                                <th>Ticket #</th>
-                                <th>Order #</th>
-                                <th>Description</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for job in found_jobs %}
-                            <tr>
-                                <td>{{ job.job_ticket_number }}</td>
-                                <td>{{ job.order_number }}</td>
-                                <td>{{ job.project_description }}</td>
-                                <td><span class="badge bg-secondary">{{ job.production_status }}</span></td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                {% else %}
-                <div class="p-3 text-muted text-center">No jobs found matching "{{ query }}".</div>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-
-    <!-- SHIPMENTS -->
-    <div class="col-12 mb-4">
-        <div class="card">
-            <div class="card-header bg-dark border-secondary">
-                <h5 class="mb-0">Shipments <span class="badge bg-success">{{ found_shipments|length }}</span></h5>
-            </div>
-            <div class="card-body p-0">
-                {% if found_shipments %}
-                <div class="table-responsive">
-                    <table class="table table-hover table-dark mb-0 align-middle">
-                        <thead>
-                            <tr>
-                                <th>Tracking #</th>
-                                <th>Order #</th>
-                                <th>Carrier</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for shipment in found_shipments %}
-                            <tr>
-                                <td>{{ shipment.tracking_number }}</td>
-                                <td>{{ shipment.order_number }}</td>
-                                <td>{{ shipment.carrier }}</td>
-                                <td>{{ shipment.status }}</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                {% else %}
-                <div class="p-3 text-muted text-center">No shipments found matching "{{ query }}".</div>
-                {% endif %}
-            </div>
-        </div>
-    </div>
+    {% endif %}
 </div>
 {% endblock %}

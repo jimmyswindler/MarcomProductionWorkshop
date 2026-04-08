@@ -66,19 +66,24 @@ def get_chart_data(days_range):
             GROUP BY DATE(ship_date)
         ),
         daily_late AS (
-            SELECT DATE(actual_ship_date) as day, COUNT(id) as cnt
-            FROM orders
-            WHERE actual_ship_date >= CURRENT_DATE - INTERVAL '{interval_str}'
-              AND actual_ship_date > ship_date
-            GROUP BY DATE(actual_ship_date)
+            SELECT DATE(o.order_date) as day, COUNT(DISTINCT o.id) as cnt
+            FROM orders o
+            JOIN jobs j ON j.order_id = o.id
+            WHERE o.order_date >= CURRENT_DATE - INTERVAL '{interval_str}'
+              AND j.production_status = 'SHIPPED_LATE'
+            GROUP BY DATE(o.order_date)
         ),
         daily_overdue AS (
-            SELECT DATE(o.ship_date) as day, COUNT(i.id) as cnt
+            SELECT DATE(o.ship_date) as day, COUNT(DISTINCT i.id) as cnt
             FROM items i
             JOIN jobs j ON i.job_id = j.id
             JOIN orders o ON j.order_id = o.id
+            LEFT JOIN item_boxes ib ON ib.order_item_id = i.order_item_id
+            LEFT JOIN shipments s ON (s.shipment_uid = ib.shipment_uid OR s.order_id = o.id)
             WHERE o.ship_date >= CURRENT_DATE - INTERVAL '{interval_str}'
-              AND o.actual_ship_date IS NULL
+              AND o.ship_date < CURRENT_DATE
+              AND j.production_status NOT IN ('SHIPPED', 'SHIPPED_LATE', 'CANCELLED', 'DELIVERED')
+              AND (s.tracking_number IS NULL OR TRIM(s.tracking_number) = '')
             GROUP BY DATE(o.ship_date)
         )
         SELECT 
@@ -101,11 +106,15 @@ def get_chart_data(days_range):
     timeline_data = cur.fetchall()
     
     cur.execute("""
-        SELECT COUNT(i.id) as cnt 
+        SELECT COUNT(DISTINCT i.id) as cnt 
         FROM items i
         JOIN jobs j ON i.job_id = j.id
         JOIN orders o ON j.order_id = o.id
-        WHERE o.actual_ship_date IS NULL AND o.ship_date < CURRENT_DATE
+        LEFT JOIN item_boxes ib ON ib.order_item_id = i.order_item_id
+        LEFT JOIN shipments s ON (s.shipment_uid = ib.shipment_uid OR s.order_id = o.id)
+        WHERE o.ship_date < CURRENT_DATE
+          AND j.production_status NOT IN ('SHIPPED', 'SHIPPED_LATE', 'CANCELLED', 'DELIVERED')
+          AND (s.tracking_number IS NULL OR TRIM(s.tracking_number) = '')
     """)
     global_overdue = cur.fetchone()['cnt']
     
@@ -142,7 +151,7 @@ def api_chart_data():
         'shipments': sum(chart_shipments),
         'line_items': sum(chart_line_items),
         'late': sum(chart_late),
-        'overdue': data.get('global_overdue', sum(chart_overdue)) 
+        'overdue': sum(chart_overdue) 
     }
 
     return {
@@ -179,3 +188,60 @@ def api_address_book(store_number):
         return addr
     else:
          return {"error": "Not Found"}, 404
+
+@api_bp.route('/pipeline/active_run')
+def api_pipeline_active_run():
+    conn = get_db()
+    if not conn:
+        return {"error": "Database Error"}, 500
+        
+    cur = get_real_dict_cursor(conn)
+    cur.execute("""
+        SELECT * FROM pipeline_progress_state 
+        WHERE is_active = TRUE 
+        ORDER BY id DESC LIMIT 1
+    """)
+    active_run = cur.fetchone()
+    
+    if not active_run:
+        # Check for the last completed run
+        cur.execute("""
+            SELECT * FROM pipeline_progress_state 
+            ORDER BY id DESC LIMIT 1
+        """)
+        active_run = cur.fetchone()
+        
+    cur.close()
+    conn.close()
+    
+    if active_run:
+        # Convert datetime objects to epoch timestamps
+        for key in ['started_at', 'ended_at', 'last_updated_at']:
+            val = active_run.get(key)
+            if val:
+                active_run[key] = val.timestamp()
+        return active_run
+    else:
+        return {"error": "No runs found"}, 404
+
+@api_bp.route('/pipeline/cancel', methods=['POST'])
+def api_pipeline_cancel():
+    conn = get_db()
+    if not conn:
+        return {"error": "Database Error"}, 500
+        
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            UPDATE pipeline_progress_state 
+            SET is_active = FALSE, status = 'CANCELED', ended_at = NOW()
+            WHERE is_active = TRUE
+        """)
+        conn.commit()
+        cur.close()
+        return {"message": "Pipeline runs canceled successfully"}
+    except Exception as e:
+        conn.rollback()
+        return {"error": str(e)}, 500
+    finally:
+        conn.close()

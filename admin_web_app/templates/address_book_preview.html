@@ -1,0 +1,153 @@
+{% extends "base_v2.html" %}
+
+{% block content %}
+<style>
+    .scroll-table {
+        max-height: 400px;
+        overflow-y: auto;
+    }
+    .old-val { text-decoration: line-through; margin-right: 0.5rem; }
+</style>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 mb-0">Sync Preview</h1>
+        {% if payload.source_format %}
+        <div class="mt-1 small text-info fw-medium">
+            Detected Format: {{ payload.source_format }}
+        </div>
+        {% endif %}
+    </div>
+    <form action="/address-book/sync" method="post" class="d-flex gap-3 align-items-center mb-0">
+        <input type="hidden" name="tmp_file" value="{{ tmp_file }}">
+        <a href="/address-book" class="btn btn-sm btn-outline-secondary">Cancel</a>
+        <button type="submit" class="btn btn-primary">Confirm & Sync Data</button>
+    </form>
+</div>
+
+{% if not payload.new_entries and not payload.modified_entries and not payload.removed_entries %}
+<div class="card bg-dark border-secondary text-center p-5 mb-4 shadow-sm">
+    <h3 class="text-secondary h4">No Changes Detected</h3>
+    <p class="text-white-50 mb-0">The uploaded sheet exactly matches the current database.</p>
+</div>
+{% endif %}
+
+{% if payload.new_entries %}
+<div class="card bg-dark border-secondary mb-4 shadow-sm">
+    <div class="card-body">
+        <h4 class="card-title h5 mb-3 d-flex align-items-center gap-2">
+            New Addresses to Add
+            <span class="badge rounded-pill text-bg-success">+{{ payload.new_entries|length }}</span>
+        </h4>
+        <div class="scroll-table table-responsive border border-secondary rounded">
+            <table class="table table-dark table-hover mb-0 align-middle">
+                <thead>
+                    <tr>
+                        <th scope="col" class="ps-3 border-secondary text-secondary">Store ID</th>
+                        <th scope="col" class="border-secondary text-secondary">Identities</th>
+                        <th scope="col" class="border-secondary text-secondary">Location</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for e in payload.new_entries %}
+                    <tr>
+                        <td class="fw-bold ps-3">{{ e.store_number }}</td>
+                        <td>
+                            <div class="fw-medium">{{ e.company_name }}</div>
+                            <div class="small text-secondary">{{ e.store_name }}</div>
+                        </td>
+                        <td>{{ e.city }}, {{ e.state }} {{ e.zip }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% if payload.modified_entries %}
+<div class="card bg-dark border-secondary mb-4 shadow-sm">
+    <div class="card-body">
+        <h4 class="card-title h5 mb-3 d-flex align-items-center gap-2">
+            Addresses to Modify / Reactivate
+            <span class="badge rounded-pill text-bg-warning">{{ payload.modified_entries|length }}</span>
+        </h4>
+        <div class="scroll-table table-responsive border border-secondary rounded">
+            <table class="table table-dark table-hover mb-0 align-middle">
+                <thead>
+                    <tr>
+                        <th scope="col" class="ps-3 border-secondary text-secondary">Store ID</th>
+                        <th scope="col" class="border-secondary text-secondary">Adjustments</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for e in payload.modified_entries %}
+                    <tr>
+                        <td class="fw-bold ps-3">
+                            {{ e.store_number }}
+                            {% if e.reactivated %}
+                            <div class="small text-warning mt-1">(Reactivating)</div>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="small text-secondary">
+                                {% for field, diff in e.changes_summary.items() %}
+                                <div class="mb-1">
+                                    <strong class="text-white">{{ field|title }}:</strong> 
+                                    {% if diff.old %}<span class="old-val text-danger">{{ diff.old }}</span>{% else %}<span class="old-val text-danger">(empty)</span>{% endif %}
+                                    <span class="text-success">{{ diff.new }}</span>
+                                </div>
+                                {% endfor %}
+                                {% if not e.changes_summary and e.reactivated %}
+                                <div>No data fields changed.</div>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% if payload.removed_entries %}
+<div class="card bg-dark border-secondary mb-4 shadow-sm">
+    <div class="card-body">
+        <h4 class="card-title h5 mb-2 d-flex align-items-center gap-2">
+            Addresses to Deactivate
+            <span class="badge rounded-pill text-bg-danger">-{{ payload.removed_entries|length }}</span>
+        </h4>
+        <p class="small text-secondary mb-3">
+            These stores are missing from the uploaded sheet. They will be marked as inactive and hidden from the primary address book, but not deleted.
+        </p>
+        <div class="scroll-table table-responsive border border-secondary rounded">
+            <table class="table table-dark table-hover mb-0 align-middle">
+                <thead>
+                    <tr>
+                        <th scope="col" class="ps-3 border-secondary text-secondary">Store ID</th>
+                        <th scope="col" class="border-secondary text-secondary">Identities</th>
+                        <th scope="col" class="border-secondary text-secondary">Location</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for e in payload.removed_entries %}
+                    <tr>
+                        <td class="fw-bold ps-3">{{ e.store_number }}</td>
+                        <td>
+                            <div class="fw-medium">{{ e.company_name }}</div>
+                            <div class="small text-secondary">{{ e.store_name }}</div>
+                        </td>
+                        <td>{{ e.city }}, {{ e.state }} {{ e.zip }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}

@@ -158,6 +158,24 @@ def init_db(conn):
         # --- Phase 1: Config Tables ---
         
         cur.execute("""
+            CREATE TABLE IF NOT EXISTS pipeline_progress_state (
+                id SERIAL PRIMARY KEY,
+                run_name TEXT NOT NULL,
+                is_active BOOLEAN DEFAULT TRUE,
+                status TEXT DEFAULT 'RUNNING',
+                started_at TIMESTAMP DEFAULT NOW(),
+                ended_at TIMESTAMP,
+                stage_1_runlist_status JSONB,
+                stage_2_assets_status JSONB,
+                stage_3_tickets_status JSONB,
+                stage_4_press_files_status JSONB,
+                stage_5_imposition_gang_status JSONB,
+                stage_6_imposition_single_status JSONB,
+                last_updated_at TIMESTAMP DEFAULT NOW()
+            );
+        """)
+
+        cur.execute("""
             CREATE TABLE IF NOT EXISTS production_categories (
                 id SERIAL PRIMARY KEY,
                 name TEXT UNIQUE NOT NULL,

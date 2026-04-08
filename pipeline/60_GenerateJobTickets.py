@@ -546,6 +546,11 @@ def process_dataframe(df, files_path, tickets_path, sheet_name, watermark_path=N
                     if final_doc and not final_doc.is_closed: final_doc.close()
                 
                 progress.update(ticket_task, advance=1)
+                
+                import utils_progress
+                run_name = os.environ.get('PIPELINE_RUN_NAME', 'MOCK_RUN')
+                observer = utils_progress.get_observer(run_name)
+                observer.update_stage('stage_3_tickets_status', increment=1)
 
 def main(input_excel_path, files_base_folder, tickets_base_folder, central_config_json):
     utils_ui.setup_logging(None)
@@ -562,6 +567,21 @@ def main(input_excel_path, files_base_folder, tickets_base_folder, central_confi
         os.makedirs(tickets_base_folder, exist_ok=True)
 
         xls = pd.ExcelFile(input_excel_path)
+        
+        # Calculate totals for pipeline tracking
+        total_tickets = 0
+        import utils_progress
+        run_name = os.environ.get('PIPELINE_RUN_NAME', 'MOCK_RUN')
+        observer = utils_progress.get_observer(run_name)
+        
+        for sheet_name in xls.sheet_names:
+            df = pd.read_excel(xls, sheet_name=sheet_name)
+            if not df.empty:
+                df['job_ticket_number_str'] = df['job_ticket_number'].astype(str).str.split('-').str[0]
+                total_tickets += df['job_ticket_number_str'].nunique()
+                
+        observer.start_stage('stage_3_tickets_status', total=total_tickets)
+        
         for sheet_name in xls.sheet_names:
             df = pd.read_excel(xls, sheet_name=sheet_name)
             if 'order_item_id' in df.columns:
@@ -575,8 +595,14 @@ def main(input_excel_path, files_base_folder, tickets_base_folder, central_confi
             os.makedirs(sheet_tickets_path, exist_ok=True)
 
             process_dataframe(df, sheet_files_path, sheet_tickets_path, sheet_name, watermark_path=watermark_path)
+            
+        observer.finish_stage('stage_3_tickets_status')
 
     except Exception as e:
+        import utils_progress
+        run_name = os.environ.get('PIPELINE_RUN_NAME', 'MOCK_RUN')
+        observer = utils_progress.get_observer(run_name)
+        observer.error_stage('stage_3_tickets_status')
         utils_ui.print_error(f"Processing Failed: {e}"); traceback.print_exc(); sys.exit(1)
     
     utils_ui.print_success(f"Ticket Generation Complete: {time.time() - start_time:.2f}s")

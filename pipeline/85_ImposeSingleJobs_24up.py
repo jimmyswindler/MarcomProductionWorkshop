@@ -429,6 +429,26 @@ def main(input_excel_path, one_up_files_folder, output_dir, central_config_json)
     # Process only non-GR sheets
     target_categories = [cat.strip() for cat in ['16ptBusinessCard', '12ptBounceBack']]
     
+    # --- Progress Update ---
+    total_items = 0
+    batches_info = {}
+    for sheet_name in xls.sheet_names:
+        if sheet_name in target_categories:
+            df_count = pd.read_excel(xls, sheet_name=sheet_name)
+            cat_len = len(df_count)
+            if cat_len > 0:
+                cat = "12ptBB" if "12pt" in sheet_name else "16ptBC"
+                for _, row in df_count.iterrows():
+                    job_tk = str(row.get("job_ticket_number", ""))
+                    if not job_tk or job_tk == "nan": continue
+                    batches_info[job_tk] = {"category": cat, "pct": 0, "total": 1}
+                    total_items += 1
+            
+    import utils_progress
+    run_name = os.environ.get('PIPELINE_RUN_NAME', 'MOCK_RUN')
+    observer = utils_progress.get_observer(run_name)
+    observer.start_stage('stage_6_imposition_single_status', total=total_items, details={"batches": batches_info})
+    
     for sheet_name in xls.sheet_names:
         if sheet_name in target_categories:
             df = pd.read_excel(xls, sheet_name=sheet_name)
@@ -444,9 +464,10 @@ def main(input_excel_path, one_up_files_folder, output_dir, central_config_json)
             elif "16ptBusinessCard" in sheet_name or "16ptBC" in sheet_name: category = "16ptBusinessCard"
             
             with utils_ui.create_progress() as progress:
-                task = progress.add_task(f"Imposing {sheet_name}", total=len(df))
+                total_cat = len(df)
+                task = progress.add_task(f"Imposing {sheet_name}", total=total_cat)
                 
-                for _, row in df.iterrows():
+                for row_idx, (_, row) in enumerate(df.iterrows()):
                     job_ticket = row.get("job_ticket_number")
                     if pd.isna(job_ticket): continue
                     
@@ -526,6 +547,16 @@ def main(input_excel_path, one_up_files_folder, output_dir, central_config_json)
                         
                     progress.update(task, advance=1)
                     
+                    # --- Progress Update ---
+                    import utils_progress
+                    run_name = os.environ.get('PIPELINE_RUN_NAME', 'MOCK_RUN')
+                    obs = utils_progress.get_observer(run_name)
+                    obs.check_cancellation()
+                    obs.update_stage('stage_6_imposition_single_status', increment=1)
+                    obs.update_batch_progress('stage_6_imposition_single_status', str(job_ticket), pct=100)
+                    
+    observer.reload_stage_from_db('stage_6_imposition_single_status')
+    observer.finish_stage('stage_6_imposition_single_status')
     if conn: conn.close()
 
 if __name__ == "__main__":
