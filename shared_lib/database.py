@@ -236,6 +236,9 @@ def init_db(conn):
         # Add job_ticket_display_id to ITEMS if missing
         cur.execute("ALTER TABLE items ADD COLUMN IF NOT EXISTS job_ticket_display_id TEXT;")
 
+        # Add kit_parent_item_id to ITEMS if missing
+        cur.execute("ALTER TABLE items ADD COLUMN IF NOT EXISTS kit_parent_item_id TEXT;")
+
         # Add shipment_uid to ITEM_BOXES if missing
         cur.execute("ALTER TABLE item_boxes ADD COLUMN IF NOT EXISTS shipment_uid TEXT;")
         cur.execute("ALTER TABLE item_boxes ADD COLUMN IF NOT EXISTS status TEXT;")

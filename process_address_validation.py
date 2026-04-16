@@ -44,14 +44,73 @@ def process_order(order, ups_validator):
     
     try:
         order_number = order['order_number']
+        orig_company = _get_db_string(order.get('ship_to_company'))
+        orig_attention = _get_db_string(order.get('ship_to_name'))
         orig_addr1 = _get_db_string(order.get('address1'))
+        orig_addr2 = _get_db_string(order.get('address2'))
+        orig_addr3 = _get_db_string(order.get('address3'))
+        orig_addr4 = _get_db_string(order.get('address4'))
+        orig_city = _get_db_string(order.get('city'))
+        orig_state = _get_db_string(order.get('state'))
         orig_zip = _get_db_string(order.get('zip'))
+        orig_country = _get_db_string(order.get('country')) or 'US'
         
+        # Step A: WorldShip Constraint Validation
+        violations = []
+        if len(orig_company) > 35: violations.append("CompanyOrName: 35 maximum character count exceeded")
+        if len(orig_attention) > 35: violations.append("Attention: 35 maximum character count exceeded")
+        
+        if not orig_addr1: violations.append("Address1: required field missing")
+        elif len(orig_addr1) > 35: violations.append("Address1: 35 maximum character count exceeded")
+        
+        if len(orig_addr2) > 35: violations.append("Address2: 35 maximum character count exceeded")
+        if len(orig_addr3) > 35: violations.append("Address3: 35 maximum character count exceeded")
+        if orig_addr4: violations.append("Address4: data exists but WorldShip only supports 3 lines. Please condense into Address 1-3.")
+        
+        if orig_country == 'US' and not orig_city: violations.append("City: required field missing for US")
+        if len(orig_city) > 30: violations.append("City: 30 maximum character count exceeded")
+        
+        VALID_US_STATES = {'AK', 'AL', 'AR', 'AZ', 'CA', 'CO', 'CT', 'DC', 'DE', 'FL', 'GA', 'HI', 'IA', 'ID', 'IL', 'IN', 'KS', 'KY', 'LA', 'MA', 'MD', 'ME', 'MI', 'MN', 'MO', 'MS', 'MT', 'NC', 'ND', 'NE', 'NH', 'NJ', 'NM', 'NV', 'NY', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC', 'SD', 'TN', 'TX', 'UT', 'VA', 'VT', 'WA', 'WI', 'WV', 'WY', 'AA', 'AE', 'AP'}
+        US_TERRITORIES = {'PR', 'GU', 'VI', 'AS', 'MP'}
+        
+        is_pr_zip = orig_zip.startswith(('006', '007', '009'))
+        if is_pr_zip:
+            if orig_country != 'PR':
+                violations.append("Country: Puerto Rico ZIP codes require Country to be 'PR'.")
+            if orig_state.upper() != 'PR':
+                violations.append("State: Puerto Rico ZIP codes require State to be 'PR'.")
+        else:
+            if orig_country == 'US':
+                if not orig_state:
+                    violations.append("State: required field missing for US")
+                else:
+                    state_upper = orig_state.upper()
+                    if state_upper in US_TERRITORIES:
+                        violations.append(f"State: US Territories (e.g. {state_upper}) must be input as the 'Country' code, not 'State'.")
+                    elif state_upper not in VALID_US_STATES:
+                        violations.append(f"State: '{orig_state}' is not a valid US state abbreviation.")
+                    
+        if orig_state and len(orig_state) > 5: violations.append("State: 5 maximum character count exceeded")
+        if len(orig_country) > 50: violations.append("Country: 50 maximum character count exceeded")
+        
+        if violations:
+            violation_details = {"status": "EXCEPTION", "violations": violations, "message": "WorldShip Schema Constraints Failed"}
+            update_sql = """
+                UPDATE orders SET
+                    address_validation_status = 'EXCEPTION',
+                    address_validation_details = %s
+                WHERE order_number = %s
+            """
+            cur.execute(update_sql, (json.dumps(violation_details), order_number))
+            conn.commit()
+            logging.info(f"Order {order_number} flagged as EXCEPTION due to WorldShip constraints.")
+            return order_number, False, "WorldShip Constraints Failed"
+            
         # Step B: UPS API
-        lines = [orig_addr1, _get_db_string(order.get('address2')), _get_db_string(order.get('address3'))]
-        city = _get_db_string(order.get('city'))
-        state = _get_db_string(order.get('state'))
-        country = _get_db_string(order.get('country')) or 'US'
+        lines = [orig_addr1, orig_addr2, orig_addr3]
+        city = orig_city
+        state = orig_state
+        country = orig_country
         
         ups_res = ups_validator.validate_address(lines, city, state, orig_zip, country)
         ups_status = ups_res.get('status', 'ERROR')

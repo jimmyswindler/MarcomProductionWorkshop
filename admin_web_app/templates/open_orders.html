@@ -34,7 +34,12 @@
             {% for item in order.line_items %}
             <tr>
                 {% if loop.first %}
-                <td class="align-top" rowspan="{{ row_span }}">{{ order.order_number }}</td>
+                <td class="align-top" rowspan="{{ row_span }}">
+                    <strong>{{ order.order_number }}</strong>
+                    <div class="mt-2">
+                        <a href="/orders/{{ order.order_number }}/edit_address" class="btn btn-sm btn-outline-info py-0 px-2 text-nowrap" style="font-size: 0.75rem;">Edit Address</a>
+                    </div>
+                </td>
                 <td class="align-top" rowspan="{{ row_span }}">{{ order.days_overdue }}</td>
                 {% endif %}
                 <td class="align-top {% if not loop.first %}reset-padding-left{% endif %}"><strong>{{ item.line_item_number }}</strong></td>

@@ -26,7 +26,12 @@
             {% set row_span = order.line_items|length %}
             {% if row_span == 0 %}
             <tr>
-                <td class="align-top ps-3">{{ order.order_number }}</td>
+                <td class="align-top ps-3">
+                    <strong>{{ order.order_number }}</strong>
+                    <div class="mt-2">
+                        <a href="/orders/{{ order.order_number }}/edit_address" class="btn btn-sm btn-outline-info py-0 px-2 text-nowrap" style="font-size: 0.75rem;">Edit Address</a>
+                    </div>
+                </td>
                 <td class="align-top">{{ order.order_date|string|truncate(10, True, '') if order.order_date else 'N/A' }}</td>
                 <td class="align-top">{{ order.actual_ship_date|string|truncate(10, True, '') if order.actual_ship_date else 'N/A' }}</td>
                 <td class="align-top text-secondary fst-italic" colspan="5">No line items</td>
@@ -35,7 +40,12 @@
             {% for item in order.line_items %}
             <tr>
                 {% if loop.first %}
-                <td class="align-top ps-3 fw-bold" rowspan="{{ row_span }}">{{ order.order_number }}</td>
+                <td class="align-top ps-3" rowspan="{{ row_span }}">
+                    <strong>{{ order.order_number }}</strong>
+                    <div class="mt-2">
+                        <a href="/orders/{{ order.order_number }}/edit_address" class="btn btn-sm btn-outline-info py-0 px-2 text-nowrap" style="font-size: 0.75rem;">Edit Address</a>
+                    </div>
+                </td>
                 <td class="align-top" rowspan="{{ row_span }}">{{ order.order_date|string|truncate(10, True, '') if order.order_date else 'N/A' }}</td>
                 <td class="align-top" rowspan="{{ row_span }}">{{ order.actual_ship_date|string|truncate(10, True, '') if order.actual_ship_date else 'N/A' }}</td>
                 {% endif %}

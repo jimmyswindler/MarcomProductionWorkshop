@@ -80,14 +80,40 @@ def generate_worldship_xml(shipment_data, packages, store_number_arg=None):
         final_company = original_company
     
     unique_numeric_orders = []
+    order_nums = []
     for o in shipment_data['orders']:
-        order_str = o.get('related_order_number') or o.get('order_number') or ""
+        o_num = o.get('order_number')
+        if o_num: order_nums.append(o_num)
+        order_str = o.get('related_order_number') or o_num or ""
         parts = str(order_str).split('-')
         num_part = parts[-1] if len(parts) > 1 else str(order_str)
         if num_part and num_part not in unique_numeric_orders:
             unique_numeric_orders.append(num_part)
             
     ref2 = ", ".join(unique_numeric_orders)
+    
+    total_customs_value = 0.0
+    is_pr = ship_to.get('country', 'US').upper() == 'PR'
+    
+    if is_pr and order_nums:
+        conn = get_db_connection()
+        if conn:
+            try:
+                cur = get_real_dict_cursor(conn)
+                cur.execute("""
+                    SELECT SUM(i.quantity_ordered * i.unit_cost) as total_val
+                    FROM items i
+                    JOIN jobs j ON i.job_id = j.id
+                    JOIN orders o ON j.order_id = o.id
+                    WHERE o.order_number = ANY(%s)
+                """, (order_nums,))
+                res = cur.fetchone()
+                if res and res['total_val']:
+                    total_customs_value = float(res['total_val'])
+                conn.close()
+            except Exception as e:
+                print(f"Error fetching customs value: {e}")
+                if conn: conn.close()
 
     xml_parts = []
     xml_parts.append(f"""<?xml version="1.0" encoding="UTF-8"?>
@@ -97,7 +123,13 @@ def generate_worldship_xml(shipment_data, packages, store_number_arg=None):
             <CompanyOrName>{sanitize_xml(final_company)}</CompanyOrName>
             <Attention>{sanitize_xml(final_attention)}</Attention>
             <Address1>{sanitize_xml(ship_to.get('address1', ''))}</Address1>
-            <CountryTerritory>{sanitize_xml(ship_to.get('country', 'US'))}</CountryTerritory>
+""")
+    if ship_to.get('address2'):
+        xml_parts.append(f"            <Address2>{sanitize_xml(ship_to.get('address2', ''))}</Address2>\n")
+    if ship_to.get('address3'):
+        xml_parts.append(f"            <Address3>{sanitize_xml(ship_to.get('address3', ''))}</Address3>\n")
+
+    xml_parts.append(f"""            <CountryTerritory>{sanitize_xml(ship_to.get('country', 'US'))}</CountryTerritory>
             <PostalCode>{sanitize_xml(ship_to.get('zip', ''))}</PostalCode>
             <CityOrTown>{sanitize_xml(ship_to.get('city', ''))}</CityOrTown>
             <StateProvinceCounty>{sanitize_xml(ship_to.get('state', ''))}</StateProvinceCounty>
@@ -108,7 +140,7 @@ def generate_worldship_xml(shipment_data, packages, store_number_arg=None):
             <Attention>Shipping Dept</Attention>
             <Address1>1705 W Jefferson St</Address1>
             <CountryTerritory>US</CountryTerritory>
-            <PostalCode>40203</PostalCode>
+            <PostalCode>40205</PostalCode>
             <CityOrTown>Louisville</CityOrTown>
             <StateProvinceCounty>KY</StateProvinceCounty>
             <Telephone>502-493-9651</Telephone>
@@ -128,7 +160,21 @@ def generate_worldship_xml(shipment_data, packages, store_number_arg=None):
         <ShipmentInformation>
             <ServiceType>GND</ServiceType>
             <NumberOfPackages>{len(packages)}</NumberOfPackages>
-            <BillTransportationTo>Third Party</BillTransportationTo>
+            <BillTransportationTo>Third Party</BillTransportationTo>""")
+
+    if is_pr:
+        xml_parts.append(f"""
+            <DescriptionOfGoods>PRINTED MATERIAL</DescriptionOfGoods>
+            <CustomsValue>{total_customs_value:.2f}</CustomsValue>
+            <InternationalDocumentation>
+                <Invoice>
+                    <TermsOfShipment>CFR</TermsOfShipment>
+                    <ReasonForExport>Sale</ReasonForExport>
+                    <Comments>PRINTED MATERIAL</Comments>
+                </Invoice>
+            </InternationalDocumentation>""")
+
+    xml_parts.append("""
         </ShipmentInformation>""")
 
     for pkg in packages:

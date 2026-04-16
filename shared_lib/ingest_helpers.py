@@ -53,6 +53,8 @@ def calculate_ship_date(order_date, lead_time_days=5):
 
 # --- XML Parsing ---
 
+import json
+
 def get_xml_text(element, default=""):
     if element is not None and element.text:
         return element.text.strip()
@@ -61,6 +63,32 @@ def get_xml_text(element, default=""):
 def find_tag_text(base, path, default=""):
     node = base.find(path)
     return get_xml_text(node, default)
+
+def element_to_dict(elem):
+    d = {elem.tag: {} if elem.attrib else None}
+    children = list(elem)
+    if children:
+        dd = {}
+        for dc in map(element_to_dict, children):
+            for k, v in dc.items():
+                if k in dd:
+                    if type(dd[k]) is list:
+                        dd[k].append(v)
+                    else:
+                        dd[k] = [dd[k], v]
+                else:
+                    dd[k] = v
+        d = {elem.tag: dd}
+    if elem.attrib:
+        d[elem.tag].update(('@' + k, v) for k, v in elem.attrib.items())
+    if elem.text:
+        text = elem.text.strip()
+        if children or elem.attrib:
+            if text:
+                d[elem.tag]['#text'] = text
+        else:
+            d[elem.tag] = text
+    return d
 
 def parse_orders_xml(xml_path):
     if not os.path.exists(xml_path):
@@ -76,6 +104,93 @@ def parse_orders_xml(xml_path):
     records = []
     order_nodes = root.findall('.//Orders/Order')
     
+    def _process_item_node(item_node, order_num, order_dt, order_hdr_json, parent_cost_center=None, parent_id=None):
+        qty_str = find_tag_text(item_node, 'Quantity')
+        try: quantity = int(float(qty_str)) if qty_str else 0
+        except: quantity = 0
+        
+        # Shipping
+        ship_node = item_node.find('Shipping')
+        ship_date_raw = pd.NaT
+        ship_data = {}
+        if ship_node is not None:
+             s_date = find_tag_text(ship_node, 'Date')
+             if s_date:
+                 try: ship_date_raw = pd.to_datetime(s_date)
+                 except: pass
+             
+             addr_node = ship_node.find('Address')
+             if addr_node is not None:
+                 ship_data = {
+                     'attn': find_tag_text(addr_node, 'Attn'),
+                     'company': find_tag_text(addr_node, 'CompanyName'),
+                     'address1': find_tag_text(addr_node, 'Address1'),
+                     'address2': find_tag_text(addr_node, 'Address2'),
+                     'address3': find_tag_text(addr_node, 'Address3'),
+                     'address4': find_tag_text(addr_node, 'Address4'),
+                     'city': find_tag_text(addr_node, 'City'),
+                     'state': find_tag_text(addr_node, 'State'),
+                     'zip': find_tag_text(addr_node, 'Zip'),
+                     'country': find_tag_text(addr_node, 'Country'),
+                     'instructions': find_tag_text(ship_node, 'Instructions')
+                 }
+
+        # Cost Center Logic
+        cost_center = find_tag_text(item_node, 'Department/Number')
+        if not cost_center: cost_center = find_tag_text(item_node, 'CostCenter')
+        if not cost_center: cost_center = find_tag_text(item_node, 'Reference1')
+        if not cost_center: cost_center = find_tag_text(item_node, 'StoreNumber')
+        
+        if not cost_center and parent_cost_center:
+            cost_center = parent_cost_center
+
+        # File URL
+        file_url = ""
+        output_urls = item_node.findall('OutputFileURL/Item/URL')
+        for url_node in output_urls:
+            if url_node is not None and url_node.text:
+                u = url_node.text.strip()
+                if '_defaultImposition_' not in u:
+                    file_url = u; break
+
+        # Cost parsing
+        cost_str = find_tag_text(item_node, 'Cost/Unit/_value_1')
+        try: unit_cost = float(cost_str) if cost_str else 0.0
+        except: unit_cost = 0.0
+
+        item_raw_json = json.dumps(element_to_dict(item_node).get('Item', {}))
+
+        return {
+            'order_number': order_num,
+            'order_date': order_dt,
+            'job_ticket_number': find_tag_text(item_node, 'SupplierWorkOrder/Name'),
+            'order_item_id': find_tag_text(item_node, 'ID/_value_1'),
+            'product_id': find_tag_text(item_node, 'ProductID/_value_1'),
+            'product_name': find_tag_text(item_node, 'ProductName'),
+            'product_description': find_tag_text(item_node, 'ProductDescription'),
+            'sku': find_tag_text(item_node, 'SKU/Name'),
+            'sku_description': find_tag_text(item_node, 'SKUDescription'),
+            'quantity_ordered': quantity,
+            'cost_center': cost_center,
+            'unit_cost': unit_cost,
+            'item_raw_xml': item_raw_json,
+            'order_raw_xml': order_hdr_json,
+            'ship_date_raw': ship_date_raw,
+            'file_url': file_url,
+            'ship_to_company': ship_data.get('company', ''),
+            'ship_to_name': ship_data.get('attn', ''),
+            'address1': ship_data.get('address1', ''),
+            'address2': ship_data.get('address2', ''),
+            'address3': ship_data.get('address3', ''),
+            'address4': ship_data.get('address4', ''),
+            'city': ship_data.get('city', ''),
+            'state': ship_data.get('state', ''),
+            'zip': ship_data.get('zip', ''),
+            'country': ship_data.get('country', ''),
+            'shipping_instructions': ship_data.get('instructions', ''),
+            'kit_parent_item_id': parent_id
+        }
+
     for order_container in order_nodes:
         order_headers = order_container.findall('Item')
         for order_header_item in order_headers:
@@ -89,79 +204,20 @@ def parse_orders_xml(xml_path):
             order_details_node = order_header_item.find('OrderDetails')
             if order_details_node is None: continue
             
+            order_header_raw_json = json.dumps(element_to_dict(order_header_item).get('Item', {}))
+            
             line_items = order_details_node.findall('.//OrderDetail/Item')
             for item in line_items:
-                # Extract fields
-                qty_str = find_tag_text(item, 'Quantity')
-                try: quantity = int(float(qty_str)) if qty_str else 0
-                except: quantity = 0
+                parsed_main = _process_item_node(item, order_number, order_date, order_header_raw_json)
+                records.append(parsed_main)
                 
-                # Shipping
-                ship_node = item.find('Shipping')
-                ship_date_raw = pd.NaT
-                ship_data = {}
-                if ship_node is not None:
-                     s_date = find_tag_text(ship_node, 'Date')
-                     if s_date:
-                         try: ship_date_raw = pd.to_datetime(s_date)
-                         except: pass
-                     
-                     addr_node = ship_node.find('Address')
-                     if addr_node is not None:
-                         ship_data = {
-                             'attn': find_tag_text(addr_node, 'Attn'),
-                             'company': find_tag_text(addr_node, 'CompanyName'),
-                             'address1': find_tag_text(addr_node, 'Address1'),
-                             'address2': find_tag_text(addr_node, 'Address2'),
-                             'address3': find_tag_text(addr_node, 'Address3'),
-                             'city': find_tag_text(addr_node, 'City'),
-                             'state': find_tag_text(addr_node, 'State'),
-                             'zip': find_tag_text(addr_node, 'Zip'),
-                             'country': find_tag_text(addr_node, 'Country'),
-                             'instructions': find_tag_text(ship_node, 'Instructions')
-                         }
-
-                # Cost Center Logic
-                cost_center = find_tag_text(item, 'Department/Number')
-                if not cost_center: cost_center = find_tag_text(item, 'CostCenter')
-                if not cost_center: cost_center = find_tag_text(item, 'Reference1')
-                if not cost_center: cost_center = find_tag_text(item, 'StoreNumber')
-
-                # File URL
-                file_url = ""
-                output_urls = item.findall('OutputFileURL/Item/URL')
-                for url_node in output_urls:
-                    if url_node is not None and url_node.text:
-                        u = url_node.text.strip()
-                        if '_defaultImposition_' not in u:
-                            file_url = u; break
-
-                record = {
-                    'order_number': order_number,
-                    'order_date': order_date,
-                    'job_ticket_number': find_tag_text(item, 'SupplierWorkOrder/Name'),
-                    'order_item_id': find_tag_text(item, 'ID/_value_1'),
-                    'product_id': find_tag_text(item, 'ProductID/_value_1'),
-                    'product_name': find_tag_text(item, 'ProductName'),
-                    'product_description': find_tag_text(item, 'ProductDescription'),
-                    'sku': find_tag_text(item, 'SKU/Name'),
-                    'sku_description': find_tag_text(item, 'SKUDescription'),
-                    'quantity_ordered': quantity,
-                    'cost_center': cost_center,
-                    'ship_date_raw': ship_date_raw,
-                    'file_url': file_url,
-                    'ship_to_company': ship_data.get('company', ''),
-                    'ship_to_name': ship_data.get('attn', ''),
-                    'address1': ship_data.get('address1', ''),
-                    'address2': ship_data.get('address2', ''),
-                    'address3': ship_data.get('address3', ''),
-                    'city': ship_data.get('city', ''),
-                    'state': ship_data.get('state', ''),
-                    'zip': ship_data.get('zip', ''),
-                    'country': ship_data.get('country', ''),
-                    'shipping_instructions': ship_data.get('instructions', '')
-                }
-                records.append(record)
+                # Check for kit components
+                kit_items = item.findall('.//Kit/KitDetail/Item')
+                parent_cc = parsed_main['cost_center']
+                parent_id = parsed_main['order_item_id']
+                for k_item in kit_items:
+                    parsed_kit = _process_item_node(k_item, order_number, order_date, order_header_raw_json, parent_cost_center=parent_cc, parent_id=parent_id)
+                    records.append(parsed_kit)
     
     return pd.DataFrame(records)
 

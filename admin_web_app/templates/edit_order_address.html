@@ -1,0 +1,131 @@
+{% extends "base_v2.html" %}
+
+{% block content %}
+<div class="row g-4 align-items-start justify-content-center">
+    <div class="col-md-6">
+        <div class="card bg-dark border-secondary h-100 shadow-sm">
+            <div class="card-body">
+                <h3 class="h4 mb-3">Edit Order Address</h3>
+                <h2 class="h5 text-info mb-4">{{ order.order_number }}</h2>
+
+                <form method="POST" action="/orders/{{ order.order_number }}/edit_address">
+                    
+                    <div class="mb-3 position-relative">
+                        <label class="form-label text-secondary">Company or Name <span class="text-danger">*</span></label>
+                        <input type="text" name="ship_to_company" class="form-control" value="{{ order.ship_to_company or '' }}" maxlength="35" required oninput="updateCounter(this, 'count-company')">
+                        <small class="text-muted position-absolute end-0 top-0" id="count-company">0/35</small>
+                    </div>
+
+                    <div class="mb-3 position-relative">
+                        <label class="form-label text-secondary">Attention <span class="text-danger">*</span></label>
+                        <input type="text" name="ship_to_name" class="form-control" value="{{ order.ship_to_name or '' }}" maxlength="35" required oninput="updateCounter(this, 'count-attention')">
+                        <small class="text-muted position-absolute end-0 top-0" id="count-attention">0/35</small>
+                    </div>
+
+                    <div class="mb-3 position-relative">
+                        <label class="form-label text-secondary">Address 1 <span class="text-danger">*</span></label>
+                        <input type="text" name="address1" class="form-control" value="{{ order.address1 or '' }}" maxlength="35" required oninput="updateCounter(this, 'count-addr1')">
+                        <small class="text-muted position-absolute end-0 top-0" id="count-addr1">0/35</small>
+                    </div>
+
+                    <div class="mb-3 position-relative">
+                        <label class="form-label text-secondary">Address 2</label>
+                        <input type="text" name="address2" class="form-control" value="{{ order.address2 or '' }}" maxlength="35" oninput="updateCounter(this, 'count-addr2')">
+                        <small class="text-muted position-absolute end-0 top-0" id="count-addr2">0/35</small>
+                    </div>
+
+                    <div class="mb-3 position-relative">
+                        <label class="form-label text-secondary">Address 3</label>
+                        <input type="text" name="address3" class="form-control" value="{{ order.address3 or '' }}" maxlength="35" oninput="updateCounter(this, 'count-addr3')">
+                        <small class="text-muted position-absolute end-0 top-0" id="count-addr3">0/35</small>
+                    </div>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-6 position-relative">
+                            <label class="form-label text-secondary">City <span class="text-danger">*</span></label>
+                            <input type="text" name="city" class="form-control" value="{{ order.city or '' }}" maxlength="30" required oninput="updateCounter(this, 'count-city')">
+                            <small class="text-muted position-absolute end-0 top-0 me-2" id="count-city">0/30</small>
+                        </div>
+                        <div class="col-6 position-relative">
+                            <label class="form-label text-secondary">State / Province <span class="text-danger">*</span> 
+                                <i class="bi bi-question-circle text-info ms-1" style="cursor:pointer;" data-bs-toggle="popover" data-bs-trigger="hover focus" data-bs-placement="top" data-bs-content="For US Territories, leave State blank and use the territory abbreviation for the Country (e.g., PR for Puerto Rico, GU for Guam, VI for Virgin Islands)."></i>
+                            </label>
+                            <input type="text" name="state" id="state_input" class="form-control" value="{{ order.state or '' }}" maxlength="5" required oninput="updateCounter(this, 'count-state')">
+                            <small class="text-muted position-absolute end-0 top-0 me-2" id="count-state">0/5</small>
+                        </div>
+                    </div>
+                    
+                    <div class="row g-2 mb-4">
+                        <div class="col-6 position-relative">
+                            <label class="form-label text-secondary">Zip</label>
+                            <input type="text" name="zip" class="form-control" value="{{ order.zip or '' }}" maxlength="15" oninput="updateCounter(this, 'count-zip')">
+                            <small class="text-muted position-absolute end-0 top-0 me-2" id="count-zip">0/15</small>
+                        </div>
+                        <div class="col-6 position-relative">
+                            <label class="form-label text-secondary">Country <span class="text-danger">*</span></label>
+                            <input type="text" name="country" id="country_input" class="form-control" value="{{ order.country or 'US' }}" maxlength="50" placeholder="e.g. US, CA, PR" required oninput="updateCounter(this, 'count-country')">
+                            <small class="text-muted position-absolute end-0 top-0 me-2" id="count-country">0/50</small>
+                        </div>
+                    </div>
+
+                    <div class="mt-4">
+                        <button type="submit" class="btn btn-success w-100 fw-bold">Save Changes</button>
+                    </div>
+                    <div class="mt-2 text-center">
+                        <a href="/" class="text-secondary small">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block extra_scripts %}
+<script>
+    function updateCounter(input, counterId) {
+        const counter = document.getElementById(counterId);
+        if (counter) {
+            counter.textContent = `${input.value.length}/${input.maxLength}`;
+            if (input.value.length >= input.maxLength) {
+                counter.classList.remove('text-muted');
+                counter.classList.add('text-danger');
+            } else {
+                counter.classList.remove('text-danger');
+                counter.classList.add('text-muted');
+            }
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        // Initialize counters
+        document.querySelectorAll('input[maxlength]').forEach(input => {
+            const counterId = input.getAttribute('oninput').match(/'([^']+)'/)[1];
+            updateCounter(input, counterId);
+        });
+
+        // Initialize popovers
+        const popoverTriggerList = document.querySelectorAll('[data-bs-toggle="popover"]');
+        const popoverList = [...popoverTriggerList].map(popoverTriggerEl => new bootstrap.Popover(popoverTriggerEl));
+
+        // Form validation
+        const form = document.querySelector('form');
+        form.addEventListener('submit', (e) => {
+            const stateInput = document.getElementById('state_input').value.trim().toUpperCase();
+            const countryInput = document.getElementById('country_input').value.trim().toUpperCase();
+            const zipInput = document.querySelector('input[name="zip"]').value.trim();
+            const isPRZip = zipInput.startsWith('006') || zipInput.startsWith('007') || zipInput.startsWith('009');
+            
+            if (isPRZip) {
+                if (countryInput !== 'PR' || stateInput !== 'PR') {
+                    e.preventDefault();
+                    alert('Puerto Rico ZIP codes require Country to be "PR" and State to be "PR".');
+                }
+            } else if (countryInput === 'US' && ['PR', 'GU', 'VI', 'AS', 'MP'].includes(stateInput)) {
+                e.preventDefault();
+                alert(`US Territories (e.g. ${stateInput}) must be input as the 'Country' code.\nPlease change the Country to ${stateInput}.`);
+            }
+        });
+    });
+</script>
+{% endblock %}
+{% endblock %}

@@ -183,6 +183,7 @@ def process_ingestion(input_dir, processed_dir, config, dry_run=False):
             'address1': get_db_string(row.get('address1')),
             'address2': get_db_string(row.get('address2')),
             'address3': get_db_string(row.get('address3')),
+            'address4': get_db_string(row.get('address4')),
             'city': get_db_string(row.get('city')),
             'state': get_db_string(row.get('state')),
             'zip': get_db_string(row.get('zip')),
@@ -202,31 +203,34 @@ def process_ingestion(input_dir, processed_dir, config, dry_run=False):
                 INSERT INTO orders (
                     order_number, order_date, ship_date, 
                     ship_to_company, ship_to_name, 
-                    address1, address2, address3, city, state, zip, country,
+                    address1, address2, address3, address4, city, state, zip, country,
                     address_validated, address_validation_status, address_validation_details,
-                    store_number, cost_center, production_status
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'NEW')
+                    store_number, cost_center, production_status, raw_xml_data
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'NEW', %s)
                 ON CONFLICT (order_number) DO UPDATE SET
                     order_date = EXCLUDED.order_date,
                     ship_date = EXCLUDED.ship_date,
                     address1 = EXCLUDED.address1,
                     address2 = EXCLUDED.address2,
                     address3 = EXCLUDED.address3,
+                    address4 = EXCLUDED.address4,
                     city = EXCLUDED.city,
                     state = EXCLUDED.state,
                     zip = EXCLUDED.zip,
                     country = EXCLUDED.country,
                     address_validated = EXCLUDED.address_validated,
                     address_validation_status = EXCLUDED.address_validation_status,
-                    address_validation_details = EXCLUDED.address_validation_details
+                    address_validation_details = EXCLUDED.address_validation_details,
+                    raw_xml_data = EXCLUDED.raw_xml_data
                 RETURNING id;
             """, (
                 order_num, row.get('order_date'), row.get('ship_date'),
                 get_db_string(row.get('ship_to_company')), get_db_string(row.get('ship_to_name')),
-                addr_args['address1'], addr_args['address2'], addr_args['address3'],
+                addr_args['address1'], addr_args['address2'], addr_args['address3'], addr_args['address4'],
                 addr_args['city'], addr_args['state'], addr_args['zip'], addr_args['country'],
                 is_validated, val_status, json.dumps(val_details),
                 get_db_string(row.get('cost_center')), get_db_string(row.get('cost_center')), # Store Num fallback to cost center logic
+                row.get('order_raw_xml')
             ))
             order_id = cur.fetchone()[0]
 
@@ -258,10 +262,13 @@ def process_ingestion(input_dir, processed_dir, config, dry_run=False):
                 INSERT INTO items (
                     order_item_id, job_id, product_id, product_name, product_description,
                     sku, sku_description, quantity_ordered, cost_center, file_url,
-                    job_ticket_display_id
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    job_ticket_display_id, unit_cost, raw_xml_data, kit_parent_item_id
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (order_item_id) DO UPDATE SET
-                    job_ticket_display_id = EXCLUDED.job_ticket_display_id
+                    job_ticket_display_id = EXCLUDED.job_ticket_display_id,
+                    unit_cost = EXCLUDED.unit_cost,
+                    raw_xml_data = EXCLUDED.raw_xml_data,
+                    kit_parent_item_id = EXCLUDED.kit_parent_item_id
                 RETURNING id;
             """, (
                 order_item_id, job_id,
@@ -269,7 +276,8 @@ def process_ingestion(input_dir, processed_dir, config, dry_run=False):
                 get_db_string(row.get('product_description')), get_db_string(row.get('sku')),
                 get_db_string(row.get('sku_description')), row.get('quantity_ordered'),
                 get_db_string(row.get('cost_center')), get_db_string(row.get('file_url')),
-                get_db_string(row.get('job_ticket_display_id'))
+                get_db_string(row.get('job_ticket_display_id')), row.get('unit_cost', 0),
+                row.get('item_raw_xml'), get_db_string(row.get('kit_parent_item_id'))
             ))
             # If item inserted ...
             

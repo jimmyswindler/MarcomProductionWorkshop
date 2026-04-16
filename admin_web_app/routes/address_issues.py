@@ -71,19 +71,25 @@ def fix_exception(order_number):
         action = request.form.get('action')
         
         if action == 'manual_fix':
+            cur.execute("SELECT ship_to_company, ship_to_name, address1, address2, address3, address4, city, state, zip, country FROM orders WHERE order_number = %s", (order_number,))
+            orig = cur.fetchone()
+            
             sql = """
                 UPDATE orders SET
                     address1 = %s, address2 = %s, address3 = %s, city = %s, state = %s, zip = %s, country = %s,
                     address_validated = TRUE,
                     address_validation_status = 'MANUALLY_CORRECTED',
-                    address_validation_details = %s
+                    address_validation_details = %s,
+                    original_address = %s
                 WHERE order_number = %s
             """
             details = json.dumps({'msg': 'Manually corrected via Admin UI'})
+            orig_json = json.dumps(dict(orig)) if orig else None
+            
             cur.execute(sql, (
                 request.form['address1'], request.form['address2'], request.form.get('address3', ''),
                 request.form['city'], request.form['state'], request.form['zip'], request.form.get('country', 'US'),
-                details, order_number
+                details, orig_json, order_number
             ))
             conn.commit()
             flash(f'Order {order_number} corrected manually.', 'success')
@@ -190,4 +196,44 @@ def bulk_fix_exception():
     
     flash(f'Successfully fixed {success_count} orders using Store #{store_key}.', 'success')
     return redirect(url_for('address_issues.exceptions'))
+
+@address_issues_bp.route('/orders/<order_number>/edit_address', methods=['GET', 'POST'])
+def edit_order_address(order_number):
+    conn = get_db()
+    cur = get_real_dict_cursor(conn)
+    
+    if request.method == 'POST':
+        cur.execute("SELECT ship_to_company, ship_to_name, address1, address2, address3, address4, city, state, zip, country FROM orders WHERE order_number = %s", (order_number,))
+        orig = cur.fetchone()
+        
+        sql = """
+            UPDATE orders SET
+                ship_to_company = %s, ship_to_name = %s,
+                address1 = %s, address2 = %s, address3 = %s,
+                city = %s, state = %s, zip = %s, country = %s,
+                original_address = %s
+            WHERE order_number = %s
+        """
+        orig_json = json.dumps(dict(orig)) if orig else None
+        
+        cur.execute(sql, (
+            request.form['ship_to_company'], request.form['ship_to_name'],
+            request.form['address1'], request.form.get('address2', ''), request.form.get('address3', ''),
+            request.form['city'], request.form['state'], request.form.get('zip', ''), request.form.get('country', 'US'),
+            orig_json, order_number
+        ))
+        conn.commit()
+        flash(f'Order {order_number} address updated successfully.', 'success')
+        return redirect(request.referrer or url_for('dashboard.index'))
+    
+    cur.execute("SELECT * FROM orders WHERE order_number = %s", (order_number,))
+    order = cur.fetchone()
+    cur.close()
+    conn.close()
+    
+    if not order:
+        flash(f'Order {order_number} not found.', 'danger')
+        return redirect(request.referrer or url_for('dashboard.index'))
+        
+    return render_template('edit_order_address.html', order=order)
 
